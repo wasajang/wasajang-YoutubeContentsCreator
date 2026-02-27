@@ -1,0 +1,220 @@
+# CLAUDE.md - AntiGravity 프로젝트 가이드
+
+> AI 기반 시네마틱 영상 콘텐츠 제작 플랫폼 (YouTube 크리에이터용)
+
+---
+
+## 프로젝트 개요
+
+**이름:** AntiGravity
+**목적:** YouTube 크리에이터가 AI를 활용해 시네마틱 영상을 쉽게 제작할 수 있는 웹 플랫폼
+**워크플로우:** 4단계 파이프라인
+1. **Idea** → 스크립트 작성 및 씬 분할
+2. **Storyboard** → 비주얼 스타일 선택 & 캐스트 배정
+3. **Video** → AI 이미지/영상 생성 & 프리뷰
+4. **Animate** → 타임라인 편집 & 최종 렌더링
+
+---
+
+## 기술 스택
+
+| 분류 | 기술 |
+|------|------|
+| 프레임워크 | React 19 + TypeScript (Strict) |
+| 빌드 도구 | Vite 7 |
+| 상태관리 | Zustand |
+| 라우팅 | React Router DOM 7 |
+| 아이콘 | Lucide React |
+| 스타일링 | Pure CSS + CSS Variables (다크 테마) |
+| 폰트 | Inter + Noto Sans KR |
+| 백엔드 | 아직 없음 (프론트엔드 프로토타입 단계) |
+
+---
+
+## 핵심 파일 구조
+
+```
+src/
+├── pages/          # 페이지 컴포넌트 (라우트별 1개)
+├── components/     # 공유 UI 컴포넌트
+├── store/          # Zustand 상태 관리
+├── data/           # 목업 데이터
+├── services/       # API 클라이언트 (예정)
+├── hooks/          # 커스텀 React 훅 (예정)
+├── types/          # 공유 TypeScript 타입 (예정)
+├── utils/          # 유틸리티 함수 (예정)
+└── assets/         # 정적 리소스
+```
+
+---
+
+## 실행 명령어
+
+```bash
+npm install          # 의존성 설치
+npm run dev          # 개발 서버 (Vite HMR)
+npm run build        # 프로덕션 빌드
+npm run lint         # ESLint 실행
+npm run preview      # 프로덕션 빌드 프리뷰
+```
+
+---
+
+## 코딩 컨벤션
+
+### 파일 & 명명 규칙
+- **컴포넌트:** PascalCase (예: `ScriptPage.tsx`)
+- **스토어/유틸:** camelCase (예: `projectStore.ts`)
+- **CSS 클래스:** kebab-case (예: `.scene-card`)
+- **타입/인터페이스:** PascalCase (예: `interface Scene`)
+
+### 스타일 규칙
+- CSS Variables 사용 (`--color-primary`, `--radius-md` 등)
+- 컴포넌트별 CSS는 `index.css`의 섹션 주석으로 구분
+- Tailwind 사용하지 않음 → 순수 CSS 유지
+
+### 상태 관리
+- 전역 상태: Zustand (`projectStore.ts`)
+- 로컬 상태: React useState
+- 상태 변경은 항상 store action을 통해
+
+---
+
+## 사용자(유저) 프로필
+
+- **경험 수준:** 바이브코딩 초보자
+- **언어:** 한국어 선호
+- **작업 방식:** 대화형, 단계별 진행 선호
+
+---
+
+## 초보자 협업 지침 (Claude가 반드시 따를 것)
+
+### 1. 변경 전 반드시 설명
+- 어떤 파일을 왜 수정하는지 한국어로 간단히 설명
+- 기술 용어는 괄호 안에 쉬운 설명 추가
+
+### 2. 작업 단위를 작게 유지
+- 한 번에 1~2개 파일만 수정
+- 큰 작업은 작은 단계로 나누어 진행
+- 각 단계마다 동작 확인
+
+### 3. 자체 검증 필수 (모든 작업에 적용)
+모든 코드 변경 후 반드시 다음을 수행:
+- [ ] 빌드 오류 확인 (`npm run build` 또는 dev 서버 로그)
+- [ ] 브라우저에서 동작 확인 (preview 도구 사용)
+- [ ] 콘솔 에러 확인
+- [ ] 기존 기능이 깨지지 않았는지 확인
+
+### 4. 실수 방지
+- 파일 수정 전 반드시 현재 내용 읽기
+- 삭제보다 주석 처리 우선 (초보자가 되돌리기 쉽게)
+- 한 번에 너무 많은 것을 바꾸지 않기
+
+### 5. 진행 상황 공유
+- 작업 시작/완료 시 명확히 알려주기
+- 에러 발생 시 원인과 해결 방법을 쉽게 설명
+- 다음에 할 일을 항상 안내
+
+### 6. 메모리 관리
+- 매 세션 종료 전 중요한 변경사항을 메모리에 기록
+- 새 세션 시작 시 이전 작업 컨텍스트 자동 복원
+- 변경 이력(CHANGELOG)을 CLAUDE.md 하단에 누적 기록
+
+---
+
+## 개발 현황 (2026-02-27 기준)
+
+### 완성된 것 ✅
+- 프론트엔드 UI 프로토타입 (모든 4단계 페이지)
+- 라우팅 시스템 (7개 라우트)
+- Zustand 전역 상태 관리 + **localStorage 영속성** (persist v2, 마이그레이션 포함)
+- IdeaPage: SCRIPT | STYLE | CAST 3탭 통합 (아이디어 탭, 씬 분할, 스타일 12종)
+- IdeaPage Cast 탭: **카드 라이브러리** (타입 필터, 타입 뱃지, 삭제 기능)
+- StoryboardPage: 카드 선택 → 컷 분할 → 시드 매칭 & 생성
+- StoryboardPage **AI 대본 분석**: cardLibrary 우선 매칭 + aiSuggestedCards 보충 (Mock)
+- StoryboardPage **덱 시스템**: AI 5장 + 수동 3장 = 최대 8장, 상단 수동 "+" 슬롯
+- StoryboardPage **카드 풀**: 내 라이브러리 | AI 추천 | 즐겨찾기 | 새로 만들기 4탭
+- **cardLibrary 단일 데이터 소스**: IdeaPage↔StoryboardPage 카드 데이터 완전 동기화
+- 씬별 영상 개수 선택 (1/2/3), 일괄/개별 이미지+영상 생성 (Mock)
+- 다크 테마 + 한국어 지원
+- 목업 데이터 (12개 템플릿, 10개 씬, 8개 캐릭터+배경+아이템, 스타일별 프롬프트 prefix)
+
+### 미완성 ❌
+- Git 버전 관리 (미초기화)
+- 백엔드 (API, DB, 인증)
+- AI 연동 (이미지/영상 생성) — 현재 Mock 데이터 플로우만 구현
+- 이미지 업로드
+- 영상 렌더링/내보내기
+- 에러 핸들링 / 에러 바운더리
+- 테스트 코드
+- 환경 변수 설정
+- 결제 시스템 (무료/유료 모델)
+
+---
+
+## MVP 런칭 로드맵 (무료/유료 웹서비스)
+
+### Phase 0: 기반 인프라 (현재 진행 중) ← NOW
+1. **Git 초기화 + .gitignore** — 버전 관리 시작
+2. **환경 변수 (.env)** — API 키 관리 구조
+3. **deprecated 파일 정리** — ScriptPage.tsx, StyleCastPage.tsx 제거
+4. **StoryboardPage 리팩토링** — 963줄 → 컴포넌트 분리
+
+### Phase 1: 백엔드 + 인증 (2~3주)
+5. **Supabase 세팅** — PostgreSQL + Auth + Storage
+6. **DB 스키마** — users, projects, scenes, asset_cards, generations
+7. **소셜 로그인** — Google/카카오 OAuth
+8. **프로젝트 CRUD API** — localStorage → DB 마이그레이션
+
+### Phase 2: AI 이미지 생성 (2~3주)
+9. **이미지 생성 API** — Replicate 또는 fal.ai (Flux/SDXL)
+10. **프롬프트 파이프라인** — 스타일 prefix + 씬 + 캐릭터 seed
+11. **이미지 저장소** — Supabase Storage 또는 Cloudflare R2
+12. **크레딧 시스템** — 무료 50장/월, 유료 500장/월
+
+### Phase 3: AI 영상 생성 (2~3주)
+13. **영상 생성 API** — Runway Gen-3 또는 Kling AI
+14. **비동기 작업 큐** — 웹훅 완료 알림
+15. **영상 프리뷰 & 다운로드**
+
+### Phase 4: 결제 + 유료 플랜 (1~2주)
+16. **Stripe + 토스페이먼츠** — 월 구독 모델
+17. **플랜 설계** — Free / Pro(₩19,900) / Enterprise(₩99,000)
+18. **사용량 대시보드** — 크레딧 잔량, 이력 조회
+
+### Phase 5: 배포 + 런칭 (1주)
+19. **Vercel + Supabase** 배포
+20. **모니터링** — Sentry + Analytics
+21. **랜딩 페이지 + SEO**
+
+---
+
+## 변경 이력 (CHANGELOG)
+
+### 2026-02-26 - 세션 3: 6가지 기능 구현
+- **ScriptPage 아이디어 탭 완성**: `generateMockScriptFromIdea()` 함수 추가, 2초 딜레이 Mock AI 생성, 로딩 스피너
+- **StoryboardPage AI 분석 팝업 모달**: Sparkles 아이콘, 프로그레스 바, 캐릭터3+배경1+아이템1 Mock 추출
+- **씬별 영상 개수 선택 (1/2/3)**: 컷 분할 단계 UI, `videoCountPerScene` state, seed-check 서브행 확장
+- **seed-check UI 대폭 개선**: 이미지 300px, 영상 380px, 대본=프롬프트 flex:1 동일 너비, 씨드카드 이미지만+겹침, 캐스트 스트립 96px
+- **재생성 버튼 위치 변경**: refresh-col 제거 → 이미지 hover 시 오버레이 버튼
+- **CSS 추가**: 영상개수 버튼, 서브행 스타일, 씨드카드 겹침, 재생성 오버레이, 배지 등
+
+### 2026-02-26 - 세션 2: UI/UX 개선 + 데이터 기반
+- **ScriptPage 전면 개편**: textarea 대본 입력, 씬 수 선택기(- N +), splitScriptIntoScenes() 함수, 분할 결과 뷰
+- **StoryboardPage 단계 순서 변경**: 카드 선택(cast-setup) → 컷 분할(script-review) 순으로 변경
+- **StoryboardPage 씬 행 레이아웃**: 6컬럼 구조 (이미지 | 씨드카드 | 대본 | 새로고침 | 프롬프트 | 영상), 스타일별 프롬프트 prefix
+- **CSS 컬럼 비율 조정**: 대본(flex:1→240px고정), 프롬프트(280px→flex:1), 이미지 높이 180px
+- **localStorage 영속성**: Zustand persist 미들웨어 추가 (`antigravity-project` 키)
+- **Script→Storyboard 데이터 연동**: storeScenes 우선, mockData 폴백 방식
+
+### 2026-02-26 - 세션 1: 초기 설정
+- CLAUDE.md 생성 (프로젝트 가이드 문서)
+- 메모리 시스템 구성
+- 프로젝트 현황 분석 및 개발 계획 수립
+- 폴더 구조 정리 (병렬 작업 가능하도록)
+- 스크롤 버그 수정 (page-container height calc 적용)
+
+---
+
+*이 문서는 Claude Code가 프로젝트 컨텍스트를 유지하기 위해 자동으로 업데이트됩니다.*
