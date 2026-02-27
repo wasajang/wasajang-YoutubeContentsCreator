@@ -1,12 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Trash2, Pencil, RefreshCw, Check, Plus, HelpCircle,
-    User, Film, Play, ChevronLeft, Zap, Hash,
+    Trash2, Pencil, Check, Plus, HelpCircle,
+    User, Film, ChevronLeft, Zap, Hash,
     ArrowRight, Loader, Video, CheckCircle2, MapPin, Sparkles,
-    X, Star, Sword, Shield, ChevronRight,
+    X, Star, Sword, Shield,
 } from 'lucide-react';
 import WorkflowSteps from '../components/WorkflowSteps';
+import { AiAnalysisModal, ManualAddModal, CastStrip, SceneRow, SceneFilmstrip } from '../components/storyboard';
 import { useProjectStore } from '../store/projectStore';
 import type { AssetCard, AssetType } from '../store/projectStore';
 import { mockStoryboardScenes, mockScript, mockScenePrompts, stylePromptPrefix, aiSuggestedCards, favoritesPool } from '../data/mockData';
@@ -18,8 +19,6 @@ type SceneGenStatus = 'idle' | 'generating' | 'done';
 const MAX_AI_SLOTS = 5;
 const MAX_MANUAL_SLOTS = 3;
 const MAX_DECK_SIZE = 8;
-
-// ── AI_SUGGESTED, FAV_POOL → mockData로 이동됨 (aiSuggestedCards, favoritesPool) ──
 
 const StoryboardPage: React.FC = () => {
     const navigate = useNavigate();
@@ -67,12 +66,8 @@ const StoryboardPage: React.FC = () => {
 
     // ── 수동 추가 모달 (seed-check 상단 바 "+" 슬롯용) ──
     const [showManualAddModal, setShowManualAddModal] = useState(false);
-    const [manualAddType, setManualAddType] = useState<AssetType>('character');
-    const [manualAddCard, setManualAddCard] = useState({ name: '', description: '' });
 
     // ── Per-scene seed assignments ──
-    // Maps scene.id → set of deck card IDs selected for that scene
-    // Step 6: 빈 배열로 초기화 (AI 분석 후 자동 할당)
     const [sceneSeeds, setSceneSeeds] = useState<Record<string, string[]>>(() => {
         const init: Record<string, string[]> = {};
         scenes.forEach((scene) => { init[scene.id] = []; });
@@ -110,26 +105,6 @@ const StoryboardPage: React.FC = () => {
 
     const removeFromDeck = (id: string) => setDeck((p) => p.filter((c) => c.id !== id));
 
-    // ── 수동 카드 추가 (상단 바 "+" 슬롯에서 호출) ──
-    const handleManualAddCard = () => {
-        if (!manualAddCard.name.trim()) return;
-        if (manualCards.length >= MAX_MANUAL_SLOTS) return;
-        const card: AssetCard = {
-            id: `manual-${Date.now()}`,
-            name: manualAddCard.name,
-            type: manualAddType,
-            description: manualAddCard.description,
-            imageUrl: '',
-            seed: Math.floor(Math.random() * 99999),
-            status: 'pending',
-            source: 'manual',
-        };
-        setDeck((p) => [...p, card]);
-        addToCardLibrary(card);
-        setManualAddCard({ name: '', description: '' });
-        setShowManualAddModal(false);
-    };
-
     // ── cast-setup 풀에서 덱에 추가하는 핸들러 ──
     const handleAddCard = () => {
         const card: AssetCard = {
@@ -150,14 +125,18 @@ const StoryboardPage: React.FC = () => {
         }, 2000);
     };
 
-    // ── AI 분석 핸들러 (정확히 5장: 캐릭터3 + 배경1 + 아이템1) ──
+    // ── 수동 카드를 덱에 추가 (ManualAddModal에서 호출) ──
+    const handleManualAddCard = (card: AssetCard) => {
+        setDeck((p) => [...p, card]);
+        addToCardLibrary(card);
+    };
+
+    // ── AI 분석 핸들러 ──
     const handleAiAnalysis = (doAnalysis: boolean) => {
         if (!doAnalysis) {
-            // AI 분석 건너뛰기 → 기본 AI 카드 5장 로드
             const defaultDeck = aiSuggestedCards.slice(0, MAX_AI_SLOTS).map(c => ({ ...c, source: 'ai' as const }));
             setDeck(defaultDeck);
             defaultDeck.forEach(c => addToCardLibrary(c));
-            // 모든 씬에 5장 기본 할당
             setSceneSeeds((prev) => {
                 const updated = { ...prev };
                 const allCardIds = defaultDeck.map(c => c.id);
@@ -168,64 +147,48 @@ const StoryboardPage: React.FC = () => {
             return;
         }
         setIsAiAnalyzing(true);
-        // Mock: 2.5초 딜레이 후 대본 분석으로 5장 선택
         setTimeout(() => {
-            // 1) cardLibrary에서 기존 카드 매칭 시도
             const libChars = cardLibrary.filter(c => c.type === 'character');
             const libBgs = cardLibrary.filter(c => c.type === 'background');
             const libItems = cardLibrary.filter(c => c.type === 'item');
 
-            // 2) 매칭된 카드로 우선 채움
             const selectedChars: AssetCard[] = libChars.slice(0, 3).map(c => ({ ...c, source: 'ai' as const, isRequired: true }));
             const selectedBgs: AssetCard[] = libBgs.slice(0, 1).map(c => ({ ...c, source: 'ai' as const, isRequired: true }));
             const selectedItems: AssetCard[] = libItems.slice(0, 1).map(c => ({ ...c, source: 'ai' as const, isRequired: true }));
 
-            // 3) 부족한 슬롯은 aiSuggestedCards에서 보충
-            const aiChars = aiSuggestedCards.filter(c => c.type === 'character');
-            const aiBgs = aiSuggestedCards.filter(c => c.type === 'background');
-            const aiItems = aiSuggestedCards.filter(c => c.type === 'item');
+            const aiCharsPool = aiSuggestedCards.filter(c => c.type === 'character');
+            const aiBgsPool = aiSuggestedCards.filter(c => c.type === 'background');
+            const aiItemsPool = aiSuggestedCards.filter(c => c.type === 'item');
 
-            while (selectedChars.length < 3 && aiChars.length > 0) {
-                const next = aiChars.shift()!;
-                if (!selectedChars.some(c => c.id === next.id)) {
-                    selectedChars.push({ ...next, source: 'ai', isRequired: true });
-                }
+            while (selectedChars.length < 3 && aiCharsPool.length > 0) {
+                const next = aiCharsPool.shift()!;
+                if (!selectedChars.some(c => c.id === next.id)) selectedChars.push({ ...next, source: 'ai', isRequired: true });
             }
-            while (selectedBgs.length < 1 && aiBgs.length > 0) {
-                const next = aiBgs.shift()!;
-                if (!selectedBgs.some(c => c.id === next.id)) {
-                    selectedBgs.push({ ...next, source: 'ai', isRequired: true });
-                }
+            while (selectedBgs.length < 1 && aiBgsPool.length > 0) {
+                const next = aiBgsPool.shift()!;
+                if (!selectedBgs.some(c => c.id === next.id)) selectedBgs.push({ ...next, source: 'ai', isRequired: true });
             }
-            while (selectedItems.length < 1 && aiItems.length > 0) {
-                const next = aiItems.shift()!;
-                if (!selectedItems.some(c => c.id === next.id)) {
-                    selectedItems.push({ ...next, source: 'ai', isRequired: true });
-                }
+            while (selectedItems.length < 1 && aiItemsPool.length > 0) {
+                const next = aiItemsPool.shift()!;
+                if (!selectedItems.some(c => c.id === next.id)) selectedItems.push({ ...next, source: 'ai', isRequired: true });
             }
 
-            // 4) 정확히 5장 결과
             const finalDeck = [...selectedChars, ...selectedBgs, ...selectedItems];
-
-            // 5) 새로 생성된 카드 → cardLibrary에 추가
             finalDeck.forEach(c => addToCardLibrary(c));
-
-            // 6) 덱 설정
             setDeck(finalDeck);
 
-            // 7) 모든 씬에 5장 기본 할당
             setSceneSeeds((prev) => {
                 const updated = { ...prev };
                 const allCardIds = finalDeck.map(c => c.id);
                 scenes.forEach((s) => { updated[s.id] = [...allCardIds]; });
                 return updated;
             });
-
             setIsAiAnalyzing(false);
             setShowAiAnalysisModal(false);
         }, 2500);
     };
 
+    // ── 이미지/영상 생성 ──
     const doneSceneCount = Object.values(sceneGenStatus).filter((s) => s === 'done').length;
     const allImagesDone = doneSceneCount === scenes.length;
 
@@ -243,14 +206,11 @@ const StoryboardPage: React.FC = () => {
         });
     }, [scenes, sceneGenStatus]);
 
-    // ── 영상 인라인 생성 (phase 변경 없이) ──
     const generateAllVideos = useCallback(() => {
         scenes.forEach((scene, i) => {
             setTimeout(() => {
                 setVideoGenStatus((p) => ({ ...p, [scene.id]: 'generating' }));
-                setTimeout(() => {
-                    setVideoGenStatus((p) => ({ ...p, [scene.id]: 'done' }));
-                }, 1500 + Math.random() * 1000);
+                setTimeout(() => setVideoGenStatus((p) => ({ ...p, [scene.id]: 'done' })), 1500 + Math.random() * 1000);
             }, i * 600);
         });
     }, [scenes]);
@@ -272,31 +232,19 @@ const StoryboardPage: React.FC = () => {
         const filter = (cards: AssetCard[]) =>
             poolFilter === 'all' ? cards : cards.filter((c) => c.type === poolFilter);
         if (poolTab === 'library') {
-            // 내 라이브러리 — cardLibrary 전체 (덱에 이미 있는 것도 표시, 선택 여부 표시)
-            return [
-                { label: '내 라이브러리', icon: 'star', cards: filter(cardLibrary) },
-            ];
+            return [{ label: '내 라이브러리', icon: 'star', cards: filter(cardLibrary) }];
         }
         if (poolTab === 'ai') {
-            // AI 추천 — 라이브러리에 없는 것만 표시
             const libIds = new Set(cardLibrary.map(c => c.id));
-            return [
-                { label: 'AI 추천', icon: 'sparkles', cards: filter(aiSuggestedCards.filter(c => !libIds.has(c.id))) },
-            ];
+            return [{ label: 'AI 추천', icon: 'sparkles', cards: filter(aiSuggestedCards.filter(c => !libIds.has(c.id))) }];
         }
         if (poolTab === 'favorites') {
-            // 즐겨찾기 — cardLibrary 중 isFavorite인 것 + favoritesPool에서 라이브러리에 없는 것
             const libFavs = cardLibrary.filter(c => c.isFavorite);
             const libIds = new Set(cardLibrary.map(c => c.id));
             const externalFavs = favoritesPool.filter(c => !libIds.has(c.id));
-            return [
-                { label: '즐겨찾기', icon: 'star', cards: filter([...libFavs, ...externalFavs]) },
-            ];
+            return [{ label: '즐겨찾기', icon: 'star', cards: filter([...libFavs, ...externalFavs]) }];
         }
-        // 'new' tab — form shown above grid; grid shows library
-        return [
-            { label: '내 라이브러리', icon: 'star', cards: filter(cardLibrary) },
-        ];
+        return [{ label: '내 라이브러리', icon: 'star', cards: filter(cardLibrary) }];
     };
 
     const phaseConfig = [
@@ -305,8 +253,6 @@ const StoryboardPage: React.FC = () => {
         { key: 'seed-check', label: '시드 매칭 & 생성', step: 3 },
     ];
     const currentPhaseIndex = phaseConfig.findIndex((p) => p.key === phase);
-
-    // 현재 phase에 따라 워크플로우 스텝 결정
     const workflowStep = (phase === 'seed-check' || phase === 'generating-video' || phase === 'complete') ? 3 : 2;
 
     const handleWorkflowStepClick = (step: number) => {
@@ -392,18 +338,11 @@ const StoryboardPage: React.FC = () => {
                                     <div className="sb-cut-card__body"><p className="sb-cut-card__text">{cut}</p>
                                         <div className="sb-cut-card__meta"><span>📍 {scenes[index]?.location || 'Unknown'}</span><span>🎬 {scenes[index]?.cameraAngle || 'Wide Angle'}</span></div>
                                     </div>
-                                    {/* 영상 개수 선택 */}
                                     <div className="sb-cut-card__video-count">
                                         <span className="sb-cut-card__video-count-label"><Film size={11} /> 영상</span>
                                         <div className="sb-cut-card__video-count-btns">
                                             {[1, 2, 3].map((n) => (
-                                                <button
-                                                    key={n}
-                                                    className={`sb-cut-card__vc-btn ${vc === n ? 'sb-cut-card__vc-btn--active' : ''}`}
-                                                    onClick={() => setVideoCountPerScene(prev => ({ ...prev, [sceneId]: n }))}
-                                                >
-                                                    {n}
-                                                </button>
+                                                <button key={n} className={`sb-cut-card__vc-btn ${vc === n ? 'sb-cut-card__vc-btn--active' : ''}`} onClick={() => setVideoCountPerScene(prev => ({ ...prev, [sceneId]: n }))}>{n}</button>
                                             ))}
                                         </div>
                                     </div>
@@ -421,41 +360,12 @@ const StoryboardPage: React.FC = () => {
                 </div>
             )}
 
-            {/* ===== PHASE 2: Game-style Card Deck (기존 그대로 유지) ===== */}
+            {/* ===== PHASE 2: Card Deck ===== */}
             {phase === 'cast-setup' && (
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                     {/* AI 분석 팝업 모달 */}
                     {showAiAnalysisModal && (
-                        <div className="modal-overlay">
-                            <div className="ai-analysis-modal">
-                                <div className="ai-analysis-modal__icon">
-                                    <Sparkles size={32} />
-                                </div>
-                                <h3 className="ai-analysis-modal__title">AI 대본 분석</h3>
-                                <p className="ai-analysis-modal__desc">
-                                    대본을 분석하여 주요 등장인물(3명), 배경(1개), 아이템(1개)을<br />
-                                    자동으로 추출합니다. (총 5장 선택, 추가 3장은 수동 추가 가능)
-                                </p>
-                                {isAiAnalyzing ? (
-                                    <div className="ai-analysis-modal__loading">
-                                        <Loader size={24} className="animate-spin" />
-                                        <span>대본 분석 중... 캐릭터 3 + 배경 1 + 아이템 1</span>
-                                        <div className="ai-analysis-modal__progress-bar">
-                                            <div className="ai-analysis-modal__progress-fill" />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="ai-analysis-modal__actions">
-                                        <button className="btn-primary" onClick={() => handleAiAnalysis(true)}>
-                                            <Sparkles size={14} /> 네, AI로 분석하기
-                                        </button>
-                                        <button className="btn-secondary" onClick={() => handleAiAnalysis(false)}>
-                                            아니오, 기본 카드 사용
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        <AiAnalysisModal isAnalyzing={isAiAnalyzing} onAnalyze={handleAiAnalysis} />
                     )}
 
                     <div className="sb-phase-title">
@@ -501,7 +411,7 @@ const StoryboardPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* New Card Creator — compact form shown above grid when tab is active */}
+                            {/* New Card Creator */}
                             {poolTab === 'new' && (
                                 <div className="deck-pool__new deck-pool__new--inline">
                                     <div className="deck-pool__new-types">
@@ -519,7 +429,7 @@ const StoryboardPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Pool Grid — always visible, sections ordered by active tab */}
+                            {/* Pool Grid */}
                             <div className="deck-pool__grid">
                                 {getPoolSections().map((section, si) => (
                                     section.cards.length > 0 && (
@@ -561,8 +471,7 @@ const StoryboardPage: React.FC = () => {
                                 {/* Inline "+" Add New Card */}
                                 {!showInlineNew ? (
                                     <div className="pool-card pool-card--add-new" onClick={() => setShowInlineNew(true)}>
-                                        <Plus size={28} />
-                                        <span>새 카드 추가</span>
+                                        <Plus size={28} /><span>새 카드 추가</span>
                                     </div>
                                 ) : (
                                     <div className="pool-card--inline-form">
@@ -594,7 +503,7 @@ const StoryboardPage: React.FC = () => {
                 </div>
             )}
 
-            {/* ===== PHASE 3: Seed Check - Vertical List + Cast Strip with Manual Slots ===== */}
+            {/* ===== PHASE 3: Seed Check ===== */}
             {phase === 'seed-check' && (
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                     <div className="sb-phase-title">
@@ -605,338 +514,63 @@ const StoryboardPage: React.FC = () => {
                         {allVideosDone && <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircle2 size={13} /> 모든 이미지 및 영상 생성 완료!</span>}
                     </div>
 
-                    {/* ── TOP: Horizontal Cast Seed Strip with Manual Slots ── */}
-                    <div className="sc-cast-strip">
-                        <div className="sc-cast-strip__section-label"><Shield size={11} /> 마이덱 ({deck.length}/{MAX_DECK_SIZE})</div>
-                        <div className="sc-cast-strip__divider" />
+                    {/* Cast Strip → 추출된 컴포넌트 */}
+                    <CastStrip
+                        deck={deck}
+                        maxDeckSize={MAX_DECK_SIZE}
+                        selectedScene={selectedScene}
+                        sceneSeeds={sceneSeeds}
+                        manualSlotsRemaining={manualSlotsRemaining}
+                        onToggleSeed={toggleSceneSeed}
+                        onRemoveFromDeck={removeFromDeck}
+                        onOpenManualAdd={() => setShowManualAddModal(true)}
+                    />
 
-                        {/* AI 카드 - 캐릭터 */}
-                        {deck.filter(c => c.source === 'ai' && c.type === 'character').map((card) => {
-                            const isActive = selectedScene ? (sceneSeeds[selectedScene] || []).includes(card.id) : false;
-                            return (
-                                <div
-                                    key={`c-${card.id}`}
-                                    className={`sc-cast-strip-card ${isActive ? 'sc-cast-strip-card--active' : ''}`}
-                                    onClick={() => selectedScene && toggleSceneSeed(selectedScene, card.id)}
-                                    title={selectedScene ? (isActive ? '씨드 해제' : '이 씬에 씨드 추가') : '먼저 씬을 선택하세요'}
-                                >
-                                    <div className="sc-cast-strip-card__img">
-                                        {card.imageUrl ? <img src={card.imageUrl} alt={card.name} /> : <User size={14} />}
-                                    </div>
-                                    <div className="sc-cast-strip-card__info">
-                                        <div className="sc-cast-strip-card__name">{card.name.split(' ')[0]}</div>
-                                        <div className="sc-cast-strip-card__seed"><Hash size={7} />{card.seed}</div>
-                                    </div>
-                                    {isActive && <span className="sc-cast-strip-card__check"><Check size={8} /></span>}
-                                </div>
-                            );
-                        })}
-                        <div className="sc-cast-strip__divider" />
-
-                        {/* AI 카드 - 배경 */}
-                        {deck.filter(c => c.source === 'ai' && c.type === 'background').map((card) => {
-                            const isActive = selectedScene ? (sceneSeeds[selectedScene] || []).includes(card.id) : false;
-                            return (
-                                <div
-                                    key={`b-${card.id}`}
-                                    className={`sc-cast-strip-card sc-cast-strip-card--bg ${isActive ? 'sc-cast-strip-card--active sc-cast-strip-card--bg-active' : ''}`}
-                                    onClick={() => selectedScene && toggleSceneSeed(selectedScene, card.id)}
-                                >
-                                    <div className="sc-cast-strip-card__img sc-cast-strip-card__img--wide">
-                                        {card.imageUrl ? <img src={card.imageUrl} alt={card.name} /> : <MapPin size={14} />}
-                                    </div>
-                                    <div className="sc-cast-strip-card__info">
-                                        <div className="sc-cast-strip-card__name">{card.name.split(' ').slice(0, 2).join(' ')}</div>
-                                        <div className="sc-cast-strip-card__seed"><Hash size={7} />{card.seed}</div>
-                                    </div>
-                                    {isActive && <span className="sc-cast-strip-card__check"><Check size={8} /></span>}
-                                </div>
-                            );
-                        })}
-                        <div className="sc-cast-strip__divider" />
-
-                        {/* AI 카드 - 아이템 */}
-                        {deck.filter(c => c.source === 'ai' && c.type === 'item').map((card) => {
-                            const isActive = selectedScene ? (sceneSeeds[selectedScene] || []).includes(card.id) : false;
-                            return (
-                                <div
-                                    key={`i-${card.id}`}
-                                    className={`sc-cast-strip-card sc-cast-strip-card--item ${isActive ? 'sc-cast-strip-card--active sc-cast-strip-card--item-active' : ''}`}
-                                    onClick={() => selectedScene && toggleSceneSeed(selectedScene, card.id)}
-                                >
-                                    <div className="sc-cast-strip-card__img">
-                                        {card.imageUrl ? <img src={card.imageUrl} alt={card.name} /> : <Sword size={14} />}
-                                    </div>
-                                    <div className="sc-cast-strip-card__info">
-                                        <div className="sc-cast-strip-card__name">{card.name.split(' ')[0]}</div>
-                                        <div className="sc-cast-strip-card__seed"><Hash size={7} />{card.seed}</div>
-                                    </div>
-                                    {isActive && <span className="sc-cast-strip-card__check"><Check size={8} /></span>}
-                                </div>
-                            );
-                        })}
-
-                        {/* ── 구분선: AI → 수동 ── */}
-                        {(manualCards.length > 0 || manualSlotsRemaining > 0) && (
-                            <div className="sc-cast-strip__divider sc-cast-strip__divider--manual" />
-                        )}
-
-                        {/* 수동 추가된 카드 */}
-                        {manualCards.map((card) => {
-                            const isActive = selectedScene ? (sceneSeeds[selectedScene] || []).includes(card.id) : false;
-                            return (
-                                <div
-                                    key={`m-${card.id}`}
-                                    className={`sc-cast-strip-card sc-cast-strip-card--manual ${isActive ? 'sc-cast-strip-card--active' : ''}`}
-                                    onClick={() => selectedScene && toggleSceneSeed(selectedScene, card.id)}
-                                    title={card.name}
-                                >
-                                    <div className="sc-cast-strip-card__img">
-                                        {card.imageUrl ? <img src={card.imageUrl} alt={card.name} /> : (
-                                            card.type === 'character' ? <User size={14} /> : card.type === 'background' ? <MapPin size={14} /> : <Sword size={14} />
-                                        )}
-                                    </div>
-                                    <div className="sc-cast-strip-card__info">
-                                        <div className="sc-cast-strip-card__name">{card.name.split(' ')[0]}</div>
-                                        <div className="sc-cast-strip-card__seed"><Hash size={7} />{card.seed}</div>
-                                    </div>
-                                    <button
-                                        className="sc-cast-strip-card__remove-btn"
-                                        onClick={(e) => { e.stopPropagation(); removeFromDeck(card.id); }}
-                                        title="수동 카드 제거"
-                                    >
-                                        <X size={8} />
-                                    </button>
-                                    {isActive && <span className="sc-cast-strip-card__check"><Check size={8} /></span>}
-                                </div>
-                            );
-                        })}
-
-                        {/* 빈 수동 "+" 슬롯들 */}
-                        {Array.from({ length: manualSlotsRemaining }, (_, i) => (
-                            <button
-                                key={`add-slot-${i}`}
-                                className="sc-cast-strip__add-slot"
-                                onClick={() => setShowManualAddModal(true)}
-                                title="수동 카드 추가"
-                            >
-                                <Plus size={14} />
-                            </button>
-                        ))}
-
-                        {!selectedScene && (
-                            <div className="sc-cast-strip__hint">씬을 선택하면 이곳에서 씨드를 토글할 수 있어요</div>
-                        )}
-                    </div>
-
-                    {/* ── 수동 추가 모달 ── */}
+                    {/* Manual Add Modal → 추출된 컴포넌트 */}
                     {showManualAddModal && (
-                        <div className="modal-overlay" onClick={() => setShowManualAddModal(false)}>
-                            <div className="manual-add-modal" onClick={(e) => e.stopPropagation()}>
-                                <div className="manual-add-modal__header">
-                                    <h3>수동 카드 추가</h3>
-                                    <span className="manual-add-modal__count">{manualCards.length}/{MAX_MANUAL_SLOTS}</span>
-                                    <button className="btn-icon" onClick={() => setShowManualAddModal(false)} style={{ marginLeft: 'auto' }}><X size={14} /></button>
-                                </div>
-                                <div className="manual-add-modal__types">
-                                    {(['character', 'background', 'item'] as const).map((t) => (
-                                        <button
-                                            key={t}
-                                            className={`manual-add-modal__type-btn ${manualAddType === t ? 'manual-add-modal__type-btn--active' : ''}`}
-                                            onClick={() => setManualAddType(t)}
-                                        >
-                                            {t === 'character' ? <><User size={12} /> 캐릭터</> : t === 'background' ? <><MapPin size={12} /> 배경</> : <><Sword size={12} /> 아이템</>}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="manual-add-modal__form">
-                                    <div className="modal__field">
-                                        <label className="modal__label">이름</label>
-                                        <input className="modal__input" placeholder="카드 이름을 입력하세요" value={manualAddCard.name} onChange={(e) => setManualAddCard({ ...manualAddCard, name: e.target.value })} />
-                                    </div>
-                                    <div className="modal__field">
-                                        <label className="modal__label">프롬프트 설명</label>
-                                        <textarea className="modal__textarea" placeholder="자세히 묘사해주세요" rows={3} value={manualAddCard.description} onChange={(e) => setManualAddCard({ ...manualAddCard, description: e.target.value })} />
-                                    </div>
-                                    <button
-                                        className="btn-primary"
-                                        style={{ width: '100%', marginTop: 8 }}
-                                        onClick={handleManualAddCard}
-                                        disabled={!manualAddCard.name.trim() || manualCards.length >= MAX_MANUAL_SLOTS}
-                                    >
-                                        <Plus size={14} /> 덱에 추가 ({manualCards.length}/{MAX_MANUAL_SLOTS})
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                        <ManualAddModal
+                            manualCount={manualCards.length}
+                            maxSlots={MAX_MANUAL_SLOTS}
+                            onAdd={handleManualAddCard}
+                            onClose={() => setShowManualAddModal(false)}
+                        />
                     )}
 
-                    {/* Vertical Scene List ── full width */}
+                    {/* Scene List → 추출된 SceneRow 컴포넌트 */}
                     <div className="sc-layout">
                         <div className="sc-list">
-                            {scenes.map((scene, index) => {
-                                const genStatus = sceneGenStatus[scene.id];
-                                const isSelected = selectedScene === scene.id;
-                                const videoCount = videoCountPerScene[scene.id] || 1;
-                                const prefix = stylePromptPrefix[selectedStyle] || stylePromptPrefix['Cinematic'];
-                                const prompts = mockScenePrompts[scene.id];
-
-                                return (
-                                    <React.Fragment key={scene.id}>
-                                        {Array.from({ length: videoCount }, (_, subIdx) => (
-                                            <div
-                                                key={`${scene.id}-${subIdx}`}
-                                                className={`sc-row ${isSelected ? 'sc-row--selected' : ''} ${genStatus === 'done' ? 'sc-row--done' : ''} ${subIdx > 0 ? 'sc-row--sub-row' : ''}`}
-                                                onClick={() => setSelectedScene(isSelected ? null : scene.id)}
-                                            >
-                                                {/* Col 1: Image */}
-                                                <div className="sc-row__img-col">
-                                                    {genStatus === 'done' && scene.imageUrl ? (
-                                                        <div className="sc-row__img" style={{ backgroundImage: `url(${scene.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                                                            <button className="sc-row__regen-overlay-btn" onClick={(e) => { e.stopPropagation(); generateSingleScene(scene.id); }} title="이미지 재생성">
-                                                                <RefreshCw size={11} /> 재생성
-                                                            </button>
-                                                            <span className="sc-row__done-badge"><CheckCircle2 size={12} /></span>
-                                                        </div>
-                                                    ) : genStatus === 'generating' ? (
-                                                        <div className="sc-row__img sc-row__img--gen"><Loader size={20} className="animate-spin" /><span>생성 중...</span></div>
-                                                    ) : (
-                                                        <div className="sc-row__img sc-row__img--empty">
-                                                            <span className="sc-row__img-num">{String(index + 1).padStart(2, '0')}{videoCount > 1 ? `-${subIdx + 1}` : ''}</span>
-                                                            <button className="sc-row__gen-btn" onClick={(e) => { e.stopPropagation(); generateSingleScene(scene.id); }}>
-                                                                <Sparkles size={11} /> 개별 생성
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Col 2: Seed Cards (+ 버튼 제거됨 — 상단 바에서만 수동 추가) */}
-                                                <div className="sc-row__seed-col">
-                                                    {subIdx === 0 ? (
-                                                        <>
-                                                            <div className="sc-row__tags">
-                                                                <span className="sc-row__scene-num">SCENE {String(index + 1).padStart(2, '0')}</span>
-                                                                {videoCount > 1 && <span className="sc-row__video-count-badge">{videoCount}컷</span>}
-                                                            </div>
-                                                            <div className="sc-row__script-label"><Sparkles size={9} /> 참고할 씨드 카드</div>
-                                                            <div className="sc-row__seed-stack sc-row__seed-stack--overlap">
-                                                                {(sceneSeeds[scene.id] || []).map((cardId, seedIdx) => {
-                                                                    const card = deck.find(c => c.id === cardId);
-                                                                    if (!card) return null;
-                                                                    return (
-                                                                        <div
-                                                                            key={cardId}
-                                                                            className={`sc-row__seed-card sc-row__seed-card--${card.type} sc-row__seed-card--img-only`}
-                                                                            style={{ zIndex: 10 - seedIdx, marginLeft: seedIdx > 0 ? '-12px' : '0' }}
-                                                                            onClick={(e) => { e.stopPropagation(); toggleSceneSeed(scene.id, cardId); }}
-                                                                            title={`${card.name} #${card.seed} (클릭하여 해제)`}
-                                                                        >
-                                                                            {card.imageUrl ? (
-                                                                                <img src={card.imageUrl} className="sc-row__seed-card__img" alt={card.name} />
-                                                                            ) : (
-                                                                                <div className="sc-row__seed-card__img sc-row__seed-card__img--empty">
-                                                                                    {card.type === 'character' ? <User size={10} /> : card.type === 'background' ? <MapPin size={10} /> : <Sword size={10} />}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                                {(sceneSeeds[scene.id] || []).length === 0 && (
-                                                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>상단 카드를 클릭하여 배정</span>
-                                                                )}
-                                                            </div>
-                                                        </>
-                                                    ) : (
-                                                        <div className="sc-row__sub-label">
-                                                            <span>파트 {subIdx + 1}/{videoCount}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Col 3: Script (대본) */}
-                                                <div className="sc-row__script-col">
-                                                    {subIdx === 0 ? (
-                                                        <>
-                                                            <div className="sc-row__script-label"><Sparkles size={9} /> 대본</div>
-                                                            <p className="sc-row__text">{scene.text}</p>
-                                                        </>
-                                                    ) : (
-                                                        <p className="sc-row__text" style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.75rem' }}>
-                                                            (파트 {subIdx + 1} 대본)
-                                                        </p>
-                                                    )}
-                                                </div>
-
-                                                {/* Col 4: Prompts */}
-                                                <div className="sc-row__prompt-col">
-                                                    <div className="sc-row__prompt-section">
-                                                        <div className="sc-row__prompt-label">🖼 이미지 생성 프롬프트</div>
-                                                        <p className="sc-row__prompt-text">
-                                                            <span className="sc-row__prompt-prefix">{prefix}</span>{' '}
-                                                            {prompts?.imagePrompt ?? '—'}
-                                                        </p>
-                                                    </div>
-                                                    <div className="sc-row__prompt-divider" />
-                                                    <div className="sc-row__prompt-section">
-                                                        <div className="sc-row__prompt-label">🎬 영상 생성 프롬프트</div>
-                                                        <p className="sc-row__prompt-text">
-                                                            {prompts?.videoPrompt ?? '—'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Col 5: Video Box */}
-                                                <div className="sc-row__video-col">
-                                                    {videoGenStatus[scene.id] === 'done' ? (
-                                                        <div className="sc-row__video-clip" style={{ backgroundImage: scene.imageUrl ? `url(${scene.imageUrl})` : getSceneGradient(index), backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                                                            <div className="sc-row__video-play"><Play size={18} /></div>
-                                                            <span className="sc-row__video-dur">0:05</span>
-                                                            <button className="sc-row__video-regen" onClick={(e) => { e.stopPropagation(); regenerateSingleVideo(scene.id); }} title="영상 재생성">
-                                                                <RefreshCw size={11} /> 재생성
-                                                            </button>
-                                                        </div>
-                                                    ) : videoGenStatus[scene.id] === 'generating' ? (
-                                                        <div className="sc-row__video-clip sc-row__video-clip--gen">
-                                                            <Loader size={22} className="animate-spin" />
-                                                            <span>영상 생성 중...</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="sc-row__video-clip sc-row__video-clip--empty">
-                                                            <Video size={18} />
-                                                            <span>영상 대기</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <ChevronRight size={16} className={`sc-row__arrow ${isSelected ? 'sc-row__arrow--open' : ''}`} />
-                                            </div>
-                                        ))}
-                                    </React.Fragment>
-                                );
-                            })}
+                            {scenes.map((scene, index) => (
+                                <SceneRow
+                                    key={scene.id}
+                                    scene={scene}
+                                    index={index}
+                                    videoCount={videoCountPerScene[scene.id] || 1}
+                                    genStatus={sceneGenStatus[scene.id]}
+                                    videoGenStatus={videoGenStatus[scene.id] || 'idle'}
+                                    isSelected={selectedScene === scene.id}
+                                    sceneSeeds={sceneSeeds[scene.id] || []}
+                                    deck={deck}
+                                    promptPrefix={stylePromptPrefix[selectedStyle] || stylePromptPrefix['Cinematic']}
+                                    prompts={mockScenePrompts[scene.id]}
+                                    gradientFallback={getSceneGradient(index)}
+                                    onSelect={() => setSelectedScene(selectedScene === scene.id ? null : scene.id)}
+                                    onGenerateImage={generateSingleScene}
+                                    onRegenerateVideo={regenerateSingleVideo}
+                                    onToggleSeed={toggleSceneSeed}
+                                />
+                            ))}
                         </div>
                     </div>
 
-                    {/* Filmstrip */}
-                    {doneSceneCount > 0 && (
-                        <div className="filmstrip">
-                            <div className="filmstrip__header"><Film size={14} /><span className="filmstrip__title">Story Flow</span><span className="filmstrip__count">{doneSceneCount}/{scenes.length}</span></div>
-                            <div className="filmstrip__row"><span className="filmstrip__row-label">🖼️</span>
-                                <div className="filmstrip__track">
-                                    {scenes.map((scene, i) => {
-                                        const st = sceneGenStatus[scene.id]; return (
-                                            <div key={scene.id} className={`filmstrip__frame ${selectedScene === scene.id ? 'filmstrip__frame--active' : ''} ${st !== 'done' ? 'filmstrip__frame--generating' : ''}`} onClick={() => setSelectedScene(scene.id)}>
-                                                <div className="filmstrip__frame-img" style={{ backgroundImage: st === 'done' && scene.imageUrl ? `url(${scene.imageUrl})` : getSceneGradient(i), backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                                                    <span className="filmstrip__frame-num">{String(i + 1).padStart(2, '0')}</span>
-                                                    {st === 'generating' && <div className="filmstrip__frame-spinner"><Loader size={12} className="animate-spin" /></div>}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    {/* Filmstrip → 추출된 컴포넌트 */}
+                    <SceneFilmstrip
+                        scenes={scenes}
+                        sceneGenStatus={sceneGenStatus}
+                        selectedScene={selectedScene}
+                        doneCount={doneSceneCount}
+                        getGradient={getSceneGradient}
+                        onFrameClick={(id) => setSelectedScene(id)}
+                    />
 
                     <div className="sb-bottom-actions">
                         <button className="btn-secondary" onClick={() => setPhase('script-review')}><ChevronLeft size={14} /> 이전</button>
@@ -953,7 +587,6 @@ const StoryboardPage: React.FC = () => {
                     </div>
                 </div>
             )}
-
 
             {/* generating-video / complete 블록 제거됨 — 영상 생성은 seed-check에서 인라인으로 처리 */}
         </div>
