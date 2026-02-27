@@ -28,6 +28,17 @@ export interface Scene {
   checked: boolean;
 }
 
+/** 프로젝트 모드 */
+export type ProjectMode = 'cinematic' | 'narration';
+
+/** 나레이션 모드 — 문장별 타이밍 정보 */
+export interface SentenceTiming {
+  index: number;
+  text: string;
+  startTime: number;
+  endTime: number;
+}
+
 export interface TimelineClip {
   id: string;
   sceneId: string;
@@ -45,8 +56,8 @@ export interface AiModelPreferences {
 }
 
 const DEFAULT_AI_MODELS: AiModelPreferences = {
-  script: 'gpt-4o-mini',
-  image: 'flux-schnell',
+  script: 'gemini-flash',
+  image: 'gemini-image',
   video: 'runway-gen3',
   tts: 'fish-speech',
 };
@@ -92,7 +103,7 @@ export interface ProjectState {
 
   // Active project flag
   hasActiveProject: boolean;
-  startNewProject: (title: string) => void;
+  startNewProject: (title: string, mode?: ProjectMode) => void;
 
   // ── v4 신규 필드 ──
 
@@ -111,6 +122,14 @@ export interface ProjectState {
   // AI 모델 선호도 (Phase 6에서 유저 선택 지원)
   aiModelPreferences: AiModelPreferences;
   setAiModelPreference: (category: keyof AiModelPreferences, modelId: string) => void;
+
+  // ── v5 신규: 듀얼 모드 ──
+  mode: ProjectMode;
+  setMode: (mode: ProjectMode) => void;
+  narrativeAudioUrl: string;
+  setNarrativeAudioUrl: (url: string) => void;
+  sentenceTimings: SentenceTiming[];
+  setSentenceTimings: (timings: SentenceTiming[]) => void;
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -172,7 +191,7 @@ export const useProjectStore = create<ProjectState>()(
       resetCredits: () => set({ credits: 100 }),
 
       hasActiveProject: false,
-      startNewProject: (title) =>
+      startNewProject: (title, mode = 'cinematic') =>
         set({
           projectId: null,
           title,
@@ -186,6 +205,9 @@ export const useProjectStore = create<ProjectState>()(
           selectedPreset: null,
           selectedDeck: [],
           aiModelPreferences: { ...DEFAULT_AI_MODELS },
+          mode,
+          narrativeAudioUrl: '',
+          sentenceTimings: [],
           // cardLibrary는 리셋하지 않음 — 카드 에셋은 프로젝트 간 유지
         }),
 
@@ -204,10 +226,18 @@ export const useProjectStore = create<ProjectState>()(
         set((s) => ({
           aiModelPreferences: { ...s.aiModelPreferences, [category]: modelId },
         })),
+
+      // ── v5 신규 필드 초기값 & 액션 ──
+      mode: 'cinematic' as ProjectMode,
+      setMode: (mode) => set({ mode }),
+      narrativeAudioUrl: '',
+      setNarrativeAudioUrl: (narrativeAudioUrl) => set({ narrativeAudioUrl }),
+      sentenceTimings: [],
+      setSentenceTimings: (sentenceTimings) => set({ sentenceTimings }),
     }),
     {
       name: 'antigravity-project',
-      version: 4,
+      version: 5,
       migrate: (persistedState: unknown, version: number) => {
         let state = persistedState as Record<string, unknown>;
         if (version < 2) {
@@ -239,12 +269,21 @@ export const useProjectStore = create<ProjectState>()(
         }
         if (version < 4) {
           // v3→v4: entryPoint, selectedPreset, selectedDeck, aiModelPreferences 추가
-          return {
+          state = {
             ...state,
             entryPoint: null,
             selectedPreset: null,
             selectedDeck: [],
             aiModelPreferences: { ...DEFAULT_AI_MODELS },
+          };
+        }
+        if (version < 5) {
+          // v4→v5: 듀얼 모드 필드 추가
+          state = {
+            ...state,
+            mode: 'cinematic',
+            narrativeAudioUrl: '',
+            sentenceTimings: [],
           };
         }
         return state;
@@ -263,6 +302,9 @@ export const useProjectStore = create<ProjectState>()(
         selectedPreset: state.selectedPreset,
         selectedDeck: state.selectedDeck,
         aiModelPreferences: state.aiModelPreferences,
+        mode: state.mode,
+        narrativeAudioUrl: state.narrativeAudioUrl,
+        sentenceTimings: state.sentenceTimings,
       }),
     }
   )

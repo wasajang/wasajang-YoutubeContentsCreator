@@ -7281,3 +7281,297 @@ button.export-btn:disabled {
   font-size: 0.875rem;
   padding: 10px 24px;
 }
+
+/* ═══════════════════════════════════════════════════
+   Mode Select (영상 제작 방식 선택 모달)
+   ═══════════════════════════════════════════════════ */
+
+.mode-select-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.mode-select {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  max-width: 520px;
+  width: 90%;
+  animation: fadeInUp 0.2s ease-out;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.mode-select__title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.mode-select__options {
+  display: flex;
+  gap: 1rem;
+}
+
+.mode-select__option {
+  flex: 1;
+  padding: 1.5rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+}
+
+.mode-select__option:hover {
+  border-color: var(--accent-primary);
+  background: rgba(233, 30, 140, 0.05);
+  transform: translateY(-2px);
+}
+
+.mode-select__option:active {
+  transform: translateY(0);
+}
+
+.mode-select__icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1;
+}
+
+.mode-select__option h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.mode-select__option p {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* 나레이션 TTS 섹션 (TimelinePage) */
+.narration-tts-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin: 0 1rem 0;
+  flex-shrink: 0;
+}
+
+.narration-tts-section__header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.narration-tts-section__title {
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.narration-tts-section__desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.narration-tts-section__controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.narration-tts-section__result {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.narration-tts-section__audio-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+.narration-tts-section__split-btn {
+  margin-top: 0.75rem;
+  background: #22c55e;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.narration-tts-timings {
+  margin-top: 0.5rem;
+}
+
+.narration-tts-timings__label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.narration-tts-timings__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.narration-tts-timing-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.375rem 0.625rem;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+}
+
+.narration-tts-timing-row__time {
+  color: var(--accent-primary);
+  font-weight: 600;
+  min-width: 100px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.narration-tts-timing-row__text {
+  flex: 1;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.narration-tts-timings__more {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0.25rem 0.625rem;
+}
+
+.narration-tts-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.narration-tts-section__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.narration-tts-section__btn:hover {
+  opacity: 0.9;
+}
+
+.narration-tts-section__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.narration-timings {
+  margin-top: 1rem;
+}
+
+.narration-timings__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.narration-timing-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+.narration-timing-item__time {
+  color: var(--accent-primary);
+  font-weight: 600;
+  min-width: 80px;
+  font-variant-numeric: tabular-nums;
+}
+
+.narration-timing-item__text {
+  flex: 1;
+  color: var(--text-secondary);
+}
+
+.narration-split-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.6rem 1.2rem;
+  background: #22c55e;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.narration-split-btn:hover {
+  opacity: 0.9;
+}
+
+/* 반응형 (모드 선택 모바일) */
+@media (max-width: 480px) {
+  .mode-select__options {
+    flex-direction: column;
+  }
+  .mode-select {
+    padding: 1.5rem;
+  }
+}

@@ -1,5 +1,6 @@
 import React from 'react';
 import './WorkflowSteps.css';
+import { useProjectStore } from '../store/projectStore';
 
 interface SubStep {
   key: string;
@@ -13,7 +14,7 @@ interface MainStep {
   subSteps: SubStep[];
 }
 
-const WORKFLOW: MainStep[] = [
+const CINEMATIC_WORKFLOW: MainStep[] = [
   {
     num: 1, label: 'Idea', route: '/project/idea',
     subSteps: [
@@ -46,6 +47,37 @@ const WORKFLOW: MainStep[] = [
   },
 ];
 
+const NARRATION_WORKFLOW: MainStep[] = [
+  {
+    num: 1, label: 'Idea', route: '/project/idea',
+    subSteps: [
+      { key: 'script', label: '대본 작성' },
+      { key: 'style', label: '스타일 선택' },
+    ],
+  },
+  {
+    num: 2, label: 'Narrate', route: '/project/timeline',
+    subSteps: [
+      { key: 'tts', label: 'TTS 생성' },
+      { key: 'timing', label: '타이밍 분석' },
+    ],
+  },
+  {
+    num: 3, label: 'Generate', route: '/project/storyboard',
+    subSteps: [
+      { key: 'cast-setup', label: '카드 선택' },
+      { key: 'image-gen', label: '이미지 생성' },
+    ],
+  },
+  {
+    num: 4, label: 'Edit', route: '/project/timeline',
+    subSteps: [
+      { key: 'timeline', label: '타임라인' },
+      { key: 'export', label: 'Export' },
+    ],
+  },
+];
+
 interface Props {
   currentMain: number;       // 1~4
   currentSub?: string;       // 하위 단계 key
@@ -54,6 +86,8 @@ interface Props {
 }
 
 const WorkflowSteps: React.FC<Props> = ({ currentMain, currentSub, onMainClick, onSubClick }) => {
+  const mode = useProjectStore((s) => s.mode);
+  const WORKFLOW = mode === 'narration' ? NARRATION_WORKFLOW : CINEMATIC_WORKFLOW;
   const activeStep = WORKFLOW.find((s) => s.num === currentMain);
 
   return (

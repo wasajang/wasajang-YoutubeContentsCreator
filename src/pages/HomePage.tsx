@@ -5,6 +5,7 @@ import { templateCards, genreFilters, mockCardLibrary } from '../data/mockData';
 import { getPublicPresets } from '../data/stylePresets';
 import type { StylePreset } from '../data/stylePresets';
 import { useProjectStore } from '../store/projectStore';
+import type { ProjectMode } from '../store/projectStore';
 import { useAuth } from '../hooks/useAuth';
 import { listProjects, deleteProject, loadProject } from '../services/project-api';
 import type { DbProject } from '../types/database';
@@ -24,6 +25,9 @@ const HomePage: React.FC = () => {
 
     // 진입점 선택 상태 (null: 아무것도 선택 안 됨, 'style': 스타일 프리셋 그리드 표시)
     const [activeEntry, setActiveEntry] = useState<'script' | 'style' | 'cast' | null>(null);
+
+    // 모드 선택 오버레이 표시 여부
+    const [showModeSelect, setShowModeSelect] = useState(false);
 
     // My Projects 상태
     const [myProjects, setMyProjects] = useState<DbProject[]>([]);
@@ -50,11 +54,16 @@ const HomePage: React.FC = () => {
             .finally(() => setProjectsLoading(false));
     }, [user, isGuest]);
 
-    // [A] 대본부터 시작
+    // [A] 대본부터 시작 → 모드 선택 오버레이 표시
     const handleScriptStart = () => {
-        startNewProject('Untitled Project');
+        setShowModeSelect(true);
+    };
+
+    const handleModeSelect = (mode: ProjectMode) => {
+        startNewProject('Untitled Project', mode);
         setEntryPoint('script');
         setSelectedPreset(null);
+        setShowModeSelect(false);
         navigate('/project/idea');
     };
 
@@ -194,6 +203,27 @@ const HomePage: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* 모드 선택 오버레이 (대본부터 클릭 시 표시) */}
+                {showModeSelect && (
+                    <div className="mode-select-overlay" onClick={() => setShowModeSelect(false)}>
+                        <div className="mode-select" onClick={(e) => e.stopPropagation()}>
+                            <h3 className="mode-select__title">영상 제작 방식 선택</h3>
+                            <div className="mode-select__options">
+                                <div className="mode-select__option" onClick={() => handleModeSelect('cinematic')}>
+                                    <div className="mode-select__icon">🎬</div>
+                                    <h4>시네마틱</h4>
+                                    <p>씬별 이미지/영상을 생성하고 마지막에 나레이션 추가</p>
+                                </div>
+                                <div className="mode-select__option" onClick={() => handleModeSelect('narration')}>
+                                    <div className="mode-select__icon">🎙️</div>
+                                    <h4>나레이션</h4>
+                                    <p>먼저 나레이션 음성을 생성하고 타이밍에 맞춰 영상 배치</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* [B] 스타일 프리셋 그리드 (스타일부터 클릭 시 확장) */}
                 {activeEntry === 'style' && (

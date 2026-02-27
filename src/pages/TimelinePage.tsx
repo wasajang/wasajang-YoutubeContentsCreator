@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import WorkflowSteps from '../components/WorkflowSteps';
 import { useProjectStore } from '../store/projectStore';
+import type { SentenceTiming, Scene } from '../store/projectStore';
 import { mockStoryboardScenes } from '../data/mockData';
 import { generateTTS } from '../services/ai-tts';
 import { useCredits, CREDIT_COSTS } from '../hooks/useCredits';
@@ -39,7 +40,10 @@ interface TimelineClip {
 
 const TimelinePage: React.FC = () => {
     const navigate = useNavigate();
-    const { title, scenes: storeScenes, aiModelPreferences, setAiModelPreference } = useProjectStore();
+    const {
+        title, scenes: storeScenes, aiModelPreferences, setAiModelPreference,
+        mode, sentenceTimings, setSentenceTimings, narrativeAudioUrl, setNarrativeAudioUrl, setScenes,
+    } = useProjectStore();
 
     // store 씬이 없으면 mockData 폴백
     const sourceScenes = storeScenes.length > 0 ? storeScenes : mockStoryboardScenes;
@@ -67,6 +71,91 @@ const TimelinePage: React.FC = () => {
     const [ttsGenerating, setTtsGenerating] = useState<Record<string, boolean>>({}); // clipId → loading
     const [ttsAllGenerating, setTtsAllGenerating] = useState(false);
     const { remaining: credits, canAfford, spend } = useCredits();
+
+    // 나레이션 모드 — 전체 TTS 생성 상태
+    const [narrativeTtsGenerating, setNarrativeTtsGenerating] = useState(false);
+
+    // 나레이션 모드 — 전체 대본 합치기
+    const fullScript = storeScenes.map((s) => s.text).join(' ');
+
+    // 나레이션 TTS 생성 핸들러
+    const handleNarrativeTTS = useCallback(async () => {
+        const text = fullScript.trim();
+        if (!text) {
+            alert('대본이 없습니다. IdeaPage에서 먼저 대본을 작성해주세요.');
+            return;
+        }
+        setNarrativeTtsGenerating(true);
+        try {
+            const result = await generateTTS({ text, clipId: 'narrative', model: aiModelPreferences.tts });
+            setNarrativeAudioUrl(result.audioUrl);
+
+            // 문장 단위 타이밍 추정 (한국어 4자/초)
+            const sentences = text.match(/[^.!?。\n]+[.!?。]?/g) || [text];
+            let currentTime = 0;
+            const timings: SentenceTiming[] = sentences.filter((s) => s.trim()).map((s, i) => {
+                const duration = Math.max(1, s.trim().length / 4);
+                const timing: SentenceTiming = {
+                    index: i,
+                    text: s.trim(),
+                    startTime: Math.round(currentTime * 10) / 10,
+                    endTime: Math.round((currentTime + duration) * 10) / 10,
+                };
+                currentTime += duration;
+                return timing;
+            });
+            setSentenceTimings(timings);
+        } catch (err) {
+            console.error('[NarrativeTTS] 생성 실패:', err);
+            alert(`TTS 생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`);
+        } finally {
+            setNarrativeTtsGenerating(false);
+        }
+    }, [fullScript, aiModelPreferences.tts, setNarrativeAudioUrl, setSentenceTimings]);
+
+    // 나레이션 모드 — 씬 자동 분할 후 스토리보드로 이동
+    const handleAutoSplit = useCallback(() => {
+        if (sentenceTimings.length === 0) {
+            alert('먼저 TTS를 생성해주세요.');
+            return;
+        }
+        const maxDuration = 5;
+        const autoScenes: Scene[] = [];
+        let bucket: SentenceTiming[] = [];
+        let sceneStart = 0;
+
+        for (const t of sentenceTimings) {
+            bucket.push(t);
+            if (t.endTime - sceneStart >= maxDuration) {
+                autoScenes.push({
+                    id: `scene-${autoScenes.length + 1}`,
+                    text: bucket.map((b) => b.text).join(' '),
+                    location: '',
+                    cameraAngle: 'Wide Angle',
+                    imageUrl: '',
+                    characters: [],
+                    status: 'pending',
+                    checked: false,
+                });
+                bucket = [];
+                sceneStart = t.endTime;
+            }
+        }
+        if (bucket.length > 0) {
+            autoScenes.push({
+                id: `scene-${autoScenes.length + 1}`,
+                text: bucket.map((b) => b.text).join(' '),
+                location: '',
+                cameraAngle: 'Wide Angle',
+                imageUrl: '',
+                characters: [],
+                status: 'pending',
+                checked: false,
+            });
+        }
+        setScenes(autoScenes);
+        navigate('/project/storyboard');
+    }, [sentenceTimings, setScenes, navigate]);
 
     const selectedClip = clips.find((c) => c.id === selectedClipId) || clips[0];
     const selectedIndex = clips.findIndex((c) => c.id === selectedClipId);
@@ -209,7 +298,7 @@ const TimelinePage: React.FC = () => {
         } finally {
             setTtsGenerating((prev) => ({ ...prev, [clipId]: false }));
         }
-    }, [clips, ttsGenerating, canAfford, spend]);
+    }, [clips, ttsGenerating, canAfford, spend, aiModelPreferences.tts]);
 
     // ── TTS 전체 일괄 생성 ──
     const handleGenerateAllTTS = useCallback(async () => {
@@ -251,7 +340,7 @@ const TimelinePage: React.FC = () => {
 
         setTtsAllGenerating(false);
         console.log(`[TTS] 전체 생성 완료: ${generated}/${pendingClips.length}`);
-    }, [clips, credits, spend]);
+    }, [clips, credits, spend, aiModelPreferences.tts]);
 
     const ttsCount = clips.filter((c) => c.audioUrl).length;
     const ttsPendingCount = clips.length - ttsCount;
@@ -279,6 +368,86 @@ const TimelinePage: React.FC = () => {
                     <button className="export-btn" disabled title="추후 지원 예정 — 현재 TTS 오디오 생성까지 이용 가능"><Download size={14} /> Export</button>
                 </div>
             </div>
+
+            {/* 나레이션 모드 — TTS 생성 섹션 */}
+            {mode === 'narration' && (
+                <div className="narration-tts-section">
+                    <div className="narration-tts-section__header">
+                        <h3 className="narration-tts-section__title">
+                            <Mic size={16} /> 나레이션 TTS 생성
+                        </h3>
+                        <span className="narration-tts-section__desc">
+                            전체 대본({storeScenes.length}개 씬)을 하나의 음성으로 생성합니다
+                        </span>
+                    </div>
+
+                    <div className="narration-tts-section__controls">
+                        <div className="ai-model-row">
+                            <label className="ai-model-row__label">TTS AI</label>
+                            <select
+                                className="ai-model-select"
+                                value={aiModelPreferences.tts}
+                                onChange={(e) => setAiModelPreference('tts', e.target.value)}
+                            >
+                                {getUserSelectableModels('tts').map((m) => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <button
+                            className="btn-primary"
+                            onClick={handleNarrativeTTS}
+                            disabled={narrativeTtsGenerating || !fullScript.trim()}
+                        >
+                            {narrativeTtsGenerating ? (
+                                <><Loader size={14} className="spin" /> TTS 생성 중...</>
+                            ) : narrativeAudioUrl ? (
+                                <><Volume2 size={14} /> 재생성</>
+                            ) : (
+                                <><Mic size={14} /> TTS 생성</>
+                            )}
+                        </button>
+                    </div>
+
+                    {narrativeAudioUrl && (
+                        <div className="narration-tts-section__result">
+                            <div className="narration-tts-section__audio-badge">
+                                <Volume2 size={12} /> 오디오 생성 완료
+                            </div>
+                            {sentenceTimings.length > 0 && (
+                                <>
+                                    <div className="narration-tts-timings">
+                                        <p className="narration-tts-timings__label">
+                                            문장별 타이밍 ({sentenceTimings.length}개)
+                                        </p>
+                                        <div className="narration-tts-timings__list">
+                                            {sentenceTimings.slice(0, 5).map((t) => (
+                                                <div key={t.index} className="narration-tts-timing-row">
+                                                    <span className="narration-tts-timing-row__time">
+                                                        {t.startTime.toFixed(1)}s — {t.endTime.toFixed(1)}s
+                                                    </span>
+                                                    <span className="narration-tts-timing-row__text">{t.text}</span>
+                                                </div>
+                                            ))}
+                                            {sentenceTimings.length > 5 && (
+                                                <div className="narration-tts-timings__more">
+                                                    ...외 {sentenceTimings.length - 5}개
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <button
+                                        className="btn-primary narration-tts-section__split-btn"
+                                        onClick={handleAutoSplit}
+                                    >
+                                        씬 자동 분할 → 스토리보드 <ArrowDown size={14} />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Preview + Info */}
             <div className="tl-preview">

@@ -14,7 +14,7 @@ type StoryboardPhase = 'script-review' | 'cast-setup' | 'seed-check' | 'generati
 
 const StoryboardPage: React.FC = () => {
     const navigate = useNavigate();
-    const { selectedStyle, scenes: storeScenes, cardLibrary, addToCardLibrary, aiModelPreferences, setAiModelPreference } = useProjectStore();
+    const { selectedStyle, scenes: storeScenes, cardLibrary, addToCardLibrary, aiModelPreferences, setAiModelPreference, mode } = useProjectStore();
     const { remaining: creditsRemaining, canAfford, spend, CREDIT_COSTS } = useCredits();
 
     const [phase, setPhase] = useState<StoryboardPhase>('cast-setup');
@@ -151,7 +151,14 @@ const StoryboardPage: React.FC = () => {
                     showAiAnalysisModal={showAiAnalysisModal}
                     isAiAnalyzing={isAiAnalyzing}
                     onAiAnalysis={handleAiAnalysis}
-                    onNextPhase={() => setPhase('script-review')}
+                    onNextPhase={() => {
+                        // 나레이션 모드: CutSplit 스킵 → 바로 시드 매칭으로
+                        if (mode === 'narration') {
+                            setPhase('seed-check');
+                        } else {
+                            setPhase('script-review');
+                        }
+                    }}
                 />
             )}
 

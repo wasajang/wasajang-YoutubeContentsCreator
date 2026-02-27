@@ -128,11 +128,66 @@ const replicateProvider: ImageProvider = {
     },
 };
 
+// ── Gemini Image Provider ──
+
+const geminiProvider: ImageProvider = {
+    name: 'gemini',
+    generate: async (req) => {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) throw new Error('VITE_GEMINI_API_KEY 환경변수가 설정되지 않았습니다.');
+
+        const startTime = Date.now();
+
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-0514:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: req.prompt }] }],
+                    generationConfig: {
+                        responseModalities: ['IMAGE'],
+                        imageConfig: {
+                            aspectRatio: req.width && req.height
+                                ? (req.width > req.height ? '16:9' : req.width < req.height ? '9:16' : '1:1')
+                                : '16:9',
+                        },
+                    },
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(`Gemini Image API 에러: ${err.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        const imagePart = parts.find((p: { inline_data?: { data: string; mime_type: string } }) => p.inline_data);
+        if (!imagePart?.inline_data?.data) {
+            throw new Error('Gemini 응답에 이미지 데이터가 없습니다.');
+        }
+
+        const mimeType = imagePart.inline_data.mime_type || 'image/png';
+        const base64Data = imagePart.inline_data.data;
+        const imageUrl = `data:${mimeType};base64,${base64Data}`;
+
+        return {
+            imageUrl,
+            seed: req.seed ?? Math.floor(Math.random() * 99999),
+            provider: 'gemini',
+            durationMs: Date.now() - startTime,
+        };
+    },
+};
+
 // ── Provider 선택 ──
 
 const providers: Record<string, ImageProvider> = {
     mock: mockProvider,
     replicate: replicateProvider,
+    gemini: geminiProvider,
 };
 
 function getProvider(): ImageProvider {

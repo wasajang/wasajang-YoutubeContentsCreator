@@ -8,7 +8,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type ApiProvider = 'openai' | 'anthropic' | 'replicate' | 'runway' | 'fishSpeech';
+export type ApiProvider = 'openai' | 'anthropic' | 'replicate' | 'runway' | 'fishSpeech' | 'google';
 
 /** GenerationType → 사용하는 외부 API provider 매핑 */
 export const ACTION_PROVIDER_MAP: Record<string, ApiProvider> = {

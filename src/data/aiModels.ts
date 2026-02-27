@@ -35,6 +35,7 @@ export const AI_MODELS: AIModel[] = [
     { id: 'flux-schnell',   name: 'Flux Schnell',   provider: 'replicate', category: 'image', creditCost: 1, isDefault: true },
     { id: 'sdxl',           name: 'SDXL',           provider: 'replicate', category: 'image', creditCost: 2 },
     { id: 'dall-e-3',       name: 'DALL-E 3',       provider: 'openai',    category: 'image', creditCost: 2 },
+    { id: 'gemini-image',   name: 'Gemini Image',   provider: 'google',    category: 'image', creditCost: 1 },
 
     // 🔓 영상 AI (사용자 선택)
     { id: 'runway-gen3',    name: 'Runway Gen-3',   provider: 'runway',    category: 'video', creditCost: 3, isDefault: true },

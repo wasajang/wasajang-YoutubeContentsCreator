@@ -70,6 +70,7 @@ const IdeaPage: React.FC = () => {
         hasActiveProject, startNewProject,
         selectedPreset, setSelectedPreset,
         aiModelPreferences, setAiModelPreference,
+        mode,
     } = useProjectStore();
     const { canAfford, spend, remaining: creditsRemaining, CREDIT_COSTS } = useCredits();
 
@@ -470,8 +471,11 @@ const IdeaPage: React.FC = () => {
                 borderTop: '1px solid var(--border-subtle)',
                 background: 'var(--bg-secondary)',
             }}>
-                <button className="btn-primary" onClick={() => navigate('/project/storyboard')}>
-                    다음: 스토리보드 →
+                <button
+                    className="btn-primary"
+                    onClick={() => navigate(mode === 'narration' ? '/project/timeline' : '/project/storyboard')}
+                >
+                    {mode === 'narration' ? '다음: 나레이션 생성 →' : '다음: 스토리보드 →'}
                 </button>
             </div>
         </div>

@@ -190,6 +190,48 @@ const anthropicProvider: LLMProvider = {
     },
 };
 
+// ── Gemini Provider ──
+
+const geminiProvider: LLMProvider = {
+    name: 'gemini',
+    generateScript: async (req) => {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) throw new Error('VITE_GEMINI_API_KEY 환경변수가 설정되지 않았습니다.');
+
+        const start = Date.now();
+        const systemPrompt = buildSystemPrompt(req);
+        const userPrompt = buildUserPrompt(req);
+
+        const model = req.model || 'gemini-2.5-flash';
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: userPrompt }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    generationConfig: {
+                        temperature: 0.8,
+                        maxOutputTokens: 4000,
+                        responseMimeType: 'application/json',
+                    },
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(`Gemini API 에러: ${err.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        return parseScriptResponse(content, 'gemini', Date.now() - start, req);
+    },
+};
+
 // ── 공통 프롬프트 빌더 ──
 
 function buildSystemPrompt(req: ScriptGenerationRequest): string {
@@ -281,6 +323,7 @@ const providers: Record<string, LLMProvider> = {
     mock: mockProvider,
     openai: openaiProvider,
     anthropic: anthropicProvider,
+    gemini: geminiProvider,
 };
 
 function getCurrentProvider(): LLMProvider {
