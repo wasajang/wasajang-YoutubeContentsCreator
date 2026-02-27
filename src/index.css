@@ -2168,13 +2168,6 @@ img {
 }
 
 /* ========== TIMELINE CLIP STRIP (Horizontal Video Cards) ========== */
-.tl-clip-strip {
-  flex: 1;
-  background: var(--bg-surface);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
 
 .tl-clip-strip__track {
   display: flex;
@@ -2271,6 +2264,153 @@ img {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tl-clip-strip__label {
+  width: 56px;
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 12px 8px 12px 12px;
+  display: flex;
+  align-items: center;
+}
+
+.tl-clip-strip {
+  display: flex;
+  flex-direction: row;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-default);
+}
+
+.tl-clip-strip--audio {
+  background: rgba(168, 85, 247, 0.04);
+  border-top: 1px solid rgba(168, 85, 247, 0.15);
+}
+
+/* ========== TIMELINE EDITING TOOLBAR ========== */
+
+.tl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.tl-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tl-toolbar__btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.tl-toolbar__btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-accent);
+  background: rgba(233, 30, 140, 0.06);
+}
+
+.tl-toolbar__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.tl-toolbar__btn--danger:hover:not(:disabled) {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.tl-toolbar__split-slider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tl-toolbar__range {
+  width: 80px;
+  height: 3px;
+  accent-color: var(--accent-primary);
+}
+
+.tl-toolbar__range-label {
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  min-width: 28px;
+}
+
+.tl-toolbar__divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-default);
+  margin: 0 4px;
+}
+
+.tl-toolbar__info {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========== TIMELINE AUDIO CARD (TTS Track) ========== */
+
+.tl-audio-card {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(168, 85, 247, 0.25);
+  background: rgba(168, 85, 247, 0.05);
+  color: var(--text-muted);
+  font-size: 0.5625rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tl-audio-card:hover {
+  border-color: rgba(168, 85, 247, 0.5);
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+}
+
+.tl-audio-card--active {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.tl-audio-card--has-audio {
+  border-style: solid;
+  border-color: rgba(168, 85, 247, 0.4);
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+}
+
+.tl-audio-card--has-audio:hover {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.18);
 }
 
 /* ========== AI ANALYSIS MODAL ========== */
@@ -2879,6 +3019,30 @@ img {
 
 .animate-spin {
   animation: spin 1.5s linear infinite;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ========== TIMELINE TOOLBAR TTS ========== */
+
+.tl-toolbar__btn--tts {
+  color: #a855f7;
+  border-color: rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.06);
+}
+
+.tl-toolbar__btn--tts:hover:not(:disabled) {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+}
+
+.tl-audio-card--loading {
+  border-color: rgba(168, 85, 247, 0.5);
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
 }
 
 /* ========== CAST/BACKGROUND SETUP (Phase 2) ========== */
