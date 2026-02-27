@@ -141,7 +141,6 @@ export function useProject() {
     useEffect(() => {
         if (isGuest || !user || !isSupabaseConfigured) return;
         if (isLoadingFromDbRef.current) return;
-
         debouncedSave();
     }, [
         store.title,

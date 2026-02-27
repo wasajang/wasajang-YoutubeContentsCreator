@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Pencil, Wand2, Check, Minus, Plus, ArrowRight, RotateCcw, Loader,
@@ -66,8 +66,17 @@ const IdeaPage: React.FC = () => {
         aspectRatio, setAspectRatio, toggleSceneCheck,
         selectedStyle, setSelectedStyle,
         cardLibrary, addToCardLibrary, removeFromCardLibrary,
+        hasActiveProject, startNewProject,
     } = useProjectStore();
     const { canAfford, spend, remaining: creditsRemaining, CREDIT_COSTS } = useCredits();
+
+    // NavBar "New Project" 링크로 진입 시 hasActiveProject가 false일 수 있음
+    // 이 경우 자동으로 새 프로젝트를 시작 (DB 저장이 되도록)
+    useEffect(() => {
+        if (!hasActiveProject) {
+            startNewProject(title || 'Untitled Project');
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── 공통 상태 ──
     const [activeTab, setActiveTab] = useState<IdeaTab>('script');
