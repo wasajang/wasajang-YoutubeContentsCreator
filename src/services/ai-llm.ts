@@ -21,6 +21,8 @@ export interface ScriptGenerationRequest {
     targetDuration?: number;
     /** 아트 스타일 (프롬프트에 반영) */
     style?: string;
+    /** AI 모델 ID (기본값: 'gpt-4o-mini'). Phase 6에서 유저 선택 지원. */
+    model?: string;
 }
 
 export interface GeneratedScene {
@@ -125,7 +127,7 @@ const openaiProvider: LLMProvider = {
                 'Authorization': `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                model: 'gpt-4o-mini',
+                model: req.model || 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt },
@@ -169,7 +171,7 @@ const anthropicProvider: LLMProvider = {
                 'anthropic-dangerous-direct-browser-access': 'true',
             },
             body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
+                model: req.model || 'claude-sonnet-4-20250514',
                 max_tokens: 4000,
                 system: systemPrompt,
                 messages: [{ role: 'user', content: userPrompt }],

@@ -36,6 +36,21 @@ export interface TimelineClip {
   duration: number; // seconds
 }
 
+// ── AI 모델 선호도 (Phase 6에서 유저 선택 UI 추가 예정) ──
+export interface AiModelPreferences {
+  script: string;
+  image: string;
+  video: string;
+  tts: string;
+}
+
+const DEFAULT_AI_MODELS: AiModelPreferences = {
+  script: 'gpt-4o-mini',
+  image: 'flux-schnell',
+  video: 'runway-gen3',
+  tts: 'fish-speech',
+};
+
 export interface ProjectState {
   // Project info
   projectId: string | null;
@@ -78,6 +93,24 @@ export interface ProjectState {
   // Active project flag
   hasActiveProject: boolean;
   startNewProject: (title: string) => void;
+
+  // ── v4 신규 필드 ──
+
+  // 진입점 (3가지 시작점 추적 — Phase 2에서 사용)
+  entryPoint: 'script' | 'style' | 'cast' | null;
+  setEntryPoint: (ep: 'script' | 'style' | 'cast' | null) => void;
+
+  // 선택된 스타일 프리셋 ID (Phase 2에서 사용)
+  selectedPreset: string | null;
+  setSelectedPreset: (preset: string | null) => void;
+
+  // 프로젝트별 선택 카드 ID 목록 (cardLibrary 중 이 프로젝트에서 사용할 카드)
+  selectedDeck: string[];
+  setSelectedDeck: (deck: string[]) => void;
+
+  // AI 모델 선호도 (Phase 6에서 유저 선택 지원)
+  aiModelPreferences: AiModelPreferences;
+  setAiModelPreference: (category: keyof AiModelPreferences, modelId: string) => void;
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -123,7 +156,7 @@ export const useProjectStore = create<ProjectState>()(
       setTimelineClips: (timelineClips) => set({ timelineClips }),
 
       // Credits
-      credits: 50,
+      credits: 100,
       spendCredits: (amount) => {
         let success = false;
         set((state) => {
@@ -136,12 +169,12 @@ export const useProjectStore = create<ProjectState>()(
         return success;
       },
       addCredits: (amount) => set((state) => ({ credits: state.credits + amount })),
-      resetCredits: () => set({ credits: 50 }),
+      resetCredits: () => set({ credits: 100 }),
 
       hasActiveProject: false,
       startNewProject: (title) =>
         set({
-          projectId: null, // 새 프로젝트는 DB ID 없음
+          projectId: null,
           title,
           hasActiveProject: true,
           currentPhase: 1,
@@ -149,12 +182,32 @@ export const useProjectStore = create<ProjectState>()(
           selectedStyle: 'Cinematic',
           aspectRatio: '16:9',
           timelineClips: [],
+          entryPoint: null,
+          selectedPreset: null,
+          selectedDeck: [],
+          aiModelPreferences: { ...DEFAULT_AI_MODELS },
           // cardLibrary는 리셋하지 않음 — 카드 에셋은 프로젝트 간 유지
         }),
+
+      // ── v4 신규 필드 초기값 & 액션 ──
+      entryPoint: null,
+      setEntryPoint: (entryPoint) => set({ entryPoint }),
+
+      selectedPreset: null,
+      setSelectedPreset: (selectedPreset) => set({ selectedPreset }),
+
+      selectedDeck: [],
+      setSelectedDeck: (selectedDeck) => set({ selectedDeck }),
+
+      aiModelPreferences: { ...DEFAULT_AI_MODELS },
+      setAiModelPreference: (category, modelId) =>
+        set((s) => ({
+          aiModelPreferences: { ...s.aiModelPreferences, [category]: modelId },
+        })),
     }),
     {
       name: 'antigravity-project',
-      version: 3,
+      version: 4,
       migrate: (persistedState: unknown, version: number) => {
         let state = persistedState as Record<string, unknown>;
         if (version < 2) {
@@ -182,7 +235,17 @@ export const useProjectStore = create<ProjectState>()(
         }
         if (version < 3) {
           // v2→v3: projectId 추가
-          return { ...state, projectId: state.projectId ?? null };
+          state = { ...state, projectId: state.projectId ?? null };
+        }
+        if (version < 4) {
+          // v3→v4: entryPoint, selectedPreset, selectedDeck, aiModelPreferences 추가
+          return {
+            ...state,
+            entryPoint: null,
+            selectedPreset: null,
+            selectedDeck: [],
+            aiModelPreferences: { ...DEFAULT_AI_MODELS },
+          };
         }
         return state;
       },
@@ -196,6 +259,10 @@ export const useProjectStore = create<ProjectState>()(
         hasActiveProject: state.hasActiveProject,
         currentPhase: state.currentPhase,
         aspectRatio: state.aspectRatio,
+        entryPoint: state.entryPoint,
+        selectedPreset: state.selectedPreset,
+        selectedDeck: state.selectedDeck,
+        aiModelPreferences: state.aiModelPreferences,
       }),
     }
   )

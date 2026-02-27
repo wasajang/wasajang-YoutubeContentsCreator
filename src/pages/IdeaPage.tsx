@@ -2,16 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Pencil, Wand2, Check, Minus, Plus, ArrowRight, RotateCcw, Loader,
-    Hash, User, X, MapPin, Sword,
 } from 'lucide-react';
 import WorkflowSteps from '../components/WorkflowSteps';
+import PresetInfoModal from '../components/PresetInfoModal';
 import { useProjectStore } from '../store/projectStore';
-import type { AssetType } from '../store/projectStore';
 import { mockScript, artStyles, mockCardLibrary } from '../data/mockData';
+import { getPresetById } from '../data/stylePresets';
 import { generateScript } from '../services/ai-llm';
 import { useCredits } from '../hooks/useCredits';
+import { getUserSelectableModels } from '../data/aiModels';
 
-type IdeaTab = 'script' | 'style' | 'cast';
+type IdeaTab = 'script' | 'style';
 type InputMode = 'script' | 'idea';
 
 // ── 텍스트를 N개 씬으로 균등 분할하는 함수 ──
@@ -65,8 +66,10 @@ const IdeaPage: React.FC = () => {
         title, setTitle, scenes, setScenes,
         aspectRatio, setAspectRatio, toggleSceneCheck,
         selectedStyle, setSelectedStyle,
-        cardLibrary, addToCardLibrary, removeFromCardLibrary,
+        cardLibrary, addToCardLibrary,
         hasActiveProject, startNewProject,
+        selectedPreset, setSelectedPreset,
+        aiModelPreferences, setAiModelPreference,
     } = useProjectStore();
     const { canAfford, spend, remaining: creditsRemaining, CREDIT_COSTS } = useCredits();
 
@@ -81,6 +84,14 @@ const IdeaPage: React.FC = () => {
     // ── 공통 상태 ──
     const [activeTab, setActiveTab] = useState<IdeaTab>('script');
 
+    // ── 프리셋 모달 (스타일부터 진입 시 표시) ──
+    const [showPresetModal, setShowPresetModal] = useState(false);
+    useEffect(() => {
+        if (selectedPreset) {
+            setShowPresetModal(true);
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     // ── Script 탭 상태 ──
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState(title);
@@ -93,18 +104,12 @@ const IdeaPage: React.FC = () => {
     const [editingText, setEditingText] = useState('');
     const [isIdeaGenerating, setIsIdeaGenerating] = useState(false);
 
-    // ── Cast 탭 상태 ──
-    const [showModal, setShowModal] = useState(false);
-    const [newCard, setNewCard] = useState({ name: '', description: '' });
-    const [castTypeFilter, setCastTypeFilter] = useState<AssetType | 'all'>('all');
-    const [newCardType, setNewCardType] = useState<AssetType>('character');
-
     // ── Cast 초기화 (cardLibrary가 비어있으면 mockCardLibrary로 채움) ──
     React.useEffect(() => {
         if (cardLibrary.length === 0) {
             mockCardLibrary.forEach((c) => addToCardLibrary(c));
         }
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Script 핸들러 ──
     const handleTitleSave = () => {
@@ -134,6 +139,7 @@ const IdeaPage: React.FC = () => {
                 idea: ideaText,
                 sceneCount,
                 style: selectedStyle,
+                model: aiModelPreferences.script,
             });
             // LLM 결과를 store 씬 형태로 변환
             const storeScenes = result.scenes.map((s) => ({
@@ -172,30 +178,12 @@ const IdeaPage: React.FC = () => {
         setEditingSceneId(null);
     };
 
-    // ── Cast 핸들러 (AssetCard 생성) ──
-    const handleAddCard = () => {
-        if (!newCard.name.trim()) return;
-        addToCardLibrary({
-            id: `card-${Date.now()}`,
-            name: newCard.name,
-            type: newCardType,
-            description: newCard.description,
-            imageUrl: '',
-            seed: Math.floor(Math.random() * 100000),
-            status: 'pending',
-            source: 'manual',
-        });
-        setNewCard({ name: '', description: '' });
-        setNewCardType('character');
-        setShowModal(false);
-    };
-
     // ── 스타일 그라디언트 ──
     const getStyleGradient = (color: string) =>
         `linear-gradient(145deg, ${color} 0%, ${color}88 50%, ${color}44 100%)`;
 
     // ── 워크플로우 클릭 ──
-    const handleWorkflowStepClick = (step: number) => {
+    const handleMainClick = (step: number) => {
         switch (step) {
             case 1: break; // 이미 여기
             case 2: navigate('/project/storyboard'); break;
@@ -204,14 +192,41 @@ const IdeaPage: React.FC = () => {
         }
     };
 
+    const handleSubClick = (key: string) => {
+        if (key === 'script') setActiveTab('script');
+        if (key === 'style') setActiveTab('style');
+    };
+
     const aspectOptions = [
         { ratio: '16:9' as const, label: '16:9 landscape', icon: '🖥️' },
         { ratio: '9:16' as const, label: '9:16 portrait', icon: '📱' },
         { ratio: '1:1' as const, label: '1:1 square', icon: '⬜' },
     ];
 
+    // 프리셋 모달에서 사용할 preset 객체
+    const activePreset = selectedPreset ? getPresetById(selectedPreset) : null;
+
     return (
         <div className="page-container">
+            {/* 프리셋 정보 모달 (스타일부터 진입 시) */}
+            {showPresetModal && activePreset && (
+                <PresetInfoModal
+                    preset={activePreset}
+                    onApply={() => {
+                        setShowPresetModal(false);
+                        setSelectedPreset(null); // 적용 후 초기화 (재방문 시 미표시)
+                    }}
+                    onCustomize={() => {
+                        setShowPresetModal(false);
+                        setSelectedPreset(null);
+                    }}
+                    onClose={() => {
+                        setShowPresetModal(false);
+                        setSelectedPreset(null);
+                    }}
+                />
+            )}
+
             {/* Phase Header */}
             <div className="phase-header">
                 <div className="phase-header__left">
@@ -245,7 +260,12 @@ const IdeaPage: React.FC = () => {
                             </>
                         )}
                     </div>
-                    <WorkflowSteps currentStep={1} onStepClick={handleWorkflowStepClick} />
+                    <WorkflowSteps
+                        currentMain={1}
+                        currentSub={activeTab}
+                        onMainClick={handleMainClick}
+                        onSubClick={handleSubClick}
+                    />
                 </div>
 
                 <div className="phase-tabs">
@@ -261,13 +281,6 @@ const IdeaPage: React.FC = () => {
                         onClick={() => setActiveTab('style')}
                     >
                         STYLE
-                    </button>
-                    <span className="phase-tab-separator">&gt;</span>
-                    <button
-                        className={`phase-tab ${activeTab === 'cast' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('cast')}
-                    >
-                        CAST
                     </button>
                 </div>
 
@@ -348,6 +361,18 @@ const IdeaPage: React.FC = () => {
                                             <button className="scene-count-btn" onClick={() => setSceneCount((n) => Math.min(30, n + 1))}>
                                                 <Plus size={12} />
                                             </button>
+                                        </div>
+                                        <div className="ai-model-row">
+                                            <label className="ai-model-row__label">대본 AI</label>
+                                            <select
+                                                className="ai-model-select"
+                                                value={aiModelPreferences.script}
+                                                onChange={(e) => setAiModelPreference('script', e.target.value)}
+                                            >
+                                                {getUserSelectableModels('script').map((m) => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                ))}
+                                            </select>
                                         </div>
                                         <button
                                             className="btn-primary script-generate-btn"
@@ -436,100 +461,6 @@ const IdeaPage: React.FC = () => {
                 </div>
             )}
 
-            {/* ═══ CAST 탭 (카드 라이브러리) ═══ */}
-            {activeTab === 'cast' && (
-                <div className="page-scrollable-content">
-                    <div className="cast-section">
-                        <div className="cast-section__header">
-                            <h2 className="cast-section__title">
-                                카드 라이브러리
-                                <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '8px' }}>
-                                    ({cardLibrary.length}장)
-                                </span>
-                            </h2>
-                            <button className="btn-primary" onClick={() => setShowModal(true)}>
-                                <Plus size={14} /> 카드 추가
-                            </button>
-                        </div>
-
-                        {/* 타입 필터 버튼 */}
-                        <div className="cast-type-filter">
-                            {([['all', '전체'], ['character', '캐릭터'], ['background', '배경'], ['item', '아이템']] as const).map(([val, label]) => (
-                                <button
-                                    key={val}
-                                    className={`cast-type-filter__btn ${castTypeFilter === val ? 'active' : ''}`}
-                                    onClick={() => setCastTypeFilter(val)}
-                                >
-                                    {label}
-                                    <span className="cast-type-filter__count">
-                                        {val === 'all' ? cardLibrary.length : cardLibrary.filter((c) => c.type === val).length}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="cast-grid">
-                            {cardLibrary
-                                .filter((card) => castTypeFilter === 'all' || card.type === castTypeFilter)
-                                .map((card) => (
-                                    <div key={card.id} className="cast-card">
-                                        {/* 타입 뱃지 */}
-                                        <span className={`cast-card__type-badge cast-card__type-badge--${card.type}`}>
-                                            {card.type === 'character' ? '캐릭터' : card.type === 'background' ? '배경' : '아이템'}
-                                        </span>
-                                        {/* 삭제 버튼 */}
-                                        <button
-                                            className="cast-card__remove-btn"
-                                            onClick={(e) => { e.stopPropagation(); removeFromCardLibrary(card.id); }}
-                                            title="카드 삭제"
-                                        >
-                                            <X size={12} />
-                                        </button>
-                                        {card.imageUrl ? (
-                                            <img src={card.imageUrl} className="cast-card__img" alt={card.name} />
-                                        ) : (
-                                            <div
-                                                className="cast-card__img"
-                                                style={{
-                                                    background: `linear-gradient(180deg, hsl(${(card.seed % 360)}, 20%, 25%) 0%, hsl(${(card.seed % 360)}, 15%, 15%) 100%)`,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    color: 'var(--text-muted)',
-                                                }}
-                                            >
-                                                {card.type === 'character' ? <User size={40} /> :
-                                                 card.type === 'background' ? <MapPin size={40} /> :
-                                                 <Sword size={40} />}
-                                            </div>
-                                        )}
-                                        <div className="cast-card__info">
-                                            <div className="cast-card__name">{card.name}</div>
-                                            <div className="cast-card__desc">{card.description}</div>
-                                            <div style={{
-                                                display: 'flex', alignItems: 'center', gap: '4px',
-                                                marginTop: '6px', fontSize: '0.625rem', color: 'var(--accent-primary)',
-                                            }}>
-                                                <Hash size={10} />
-                                                Seed: {card.seed}
-                                                {card.source && (
-                                                    <span style={{ marginLeft: '6px', opacity: 0.6 }}>
-                                                        · {card.source === 'ai' ? 'AI' : '수동'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            <div className="cast-add-card" onClick={() => setShowModal(true)}>
-                                <Plus size={24} />
-                                <span style={{ fontSize: '0.75rem', fontWeight: 500 }}>카드 추가</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Bottom Navigation */}
             <div style={{
                 display: 'flex',
@@ -543,62 +474,6 @@ const IdeaPage: React.FC = () => {
                     다음: 스토리보드 →
                 </button>
             </div>
-
-            {/* Add Card Modal */}
-            {showModal && (
-                <div className="modal-backdrop" onClick={() => setShowModal(false)}>
-                    <div className="modal" onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 className="modal__title">새 카드 추가</h3>
-                            <button className="btn-icon" onClick={() => setShowModal(false)}>
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        {/* 타입 선택 */}
-                        <div className="modal__field">
-                            <label className="modal__label">카드 타입</label>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                {([['character', '캐릭터', User], ['background', '배경', MapPin], ['item', '아이템', Sword]] as const).map(([type, label, Icon]) => (
-                                    <button
-                                        key={type}
-                                        className={`cast-type-filter__btn ${newCardType === type ? 'active' : ''}`}
-                                        onClick={() => setNewCardType(type)}
-                                        style={{ flex: 1 }}
-                                    >
-                                        <Icon size={13} /> {label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="modal__field">
-                            <label className="modal__label">이름 (Name)</label>
-                            <input
-                                className="modal__input"
-                                placeholder={newCardType === 'character' ? '예: 민수 (Minsoo)' : newCardType === 'background' ? '예: 전장의 폐허' : '예: K2 전차'}
-                                value={newCard.name}
-                                onChange={(e) => setNewCard({ ...newCard, name: e.target.value })}
-                            />
-                        </div>
-                        <div className="modal__field">
-                            <label className="modal__label">설명 (Description)</label>
-                            <textarea
-                                className="modal__textarea"
-                                placeholder={newCardType === 'character' ? '예: A tattered olive drab winter military uniform, young Korean soldier...' : newCardType === 'background' ? '예: 눈 내리는 산악 지대, 포격으로 부서진 건물들...' : '예: 현대식 K2 흑표 전차, 위장 도색...'}
-                                value={newCard.description}
-                                onChange={(e) => setNewCard({ ...newCard, description: e.target.value })}
-                            />
-                        </div>
-                        <div className="modal__actions">
-                            <button className="btn-secondary" onClick={() => setShowModal(false)}>취소</button>
-                            <button className="btn-primary" onClick={handleAddCard}>
-                                <Plus size={14} /> 추가
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

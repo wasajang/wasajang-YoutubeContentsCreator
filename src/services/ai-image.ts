@@ -17,6 +17,7 @@ export interface ImageGenerationRequest {
     height?: number;
     seed?: number;
     style?: string;
+    model?: string;  // AI 모델 ID (기본값: 'flux-schnell'). Phase 6에서 유저 선택 지원.
 }
 
 export interface ImageGenerationResult {
@@ -85,7 +86,7 @@ const replicateProvider: ImageProvider = {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                model: 'black-forest-labs/flux-schnell',
+                model: req.model || 'black-forest-labs/flux-schnell',
                 input: {
                     prompt: req.prompt,
                     num_outputs: 1,

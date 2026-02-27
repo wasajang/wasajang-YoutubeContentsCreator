@@ -21,6 +21,8 @@ export interface VideoGenerationRequest {
     cameraMotion?: string;
     /** 씬 ID (추적용) */
     sceneId?: string;
+    /** AI 모델 ID (기본값: 'gen3a_turbo'). Phase 6에서 유저 선택 지원. */
+    model?: string;
 }
 
 export interface VideoGenerationResult {
@@ -87,7 +89,7 @@ const runwayProvider: VideoProvider = {
                 'X-Runway-Version': '2024-11-06',
             },
             body: JSON.stringify({
-                model: 'gen3a_turbo',
+                model: req.model || 'gen3a_turbo',
                 promptImage: req.imageUrl,
                 promptText: req.prompt,
                 duration: req.duration || 5,

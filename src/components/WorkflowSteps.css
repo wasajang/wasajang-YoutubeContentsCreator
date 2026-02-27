@@ -1,0 +1,110 @@
+/* ── WorkflowSteps 2레벨 네비게이션 ── */
+
+/* 전체 래퍼 */
+.workflow-steps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 상위 단계 행 */
+.workflow-steps__main-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 상위 단계 아이템 */
+.workflow-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.workflow-step.active {
+  color: var(--text-primary);
+}
+
+.workflow-step.completed {
+  color: var(--accent-primary);
+}
+
+/* 원형 번호 */
+.workflow-step__num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border: 1.5px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.workflow-step.active .workflow-step__num {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+.workflow-step.completed .workflow-step__num {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+/* 상위 단계 사이 구분선 */
+.workflow-step__divider {
+  width: 24px;
+  height: 1px;
+  background: var(--border-color);
+}
+
+/* 하위 단계 행 */
+.workflow-steps__sub-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 하위 단계 아이템 */
+.workflow-sub-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  opacity: 0.6;
+}
+
+.workflow-sub-step.active {
+  color: var(--accent-primary);
+  opacity: 1;
+}
+
+.workflow-sub-step.completed {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+/* 하위 단계 도트 */
+.workflow-sub-step__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.workflow-sub-step.active .workflow-sub-step__dot {
+  background: var(--accent-primary);
+}

@@ -25,6 +25,11 @@ export interface TTSRequest {
     format?: 'mp3' | 'wav' | 'opus';
     /** 말하기 속도 (0.5~2.0, 기본 1.0) */
     speed?: number;
+    /**
+     * TTS 엔진 모델 ID. Phase 6에서 유저 선택 지원.
+     * ⚠️ voiceId(=화자 ID)와 별개: model은 엔진, voiceId는 해당 엔진 내 특정 화자.
+     */
+    model?: string;
 }
 
 export interface TTSResult {

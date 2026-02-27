@@ -21,6 +21,7 @@ import { useProjectStore } from '../store/projectStore';
 import { mockStoryboardScenes } from '../data/mockData';
 import { generateTTS } from '../services/ai-tts';
 import { useCredits, CREDIT_COSTS } from '../hooks/useCredits';
+import { getUserSelectableModels } from '../data/aiModels';
 
 // ── 타임라인 클립 타입 ──
 interface TimelineClip {
@@ -38,7 +39,7 @@ interface TimelineClip {
 
 const TimelinePage: React.FC = () => {
     const navigate = useNavigate();
-    const { title, scenes: storeScenes } = useProjectStore();
+    const { title, scenes: storeScenes, aiModelPreferences, setAiModelPreference } = useProjectStore();
 
     // store 씬이 없으면 mockData 폴백
     const sourceScenes = storeScenes.length > 0 ? storeScenes : mockStoryboardScenes;
@@ -192,6 +193,7 @@ const TimelinePage: React.FC = () => {
             const result = await generateTTS({
                 text: clip.text,
                 clipId: clip.id,
+                model: aiModelPreferences.tts,
             });
 
             spend('script', 1); // TTS도 script 크레딧 1 사용
@@ -229,6 +231,7 @@ const TimelinePage: React.FC = () => {
                 const result = await generateTTS({
                     text: clip.text,
                     clipId: clip.id,
+                    model: aiModelPreferences.tts,
                 });
 
                 spend('script', 1);
@@ -259,17 +262,21 @@ const TimelinePage: React.FC = () => {
             <div className="storyboard-header">
                 <h2 className="storyboard-header__title">{title || '강철의 북진'}</h2>
                 <div className="storyboard-header__center">
-                    <WorkflowSteps currentStep={4} onStepClick={(step) => {
-                        switch (step) {
-                            case 1: navigate('/project/idea'); break;
-                            case 2: navigate('/project/storyboard'); break;
-                            case 3: navigate('/project/storyboard'); break;
-                            case 4: break;
-                        }
-                    }} />
+                    <WorkflowSteps
+                        currentMain={4}
+                        currentSub="timeline"
+                        onMainClick={(step) => {
+                            switch (step) {
+                                case 1: navigate('/project/idea'); break;
+                                case 2: navigate('/project/storyboard'); break;
+                                case 3: navigate('/project/storyboard'); break;
+                                case 4: break;
+                            }
+                        }}
+                    />
                 </div>
                 <div className="storyboard-header__right">
-                    <button className="export-btn"><Download size={14} /> Export</button>
+                    <button className="export-btn" disabled title="추후 지원 예정 — 현재 TTS 오디오 생성까지 이용 가능"><Download size={14} /> Export</button>
                 </div>
             </div>
 
@@ -362,6 +369,18 @@ const TimelinePage: React.FC = () => {
                     <Trash2 size={13} /> 삭제
                 </button>
                 <div className="tl-toolbar__divider" />
+                <div className="ai-model-row ai-model-row--compact">
+                    <label className="ai-model-row__label">TTS AI</label>
+                    <select
+                        className="ai-model-select"
+                        value={aiModelPreferences.tts}
+                        onChange={(e) => setAiModelPreference('tts', e.target.value)}
+                    >
+                        {getUserSelectableModels('tts').map((m) => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                    </select>
+                </div>
                 <button
                     className="tl-toolbar__btn tl-toolbar__btn--tts"
                     onClick={handleGenerateAllTTS}

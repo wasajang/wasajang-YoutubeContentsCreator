@@ -6,6 +6,11 @@ import HomePage from './pages/HomePage';
 import IdeaPage from './pages/IdeaPage';
 import StoryboardPage from './pages/StoryboardPage';
 import TimelinePage from './pages/TimelinePage';
+import CastPage from './pages/CastPage';
+import SettingsPage from './pages/SettingsPage';
+import AdminPage from './pages/AdminPage';
+import NotFoundPage from './pages/NotFoundPage';
+import ToastContainer from './components/ToastContainer';
 import { useProject } from './hooks/useProject';
 
 /** Supabase ↔ Store 자동 동기화 (게스트 모드에서는 비활성) */
@@ -20,15 +25,17 @@ const App: React.FC = () => {
       <BrowserRouter>
         <ProjectSync />
         <NavBar />
+        <ToastContainer />
         <ErrorBoundary>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/project/new" element={<IdeaPage />} />
+            <Route path="/cast" element={<CastPage />} />
             <Route path="/project/idea" element={<IdeaPage />} />
-            <Route path="/project/script" element={<IdeaPage />} />
-            <Route path="/project/style" element={<IdeaPage />} />
             <Route path="/project/storyboard" element={<StoryboardPage />} />
             <Route path="/project/timeline" element={<TimelinePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </ErrorBoundary>
       </BrowserRouter>

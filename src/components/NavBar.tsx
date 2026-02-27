@@ -1,13 +1,21 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Home, FolderOpen, Plus, Settings, Zap, LogIn, LogOut, User, Coins } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Home, FolderOpen, Plus, Settings, Zap, LogIn, LogOut, User, Coins, Users } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useProjectStore } from '../store/projectStore';
 import { useCredits } from '../hooks/useCredits';
 
 const NavBar: React.FC = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     const { user, loading, isGuest, signInWithGoogle, signInWithKakao, signOut } = useAuth();
     const { remaining } = useCredits();
+    const startNewProject = useProjectStore((s) => s.startNewProject);
+
+    const handleNewProject = () => {
+        startNewProject('Untitled Project');
+        navigate('/project/idea');
+    };
 
     return (
         <nav className="navbar">
@@ -35,6 +43,13 @@ const NavBar: React.FC = () => {
                             MY PROJECTS
                         </Link>
                     )}
+                    <Link
+                        to="/cast"
+                        className={`navbar__nav-item ${location.pathname === '/cast' ? 'active' : ''}`}
+                    >
+                        <Users size={14} />
+                        My Cast
+                    </Link>
                 </div>
             </div>
             <div className="navbar__right">
@@ -42,17 +57,17 @@ const NavBar: React.FC = () => {
                     <Coins size={14} />
                     <span className="navbar__credits-count">{remaining}</span>
                 </div>
-                <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 16px' }}>
+                <Link to="/settings" className="btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 16px', textDecoration: 'none' }}>
                     Upgrade
-                </button>
-                <Link to="/project/idea" className="btn-primary" style={{ fontSize: '0.75rem', padding: '6px 16px' }}>
+                </Link>
+                <button onClick={handleNewProject} className="btn-primary" style={{ fontSize: '0.75rem', padding: '6px 16px' }}>
                     <Plus size={14} />
                     New Project
-                </Link>
-                <button className="btn-ghost">
+                </button>
+                <Link to="/settings" className="btn-ghost">
                     <Settings size={15} />
                     SETTINGS
-                </button>
+                </Link>
 
                 {/* Auth Section */}
                 {loading ? null : isGuest ? (
