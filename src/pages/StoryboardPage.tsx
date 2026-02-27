@@ -12,7 +12,8 @@ import { useProjectStore } from '../store/projectStore';
 import type { AssetCard, AssetType } from '../store/projectStore';
 import { mockStoryboardScenes, mockScript, mockScenePrompts, stylePromptPrefix, aiSuggestedCards, favoritesPool } from '../data/mockData';
 import { generateImage } from '../services/ai-image';
-import { buildImagePrompt } from '../services/prompt-builder';
+import { generateVideo } from '../services/ai-video';
+import { buildImagePrompt, buildVideoPrompt } from '../services/prompt-builder';
 import { useCredits } from '../hooks/useCredits';
 
 type StoryboardPhase = 'script-review' | 'cast-setup' | 'seed-check' | 'generating-video' | 'complete';
@@ -254,29 +255,53 @@ const StoryboardPage: React.FC = () => {
         });
     }, [scenes, sceneGenStatus, generateSingleScene, canAfford, creditsRemaining, CREDIT_COSTS]);
 
-    const generateAllVideos = useCallback(() => {
-        if (!canAfford('video', scenes.length)) {
-            alert(`크레딧이 부족합니다! (${scenes.length}편 × ${CREDIT_COSTS.video} = ${scenes.length * CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
-            return;
-        }
-        scenes.forEach((scene, i) => {
-            setTimeout(() => {
-                if (!spend('video')) return;
-                setVideoGenStatus((p) => ({ ...p, [scene.id]: 'generating' }));
-                setTimeout(() => setVideoGenStatus((p) => ({ ...p, [scene.id]: 'done' })), 1500 + Math.random() * 1000);
-            }, i * 600);
-        });
-    }, [scenes, canAfford, spend, creditsRemaining, CREDIT_COSTS]);
-
-    const regenerateSingleVideo = useCallback((sceneId: string) => {
+    const generateSingleVideo = useCallback(async (sceneId: string) => {
         if (!canAfford('video')) {
             alert(`크레딧이 부족합니다! (영상 생성 ${CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
             return;
         }
         if (!spend('video')) return;
+
         setVideoGenStatus((p) => ({ ...p, [sceneId]: 'generating' }));
-        setTimeout(() => setVideoGenStatus((p) => ({ ...p, [sceneId]: 'done' })), 1500 + Math.random() * 1000);
-    }, [canAfford, spend, creditsRemaining, CREDIT_COSTS]);
+        try {
+            const scene = scenes.find((s) => s.id === sceneId);
+            if (!scene) return;
+            const seedCards = (sceneSeeds[sceneId] || [])
+                .map((cardId) => deck.find((c) => c.id === cardId))
+                .filter((c): c is AssetCard => !!c);
+            const prompt = buildVideoPrompt({
+                style: selectedStyle,
+                sceneText: scene.text,
+                seedCards,
+                cameraAngle: scene.cameraAngle,
+            });
+            await generateVideo({
+                imageUrl: scene.imageUrl || '',
+                prompt,
+                duration: 5,
+                sceneId,
+            });
+            setVideoGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
+        } catch (err) {
+            console.error(`[Video ${sceneId}] 영상 생성 실패:`, err);
+            setVideoGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
+        }
+    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS]);
+
+    const generateAllVideos = useCallback(() => {
+        const pending = scenes.filter((s) => videoGenStatus[s.id] !== 'done');
+        if (!canAfford('video', pending.length)) {
+            alert(`크레딧이 부족합니다! (${pending.length}편 × ${CREDIT_COSTS.video} = ${pending.length * CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            return;
+        }
+        pending.forEach((scene, i) => {
+            setTimeout(() => generateSingleVideo(scene.id), i * 800);
+        });
+    }, [scenes, videoGenStatus, canAfford, creditsRemaining, CREDIT_COSTS, generateSingleVideo]);
+
+    const regenerateSingleVideo = useCallback((sceneId: string) => {
+        generateSingleVideo(sceneId);
+    }, [generateSingleVideo]);
 
     const doneVideoCount = Object.values(videoGenStatus).filter((s) => s === 'done').length;
     const allVideosDone = doneVideoCount === scenes.length;

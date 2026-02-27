@@ -7,7 +7,9 @@ import {
 import WorkflowSteps from '../components/WorkflowSteps';
 import { useProjectStore } from '../store/projectStore';
 import type { AssetType } from '../store/projectStore';
-import { mockScript, generateMockScriptFromIdea, artStyles, mockCardLibrary } from '../data/mockData';
+import { mockScript, artStyles, mockCardLibrary } from '../data/mockData';
+import { generateScript } from '../services/ai-llm';
+import { useCredits } from '../hooks/useCredits';
 
 type IdeaTab = 'script' | 'style' | 'cast';
 type InputMode = 'script' | 'idea';
@@ -65,6 +67,7 @@ const IdeaPage: React.FC = () => {
         selectedStyle, setSelectedStyle,
         cardLibrary, addToCardLibrary, removeFromCardLibrary,
     } = useProjectStore();
+    const { canAfford, spend, remaining: creditsRemaining, CREDIT_COSTS } = useCredits();
 
     // ── 공통 상태 ──
     const [activeTab, setActiveTab] = useState<IdeaTab>('script');
@@ -106,17 +109,42 @@ const IdeaPage: React.FC = () => {
         setIsGenerated(true);
     };
 
-    const handleIdeaGenerate = () => {
+    const handleIdeaGenerate = async () => {
         if (!ideaText.trim()) return;
+
+        // 크레딧 확인 & 차감
+        if (!canAfford('script')) {
+            alert(`크레딧이 부족합니다! (대본 생성 ${CREDIT_COSTS.script} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            return;
+        }
+        if (!spend('script')) return;
+
         setIsIdeaGenerating(true);
-        setTimeout(() => {
-            const mockParagraphs = generateMockScriptFromIdea(ideaText, sceneCount);
-            const fullScript = mockParagraphs.join('\n\n');
-            const generated = splitScriptIntoScenes(fullScript, sceneCount);
-            setScenes(generated);
-            setIsIdeaGenerating(false);
+        try {
+            const result = await generateScript({
+                idea: ideaText,
+                sceneCount,
+                style: selectedStyle,
+            });
+            // LLM 결과를 store 씬 형태로 변환
+            const storeScenes = result.scenes.map((s) => ({
+                id: s.id,
+                text: s.text,
+                location: s.location,
+                cameraAngle: s.cameraAngle,
+                imageUrl: '',
+                characters: [],
+                status: 'pending' as const,
+                checked: true,
+            }));
+            setScenes(storeScenes);
             setIsGenerated(true);
-        }, 2000);
+        } catch (err) {
+            console.error('[IdeaPage] 대본 생성 실패:', err);
+            alert('대본 생성에 실패했습니다. 다시 시도해주세요.');
+        } finally {
+            setIsIdeaGenerating(false);
+        }
     };
 
     const handleReset = () => {
