@@ -62,7 +62,10 @@ export function useAuth() {
             provider: 'google',
             options: { redirectTo: window.location.origin },
         });
-        if (error) console.error('Google 로그인 실패:', error.message);
+        if (error) {
+            console.error('Google 로그인 실패:', error.message);
+            alert(`Google 로그인 실패: ${error.message}`);
+        }
     }, []);
 
     /** 카카오 소셜 로그인 */
@@ -72,7 +75,10 @@ export function useAuth() {
             provider: 'kakao',
             options: { redirectTo: window.location.origin },
         });
-        if (error) console.error('카카오 로그인 실패:', error.message);
+        if (error) {
+            console.error('카카오 로그인 실패:', error.message);
+            alert(`카카오 로그인 실패: ${error.message}`);
+        }
     }, []);
 
     /** 로그아웃 */

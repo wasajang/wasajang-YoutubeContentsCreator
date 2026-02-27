@@ -11,7 +11,7 @@ export interface AssetCard {
   description: string;
   imageUrl: string;
   seed: number;
-  status: 'pending' | 'generating' | 'done';
+  status: 'pending' | 'generating' | 'done' | 'failed';
   isRequired?: boolean;
   isFavorite?: boolean;
   source?: 'ai' | 'manual';
@@ -24,7 +24,7 @@ export interface Scene {
   cameraAngle: string;
   imageUrl: string;
   characters: string[];
-  status: 'pending' | 'generating' | 'done';
+  status: 'pending' | 'generating' | 'done' | 'failed';
   checked: boolean;
 }
 
