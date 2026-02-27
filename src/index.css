@@ -299,6 +299,38 @@ img {
   gap: 8px;
 }
 
+.navbar__guest-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+}
+
+.navbar__user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.navbar__avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.navbar__avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
 /* ========== FILTER TABS ========== */
 .filter-tabs {
   display: flex;
