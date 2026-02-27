@@ -11,6 +11,8 @@ import { AiAnalysisModal, ManualAddModal, CastStrip, SceneRow, SceneFilmstrip } 
 import { useProjectStore } from '../store/projectStore';
 import type { AssetCard, AssetType } from '../store/projectStore';
 import { mockStoryboardScenes, mockScript, mockScenePrompts, stylePromptPrefix, aiSuggestedCards, favoritesPool } from '../data/mockData';
+import { generateImage } from '../services/ai-image';
+import { buildImagePrompt } from '../services/prompt-builder';
 
 type StoryboardPhase = 'script-review' | 'cast-setup' | 'seed-check' | 'generating-video' | 'complete';
 type SceneGenStatus = 'idle' | 'generating' | 'done';
@@ -118,11 +120,20 @@ const StoryboardPage: React.FC = () => {
         setShowInlineNew(false);
     };
 
-    const handleGenerateAsset = (id: string) => {
+    const handleGenerateAsset = async (id: string) => {
         setDeck((p) => p.map((c) => c.id === id ? { ...c, status: 'generating' as const } : c));
-        setTimeout(() => {
-            setDeck((p) => p.map((c) => c.id === id ? { ...c, status: 'done' as const, imageUrl: c.imageUrl || `https://images.unsplash.com/photo-1534030347209-467a5b0ad3e6?auto=format&fit=crop&w=400&q=80&sig=${id}` } : c));
-        }, 2000);
+        try {
+            const card = deck.find((c) => c.id === id);
+            if (!card) return;
+            const result = await generateImage({
+                prompt: `${card.description}, high quality portrait`,
+                seed: card.seed,
+            });
+            setDeck((p) => p.map((c) => c.id === id ? { ...c, status: 'done' as const, imageUrl: result.imageUrl } : c));
+        } catch (err) {
+            console.error(`[Asset ${id}] 생성 실패:`, err);
+            setDeck((p) => p.map((c) => c.id === id ? { ...c, status: 'pending' as const } : c));
+        }
     };
 
     // ── 수동 카드를 덱에 추가 (ManualAddModal에서 호출) ──
@@ -192,19 +203,38 @@ const StoryboardPage: React.FC = () => {
     const doneSceneCount = Object.values(sceneGenStatus).filter((s) => s === 'done').length;
     const allImagesDone = doneSceneCount === scenes.length;
 
-    const generateSingleScene = useCallback((sceneId: string) => {
+    const generateSingleScene = useCallback(async (sceneId: string) => {
         setSceneGenStatus((p) => ({ ...p, [sceneId]: 'generating' }));
-        setTimeout(() => setSceneGenStatus((p) => ({ ...p, [sceneId]: 'done' })), 1500 + Math.random() * 1000);
-    }, []);
+        try {
+            const scene = scenes.find((s) => s.id === sceneId);
+            if (!scene) return;
+            const seedCards = (sceneSeeds[sceneId] || [])
+                .map((cardId) => deck.find((c) => c.id === cardId))
+                .filter((c): c is AssetCard => !!c);
+            const prompt = buildImagePrompt({
+                style: selectedStyle,
+                sceneText: scene.text,
+                seedCards,
+                customImagePrompt: mockScenePrompts[sceneId]?.imagePrompt,
+                cameraAngle: scene.cameraAngle,
+                location: scene.location,
+            });
+            const result = await generateImage({ prompt, seed: seedCards[0]?.seed });
+            // 생성 결과를 씬 이미지로 저장 (로컬 상태만, store 연동은 추후)
+            console.log(`[Scene ${sceneId}] 이미지 생성 완료: ${result.imageUrl}`);
+            setSceneGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
+        } catch (err) {
+            console.error(`[Scene ${sceneId}] 이미지 생성 실패:`, err);
+            setSceneGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
+        }
+    }, [scenes, sceneSeeds, deck, selectedStyle]);
 
     const generateAllScenes = useCallback(() => {
         scenes.filter((s) => sceneGenStatus[s.id] === 'idle').forEach((scene, i) => {
-            setTimeout(() => {
-                setSceneGenStatus((p) => ({ ...p, [scene.id]: 'generating' }));
-                setTimeout(() => setSceneGenStatus((p) => ({ ...p, [scene.id]: 'done' })), 1500 + Math.random() * 500);
-            }, i * 600);
+            // 순차 호출 대신 stagger (600ms 간격)
+            setTimeout(() => generateSingleScene(scene.id), i * 600);
         });
-    }, [scenes, sceneGenStatus]);
+    }, [scenes, sceneGenStatus, generateSingleScene]);
 
     const generateAllVideos = useCallback(() => {
         scenes.forEach((scene, i) => {
