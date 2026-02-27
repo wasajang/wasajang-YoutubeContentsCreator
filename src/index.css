@@ -299,6 +299,25 @@ img {
   gap: 8px;
 }
 
+.navbar__credits {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--color-accent-rgb, 168, 85, 247), 0.12);
+  border: 1px solid rgba(var(--color-accent-rgb, 168, 85, 247), 0.25);
+}
+
+.navbar__credits-count {
+  color: var(--color-accent);
+  min-width: 20px;
+  text-align: center;
+}
+
 .navbar__guest-badge {
   display: flex;
   align-items: center;

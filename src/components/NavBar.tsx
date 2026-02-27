@@ -1,11 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, FolderOpen, Plus, Settings, Zap, LogIn, LogOut, User } from 'lucide-react';
+import { Home, FolderOpen, Plus, Settings, Zap, LogIn, LogOut, User, Coins } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useCredits } from '../hooks/useCredits';
 
 const NavBar: React.FC = () => {
     const location = useLocation();
     const { user, loading, isGuest, signInWithGoogle, signOut } = useAuth();
+    const { remaining } = useCredits();
 
     return (
         <nav className="navbar">
@@ -34,6 +36,10 @@ const NavBar: React.FC = () => {
                 </div>
             </div>
             <div className="navbar__right">
+                <div className="navbar__credits" title={`남은 크레딧: ${remaining}`}>
+                    <Coins size={14} />
+                    <span className="navbar__credits-count">{remaining}</span>
+                </div>
                 <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 16px' }}>
                     Upgrade
                 </button>

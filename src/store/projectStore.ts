@@ -67,6 +67,12 @@ export interface ProjectState {
   timelineClips: TimelineClip[];
   setTimelineClips: (clips: TimelineClip[]) => void;
 
+  // Credits (크레딧 시스템)
+  credits: number;
+  spendCredits: (amount: number) => boolean;
+  addCredits: (amount: number) => void;
+  resetCredits: () => void;
+
   // Active project flag
   hasActiveProject: boolean;
   startNewProject: (title: string) => void;
@@ -111,6 +117,22 @@ export const useProjectStore = create<ProjectState>()(
 
       timelineClips: [],
       setTimelineClips: (timelineClips) => set({ timelineClips }),
+
+      // Credits
+      credits: 50,
+      spendCredits: (amount) => {
+        let success = false;
+        set((state) => {
+          if (state.credits >= amount) {
+            success = true;
+            return { credits: state.credits - amount };
+          }
+          return state;
+        });
+        return success;
+      },
+      addCredits: (amount) => set((state) => ({ credits: state.credits + amount })),
+      resetCredits: () => set({ credits: 50 }),
 
       hasActiveProject: false,
       startNewProject: (title) =>
@@ -160,6 +182,7 @@ export const useProjectStore = create<ProjectState>()(
         scenes: state.scenes,
         selectedStyle: state.selectedStyle,
         cardLibrary: state.cardLibrary,
+        credits: state.credits,
         hasActiveProject: state.hasActiveProject,
         currentPhase: state.currentPhase,
         aspectRatio: state.aspectRatio,

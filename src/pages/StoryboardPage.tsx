@@ -13,6 +13,7 @@ import type { AssetCard, AssetType } from '../store/projectStore';
 import { mockStoryboardScenes, mockScript, mockScenePrompts, stylePromptPrefix, aiSuggestedCards, favoritesPool } from '../data/mockData';
 import { generateImage } from '../services/ai-image';
 import { buildImagePrompt } from '../services/prompt-builder';
+import { useCredits } from '../hooks/useCredits';
 
 type StoryboardPhase = 'script-review' | 'cast-setup' | 'seed-check' | 'generating-video' | 'complete';
 type SceneGenStatus = 'idle' | 'generating' | 'done';
@@ -25,6 +26,7 @@ const MAX_DECK_SIZE = 8;
 const StoryboardPage: React.FC = () => {
     const navigate = useNavigate();
     const { selectedStyle, scenes: storeScenes, cardLibrary, addToCardLibrary } = useProjectStore();
+    const { remaining: creditsRemaining, canAfford, spend, CREDIT_COSTS } = useCredits();
     const [phase, setPhase] = useState<StoryboardPhase>('cast-setup');
     const [selectedScene, setSelectedScene] = useState<string | null>(null);
 
@@ -121,6 +123,12 @@ const StoryboardPage: React.FC = () => {
     };
 
     const handleGenerateAsset = async (id: string) => {
+        if (!canAfford('image')) {
+            alert(`크레딧이 부족합니다! (이미지 생성 ${CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            return;
+        }
+        if (!spend('image')) return;
+
         setDeck((p) => p.map((c) => c.id === id ? { ...c, status: 'generating' as const } : c));
         try {
             const card = deck.find((c) => c.id === id);
@@ -204,6 +212,13 @@ const StoryboardPage: React.FC = () => {
     const allImagesDone = doneSceneCount === scenes.length;
 
     const generateSingleScene = useCallback(async (sceneId: string) => {
+        // 크레딧 확인 & 차감
+        if (!canAfford('image')) {
+            alert(`크레딧이 부족합니다! (이미지 생성 ${CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            return;
+        }
+        if (!spend('image')) return;
+
         setSceneGenStatus((p) => ({ ...p, [sceneId]: 'generating' }));
         try {
             const scene = scenes.find((s) => s.id === sceneId);
@@ -220,35 +235,48 @@ const StoryboardPage: React.FC = () => {
                 location: scene.location,
             });
             const result = await generateImage({ prompt, seed: seedCards[0]?.seed });
-            // 생성 결과를 씬 이미지로 저장 (로컬 상태만, store 연동은 추후)
             console.log(`[Scene ${sceneId}] 이미지 생성 완료: ${result.imageUrl}`);
             setSceneGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
         } catch (err) {
             console.error(`[Scene ${sceneId}] 이미지 생성 실패:`, err);
             setSceneGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
         }
-    }, [scenes, sceneSeeds, deck, selectedStyle]);
+    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS]);
 
     const generateAllScenes = useCallback(() => {
-        scenes.filter((s) => sceneGenStatus[s.id] === 'idle').forEach((scene, i) => {
-            // 순차 호출 대신 stagger (600ms 간격)
+        const pending = scenes.filter((s) => sceneGenStatus[s.id] === 'idle');
+        if (!canAfford('image', pending.length)) {
+            alert(`크레딧이 부족합니다! (${pending.length}장 × ${CREDIT_COSTS.image} = ${pending.length * CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            return;
+        }
+        pending.forEach((scene, i) => {
             setTimeout(() => generateSingleScene(scene.id), i * 600);
         });
-    }, [scenes, sceneGenStatus, generateSingleScene]);
+    }, [scenes, sceneGenStatus, generateSingleScene, canAfford, creditsRemaining, CREDIT_COSTS]);
 
     const generateAllVideos = useCallback(() => {
+        if (!canAfford('video', scenes.length)) {
+            alert(`크레딧이 부족합니다! (${scenes.length}편 × ${CREDIT_COSTS.video} = ${scenes.length * CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            return;
+        }
         scenes.forEach((scene, i) => {
             setTimeout(() => {
+                if (!spend('video')) return;
                 setVideoGenStatus((p) => ({ ...p, [scene.id]: 'generating' }));
                 setTimeout(() => setVideoGenStatus((p) => ({ ...p, [scene.id]: 'done' })), 1500 + Math.random() * 1000);
             }, i * 600);
         });
-    }, [scenes]);
+    }, [scenes, canAfford, spend, creditsRemaining, CREDIT_COSTS]);
 
     const regenerateSingleVideo = useCallback((sceneId: string) => {
+        if (!canAfford('video')) {
+            alert(`크레딧이 부족합니다! (영상 생성 ${CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            return;
+        }
+        if (!spend('video')) return;
         setVideoGenStatus((p) => ({ ...p, [sceneId]: 'generating' }));
         setTimeout(() => setVideoGenStatus((p) => ({ ...p, [sceneId]: 'done' })), 1500 + Math.random() * 1000);
-    }, []);
+    }, [canAfford, spend, creditsRemaining, CREDIT_COSTS]);
 
     const doneVideoCount = Object.values(videoGenStatus).filter((s) => s === 'done').length;
     const allVideosDone = doneVideoCount === scenes.length;
@@ -474,7 +502,13 @@ const StoryboardPage: React.FC = () => {
                                                 return (
                                                     <div key={card.id} className={`pool-card ${inDeck ? 'pool-card--in-deck' : ''}`} onClick={() => inDeck ? removeFromDeck(card.id) : addToDeck(card)}>
                                                         <div className="pool-card__img-wrap">
-                                                            <img src={card.imageUrl} className="pool-card__img" alt={card.name} />
+                                                            {card.imageUrl ? (
+                                                                <img src={card.imageUrl} className="pool-card__img" alt={card.name} />
+                                                            ) : (
+                                                                <div className="pool-card__img pool-card__img--empty" style={{ background: `linear-gradient(180deg, hsl(${card.seed % 360}, 20%, 25%) 0%, hsl(${card.seed % 360}, 15%, 15%) 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                    {card.type === 'character' ? <User size={24} /> : card.type === 'background' ? <MapPin size={24} /> : <Sword size={24} />}
+                                                                </div>
+                                                            )}
                                                             {card.isRequired && <span className="pool-card__ai-badge">AI 추천</span>}
                                                             {card.isFavorite && <Star size={11} className="pool-card__star" />}
                                                             {inDeck && <div className="pool-card__selected-overlay"><CheckCircle2 size={24} /><span>선택됨</span></div>}
