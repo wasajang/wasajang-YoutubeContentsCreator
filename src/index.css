@@ -5705,3 +5705,150 @@ img {
   gap: 12px;
   justify-content: center;
 }
+
+/* ========== MY PROJECTS (HomePage) ========== */
+
+.my-projects {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.my-projects__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.my-projects__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.my-projects__loading,
+.my-projects__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 2rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.my-projects__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.my-projects__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.my-projects__card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+.my-projects__card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.my-projects__card-style {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.my-projects__card-status {
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.my-projects__card-status--draft {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.my-projects__card-status--in_progress {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.my-projects__card-status--completed {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.my-projects__card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.my-projects__card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.my-projects__card-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.my-projects__card:hover .my-projects__card-delete {
+  opacity: 1;
+}
+
+.my-projects__card-delete:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* ========== NAVBAR AUTH BUTTONS ========== */
+
+.navbar__auth-btns {
+  display: flex;
+  gap: 4px;
+}

@@ -6,11 +6,19 @@ import HomePage from './pages/HomePage';
 import IdeaPage from './pages/IdeaPage';
 import StoryboardPage from './pages/StoryboardPage';
 import TimelinePage from './pages/TimelinePage';
+import { useProject } from './hooks/useProject';
+
+/** Supabase ↔ Store 자동 동기화 (게스트 모드에서는 비활성) */
+const ProjectSync: React.FC = () => {
+  useProject();
+  return null;
+};
 
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <ProjectSync />
         <NavBar />
         <ErrorBoundary>
           <Routes>

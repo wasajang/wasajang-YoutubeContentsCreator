@@ -6,7 +6,7 @@ import { useCredits } from '../hooks/useCredits';
 
 const NavBar: React.FC = () => {
     const location = useLocation();
-    const { user, loading, isGuest, signInWithGoogle, signOut } = useAuth();
+    const { user, loading, isGuest, signInWithGoogle, signInWithKakao, signOut } = useAuth();
     const { remaining } = useCredits();
 
     return (
@@ -26,13 +26,15 @@ const NavBar: React.FC = () => {
                         <Home size={14} />
                         Home
                     </Link>
-                    <Link
-                        to="/"
-                        className="navbar__nav-item"
-                    >
-                        <FolderOpen size={14} />
-                        MY PROJECTS
-                    </Link>
+                    {!isGuest && user && (
+                        <Link
+                            to="/"
+                            className="navbar__nav-item"
+                        >
+                            <FolderOpen size={14} />
+                            MY PROJECTS
+                        </Link>
+                    )}
                 </div>
             </div>
             <div className="navbar__right">
@@ -69,9 +71,14 @@ const NavBar: React.FC = () => {
                         </button>
                     </div>
                 ) : (
-                    <button className="btn-ghost" onClick={signInWithGoogle} style={{ fontSize: '0.7rem', padding: '4px 8px' }}>
-                        <LogIn size={12} /> 로그인
-                    </button>
+                    <div className="navbar__auth-btns">
+                        <button className="btn-ghost" onClick={signInWithGoogle} style={{ fontSize: '0.7rem', padding: '4px 8px' }}>
+                            <LogIn size={12} /> Google
+                        </button>
+                        <button className="btn-ghost" onClick={signInWithKakao} style={{ fontSize: '0.7rem', padding: '4px 8px' }}>
+                            <LogIn size={12} /> Kakao
+                        </button>
+                    </div>
                 )}
             </div>
         </nav>

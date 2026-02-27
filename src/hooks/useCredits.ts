@@ -9,17 +9,19 @@
  *   이미지 생성 = 1 크레딧
  *   영상 생성   = 3 크레딧
  *   대본 AI 생성 = 1 크레딧
+ *   TTS 음성    = 1 크레딧
  */
 import { useCallback } from 'react';
 import { useProjectStore } from '../store/projectStore';
 
-export type GenerationType = 'image' | 'video' | 'script';
+export type GenerationType = 'image' | 'video' | 'script' | 'tts';
 
 /** 생성 유형별 크레딧 비용 */
 export const CREDIT_COSTS: Record<GenerationType, number> = {
     image: 1,
     video: 3,
     script: 1,
+    tts: 1,
 };
 
 export function useCredits() {

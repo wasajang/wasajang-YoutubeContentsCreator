@@ -38,6 +38,8 @@ export interface TimelineClip {
 
 export interface ProjectState {
   // Project info
+  projectId: string | null;
+  setProjectId: (id: string | null) => void;
   title: string;
   setTitle: (title: string) => void;
 
@@ -81,6 +83,8 @@ export interface ProjectState {
 export const useProjectStore = create<ProjectState>()(
   persist(
     (set) => ({
+      projectId: null,
+      setProjectId: (projectId) => set({ projectId }),
       title: '',
       setTitle: (title) => set({ title }),
 
@@ -137,6 +141,7 @@ export const useProjectStore = create<ProjectState>()(
       hasActiveProject: false,
       startNewProject: (title) =>
         set({
+          projectId: null, // 새 프로젝트는 DB ID 없음
           title,
           hasActiveProject: true,
           currentPhase: 1,
@@ -149,11 +154,11 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'antigravity-project',
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, version: number) => {
-        const state = persistedState as Record<string, unknown>;
+        let state = persistedState as Record<string, unknown>;
         if (version < 2) {
-          // cast → cardLibrary 마이그레이션
+          // v1→v2: cast → cardLibrary 마이그레이션
           const oldCast = (state.cast || []) as Array<Record<string, unknown>>;
           const knownCharIds = ['char-1', 'char-2', 'char-3', 'char-4', 'char-5', 'obj-2'];
           const migratedCards: AssetCard[] = oldCast.map((c) => ({
@@ -173,11 +178,16 @@ export const useProjectStore = create<ProjectState>()(
               merged.push(card);
             }
           }
-          return { ...state, cardLibrary: merged };
+          state = { ...state, cardLibrary: merged };
+        }
+        if (version < 3) {
+          // v2→v3: projectId 추가
+          return { ...state, projectId: state.projectId ?? null };
         }
         return state;
       },
       partialize: (state) => ({
+        projectId: state.projectId,
         title: state.title,
         scenes: state.scenes,
         selectedStyle: state.selectedStyle,
