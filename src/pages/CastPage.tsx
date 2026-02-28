@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, Plus, X, Loader, Sparkles, Check, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Plus, X, Loader, Sparkles, Check, Trash2, Star } from 'lucide-react';
 import { useProjectStore } from '../store/projectStore';
 import type { AssetCard, AssetType } from '../store/projectStore';
 import { mockCardLibrary } from '../data/mockData';
+import { getPublicPresets } from '../data/stylePresets';
+import type { StylePreset } from '../data/stylePresets';
 import { generateImage } from '../services/ai-image';
 import { useCredits } from '../hooks/useCredits';
 
@@ -17,10 +19,14 @@ const TYPE_LABELS: Record<AssetType, string> = {
 
 const CastPage: React.FC = () => {
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const isProjectMode = searchParams.get('mode') === 'project';
+    // /cast와 /cast?mode=project 모두 동일하게 프로젝트 시작 가능
+    const isProjectMode = true;
 
-    const { cardLibrary, addToCardLibrary, removeFromCardLibrary, selectedDeck, setSelectedDeck, setEntryPoint, startNewProject } = useProjectStore();
+    const {
+        cardLibrary, addToCardLibrary, removeFromCardLibrary,
+        selectedDeck, setSelectedDeck, setEntryPoint, startNewProject,
+        setSelectedPreset, setSelectedStyle, setAspectRatio,
+    } = useProjectStore();
     const { canAfford, spend, CREDIT_COSTS } = useCredits();
 
     // 최초 진입 시 mockCardLibrary 주입 (빈 경우에만)
@@ -34,6 +40,10 @@ const CastPage: React.FC = () => {
     const [showGenPanel, setShowGenPanel] = useState(false);
 
     // AI 생성 폼 상태
+    // 스타일 선택 오버레이 상태
+    const [showStyleSelect, setShowStyleSelect] = useState(false);
+    const allPresets = getPublicPresets();
+
     const [genType, setGenType] = useState<AssetType>('character');
     const [genName, setGenName] = useState('');
     const [genPrompt, setGenPrompt] = useState('');
@@ -99,9 +109,19 @@ const CastPage: React.FC = () => {
         }
     };
 
+    // 카드 선택 완료 → 스타일 선택 오버레이 표시
     const handleStartProject = () => {
+        setShowStyleSelect(true);
+    };
+
+    // 스타일 프리셋 선택 → 프로젝트 시작 & IdeaPage로 이동
+    const handlePresetSelect = (preset: StylePreset) => {
         setEntryPoint('cast');
-        startNewProject('Untitled Project');
+        startNewProject(preset.name, preset.mode);
+        setSelectedPreset(preset.id);
+        setSelectedStyle(preset.style);
+        setAspectRatio(preset.aspectRatio);
+        setShowStyleSelect(false);
         navigate('/project/idea');
     };
 
@@ -300,8 +320,50 @@ const CastPage: React.FC = () => {
                             <Check size={14} />
                             {selectedDeck.length === 0
                                 ? '카드를 선택하세요'
-                                : `${selectedDeck.length}장 선택 → 프로젝트 시작하기`}
+                                : `${selectedDeck.length}장 선택 → 스타일 선택하기`}
                         </button>
+                    </div>
+                )}
+
+                {/* 스타일 선택 오버레이 */}
+                {showStyleSelect && (
+                    <div className="mode-select-overlay" onClick={() => setShowStyleSelect(false)}>
+                        <div className="cast-style-select" onClick={(e) => e.stopPropagation()}>
+                            <h3 className="cast-style-select__title">영상 스타일을 선택하세요</h3>
+                            <p className="cast-style-select__desc">
+                                선택한 {selectedDeck.length}장의 카드로 프로젝트를 시작합니다.
+                            </p>
+                            <div className="cast-style-select__grid">
+                                {allPresets.map((preset) => (
+                                    <div
+                                        key={preset.id}
+                                        className="cast-style-select__card"
+                                        onClick={() => handlePresetSelect(preset)}
+                                    >
+                                        {preset.thumbnail ? (
+                                            <img src={preset.thumbnail} alt={preset.name} className="cast-style-select__img" />
+                                        ) : (
+                                            <div className="cast-style-select__img cast-style-select__img--placeholder">
+                                                <Star size={24} />
+                                            </div>
+                                        )}
+                                        <div className="cast-style-select__info">
+                                            <span className="cast-style-select__name">{preset.name}</span>
+                                            <span className={`cast-style-select__mode-badge cast-style-select__mode-badge--${preset.mode}`}>
+                                                {preset.mode === 'cinematic' ? '시네마틱' : '나레이션'}
+                                            </span>
+                                        </div>
+                                        <p className="cast-style-select__desc-text">{preset.description}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <button
+                                className="btn-secondary cast-style-select__cancel"
+                                onClick={() => setShowStyleSelect(false)}
+                            >
+                                돌아가기
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

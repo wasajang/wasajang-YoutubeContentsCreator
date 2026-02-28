@@ -74,7 +74,7 @@ const HomePage: React.FC = () => {
 
     // 프리셋 선택 → IdeaPage로
     const handlePresetSelect = (preset: StylePreset) => {
-        startNewProject(preset.name);
+        startNewProject(preset.name, preset.mode);
         setEntryPoint('style');
         setSelectedPreset(preset.id);
         setSelectedStyle(preset.style);
@@ -246,7 +246,12 @@ const HomePage: React.FC = () => {
                                     <div className="preset-grid-card__overlay">
                                         <span className="preset-grid-card__category">{preset.category}</span>
                                         <p className="preset-grid-card__name">{preset.name}</p>
-                                        <span className="preset-grid-card__ratio">{preset.aspectRatio}</span>
+                                        <div className="preset-grid-card__footer">
+                                            <span className="preset-grid-card__ratio">{preset.aspectRatio}</span>
+                                            <span className={`preset-grid-card__mode-badge preset-grid-card__mode-badge--${preset.mode}`}>
+                                                {preset.mode === 'cinematic' ? '시네마틱' : '나레이션'}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="preset-grid-card__select">
                                         <Check size={12} />

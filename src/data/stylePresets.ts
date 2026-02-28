@@ -7,10 +7,11 @@
 
 export interface StylePreset {
     id: string;
-    name: string;                    // 'Sci-Fi Trailer'
-    category: string;                // 'SCI-FI'
-    style: string;                   // 'Cinematic' (artStyles의 id와 매핑)
+    name: string;                    // '시네마틱 드라마'
+    category: string;                // 'FILM'
+    style: string;                   // 'cinematic' (artStyles의 id와 매핑)
     aspectRatio: '16:9' | '9:16' | '1:1';
+    mode: 'cinematic' | 'narration'; // 제작 방식
     description: string;
     promptPrefix: {
         image: string;               // 이미지 생성 프롬프트 prefix
@@ -34,45 +35,12 @@ export interface StylePreset {
 
 export const stylePresets: StylePreset[] = [
     {
-        id: 'sci-fi-trailer',
-        name: 'Sci-Fi Trailer',
-        category: 'SCI-FI',
-        style: 'cinematic',
-        aspectRatio: '16:9',
-        description: '미래 세계관의 시네마틱 트레일러. 우주, 로봇, 미래 도시 배경.',
-        promptPrefix: {
-            image: 'cinematic sci-fi, futuristic, epic scale, dramatic lighting, 8K, hyperrealistic,',
-            video: 'cinematic trailer, sci-fi atmosphere, dynamic camera movement, lens flare,',
-            script: '당신은 할리우드 SF 트레일러 작가입니다. 극적이고 웅장한 톤으로 작성하세요.',
-        },
-        recommendedCast: { characters: 2, backgrounds: 2, items: 1 },
-        defaultModels: { script: 'gpt-4o-mini', image: 'flux-schnell', video: 'runway-gen3', tts: 'fish-speech' },
-        thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=400&q=80',
-        visibility: 'public',
-    },
-    {
-        id: 'anime-drama',
-        name: 'Anime Drama',
-        category: 'ANIME',
-        style: 'anime',
-        aspectRatio: '16:9',
-        description: '일본 애니메이션 스타일의 감성적인 드라마. 캐릭터 중심의 이야기.',
-        promptPrefix: {
-            image: 'anime style, high quality, detailed, vibrant colors, studio quality, illustrated,',
-            video: 'anime style, smooth animation, emotional, character focused,',
-            script: '당신은 일본 애니메이션 각본 작가입니다. 감성적이고 캐릭터 중심의 대사를 작성하세요.',
-        },
-        recommendedCast: { characters: 3, backgrounds: 1, items: 1 },
-        defaultModels: { script: 'gpt-4o-mini', image: 'flux-schnell', video: 'runway-gen3', tts: 'fish-speech' },
-        thumbnail: 'https://images.unsplash.com/photo-1578632292335-df3abbb0d586?auto=format&fit=crop&w=400&q=80',
-        visibility: 'public',
-    },
-    {
         id: 'cinematic-drama',
-        name: 'Cinematic Drama',
+        name: '시네마틱 드라마',
         category: 'FILM',
         style: 'cinematic',
         aspectRatio: '16:9',
+        mode: 'cinematic',
         description: '영화적 드라마. 자연광과 감성적 색감으로 표현되는 인간 이야기.',
         promptPrefix: {
             image: 'cinematic photography, dramatic, natural lighting, film grain, emotional, award-winning,',
@@ -85,88 +53,75 @@ export const stylePresets: StylePreset[] = [
         visibility: 'public',
     },
     {
-        id: 'cyberpunk-action',
-        name: 'Cyberpunk Action',
-        category: 'SCI-FI',
+        id: 'overseas-touching-story',
+        name: '해외감동사연',
+        category: 'STORY',
         style: 'cinematic',
         aspectRatio: '16:9',
-        description: '네온 불빛의 미래 도시. 빠른 액션과 강렬한 색감.',
+        mode: 'narration',
+        description: '해외 감동 실화를 나레이션으로 전달하는 스토리텔링 영상.',
         promptPrefix: {
-            image: 'cyberpunk, neon lights, rain-soaked streets, high contrast, futuristic city, cinematic,',
-            video: 'cyberpunk action, fast cuts, neon reflections, electronic music, high energy,',
-            script: '당신은 사이버펑크 액션 각본가입니다. 빠른 템포와 강렬한 액션으로 작성하세요.',
+            image: 'photorealistic, emotional, warm tones, real life story, documentary style, heartwarming,',
+            video: 'documentary style, emotional narration, gentle camera movement, warm color grading,',
+            script: '당신은 감동 실화 나레이터입니다. 시청자의 감정을 자극하는 따뜻한 이야기를 작성하세요. 나레이션 형식으로 작성하세요.',
         },
-        recommendedCast: { characters: 2, backgrounds: 2, items: 1 },
+        recommendedCast: { characters: 2, backgrounds: 2, items: 0 },
         defaultModels: { script: 'gpt-4o-mini', image: 'flux-schnell', video: 'runway-gen3', tts: 'fish-speech' },
-        thumbnail: 'https://images.unsplash.com/photo-1605806616949-1e87b487fc2f?auto=format&fit=crop&w=400&q=80',
+        thumbnail: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=400&q=80',
         visibility: 'public',
     },
     {
-        id: 'youtube-shorts',
-        name: 'YouTube Shorts',
-        category: 'YOUTUBE SHORTS',
+        id: 'martial-arts',
+        name: '무협지',
+        category: 'MARTIAL ARTS',
         style: 'cinematic',
-        aspectRatio: '9:16',
-        description: '세로형 쇼트 영상. 30초~1분 분량의 임팩트 있는 콘텐츠.',
+        aspectRatio: '16:9',
+        mode: 'narration',
+        description: '동양 판타지 무협 세계. 나레이션으로 풀어가는 무림 이야기.',
         promptPrefix: {
-            image: 'vertical composition, 9:16, vibrant, eye-catching, social media ready,',
-            video: 'vertical video, fast paced, engaging, scroll-stopping, mobile optimized,',
-            script: '당신은 YouTube Shorts 크리에이터입니다. 처음 3초 안에 시청자를 사로잡는 스크립트를 작성하세요.',
+            image: 'wuxia, martial arts, ancient chinese fantasy, dramatic pose, flowing robes, mountain scenery, ink wash painting style,',
+            video: 'wuxia action, slow motion martial arts, flowing movements, epic landscapes,',
+            script: '당신은 무협 소설가입니다. 강호의 전설을 나레이션 형식으로 풀어가세요. 웅장하고 서사적인 톤으로 작성하세요.',
         },
-        recommendedCast: { characters: 1, backgrounds: 1, items: 0 },
+        recommendedCast: { characters: 3, backgrounds: 2, items: 1 },
         defaultModels: { script: 'gpt-4o-mini', image: 'flux-schnell', video: 'runway-gen3', tts: 'fish-speech' },
-        thumbnail: 'https://images.unsplash.com/photo-1494173853739-c21f58b16055?auto=format&fit=crop&w=400&q=80',
+        thumbnail: 'https://images.unsplash.com/photo-1528164344885-947ce28b5791?auto=format&fit=crop&w=400&q=80',
         visibility: 'public',
     },
     {
-        id: 'historical-epic',
-        name: 'Historical Epic',
-        category: 'HISTORICAL',
+        id: 'martial-arts-cinematic',
+        name: '무협지2',
+        category: 'MARTIAL ARTS',
         style: 'cinematic',
         aspectRatio: '16:9',
-        description: '역사적 배경의 대서사시. 장엄한 스케일과 시대적 고증.',
+        mode: 'cinematic',
+        description: '시네마틱 무협 액션. 화려한 무술과 영화적 연출.',
         promptPrefix: {
-            image: 'historical epic, period accurate, cinematic, detailed costumes, dramatic lighting, massive scale,',
-            video: 'historical epic, sweeping cinematography, orchestral, vast landscapes, dramatic,',
-            script: '당신은 역사 대서사시 각본가입니다. 역사적 사실을 바탕으로 장엄하고 웅장한 이야기를 작성하세요.',
+            image: 'wuxia cinematic, martial arts action, dynamic composition, dramatic lighting, epic battle, flying swords,',
+            video: 'cinematic wuxia, wire-fu action, sweeping camera, dramatic score, slow motion combat,',
+            script: '당신은 무협 영화 감독입니다. 화려한 액션과 드라마틱한 장면을 씬별로 작성하세요.',
         },
         recommendedCast: { characters: 3, backgrounds: 2, items: 2 },
         defaultModels: { script: 'gpt-4o-mini', image: 'flux-schnell', video: 'runway-gen3', tts: 'fish-speech' },
-        thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=400&q=80',
+        thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80',
         visibility: 'public',
     },
     {
-        id: 'kids-adventure',
-        name: "Kids Adventure",
-        category: 'KIDS',
-        style: 'children-illustration',
-        aspectRatio: '16:9',
-        description: '어린이용 모험 이야기. 밝고 컬러풀한 세계관.',
-        promptPrefix: {
-            image: "children's illustration, colorful, cute, friendly, bright colors, cartoon style,",
-            video: 'kids animation, cheerful, bright, simple movements, fun music,',
-            script: '당신은 어린이 애니메이션 작가입니다. 밝고 교육적이며 재미있는 이야기를 작성하세요.',
-        },
-        recommendedCast: { characters: 2, backgrounds: 1, items: 1 },
-        defaultModels: { script: 'gpt-4o-mini', image: 'flux-schnell', video: 'runway-gen3', tts: 'fish-speech' },
-        thumbnail: 'https://images.unsplash.com/photo-1515569067071-ec3b51335ec0?auto=format&fit=crop&w=400&q=80',
-        visibility: 'public',
-    },
-    {
-        id: 'music-video',
-        name: 'Music Video',
-        category: 'MUSIC',
+        id: 'skeleton-shorts',
+        name: '해골 쇼츠',
+        category: 'YOUTUBE SHORTS',
         style: 'cinematic',
-        aspectRatio: '16:9',
-        description: '뮤직비디오 스타일. 리듬에 맞는 빠른 컷 편집과 강렬한 비주얼.',
+        aspectRatio: '9:16',
+        mode: 'narration',
+        description: '해골 캐릭터가 나레이션하는 짧은 공포/코미디 쇼츠.',
         promptPrefix: {
-            image: 'music video aesthetic, stylish, high fashion, dramatic lighting, artistic, editorial,',
-            video: 'music video, beat-synced cuts, stylish, artistic, dynamic, urban or surreal setting,',
-            script: '당신은 뮤직비디오 감독입니다. 음악에 맞는 시각적이고 비유적인 씬을 작성하세요.',
+            image: 'skeleton character, dark humor, spooky cute, vertical composition, 9:16, eerie lighting, fun horror,',
+            video: 'vertical video, skeleton animation, dark comedy, spooky atmosphere, jump scare elements,',
+            script: '당신은 해골 캐릭터입니다. 무섭지만 웃긴 톤으로 짧은 이야기를 나레이션하세요. 30초~1분 분량.',
         },
-        recommendedCast: { characters: 1, backgrounds: 2, items: 1 },
+        recommendedCast: { characters: 1, backgrounds: 1, items: 0 },
         defaultModels: { script: 'gpt-4o-mini', image: 'flux-schnell', video: 'runway-gen3', tts: 'fish-speech' },
-        thumbnail: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=400&q=80',
+        thumbnail: 'https://images.unsplash.com/photo-1509557965875-b88c97052f0e?auto=format&fit=crop&w=400&q=80',
         visibility: 'public',
     },
 ];
@@ -184,4 +139,9 @@ export function getPresetsByCategory(category: string): StylePreset[] {
 /** 공개 프리셋만 반환 */
 export function getPublicPresets(): StylePreset[] {
     return stylePresets.filter((p) => p.visibility === 'public');
+}
+
+/** 모드별 프리셋 반환 */
+export function getPresetsByMode(mode: 'cinematic' | 'narration'): StylePreset[] {
+    return stylePresets.filter((p) => p.mode === mode && p.visibility === 'public');
 }

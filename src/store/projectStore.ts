@@ -197,7 +197,7 @@ export const useProjectStore = create<ProjectState>()(
       setTimelineClips: (timelineClips) => set({ timelineClips }),
 
       // Credits
-      credits: 100,
+      credits: 10000,
       spendCredits: (amount) => {
         let success = false;
         set((state) => {
@@ -210,7 +210,7 @@ export const useProjectStore = create<ProjectState>()(
         return success;
       },
       addCredits: (amount) => set((state) => ({ credits: state.credits + amount })),
-      resetCredits: () => set({ credits: 100 }),
+      resetCredits: () => set({ credits: 10000 }),
 
       hasActiveProject: false,
       startNewProject: (title, mode = 'cinematic') =>

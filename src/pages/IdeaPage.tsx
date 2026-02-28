@@ -7,7 +7,7 @@ import WorkflowSteps from '../components/WorkflowSteps';
 import PresetInfoModal from '../components/PresetInfoModal';
 import { useProjectStore } from '../store/projectStore';
 import { mockScript, artStyles, mockCardLibrary } from '../data/mockData';
-import { getPresetById } from '../data/stylePresets';
+import { getPresetById, getPresetsByMode } from '../data/stylePresets';
 import { generateScript } from '../services/ai-llm';
 import { useCredits } from '../hooks/useCredits';
 import { getUserSelectableModels } from '../data/aiModels';
@@ -435,6 +435,44 @@ const IdeaPage: React.FC = () => {
             {/* ═══ STYLE 탭 ═══ */}
             {activeTab === 'style' && (
                 <div className="page-scrollable-content">
+                    {/* 모드에 맞는 스타일 프리셋 섹션 */}
+                    {(() => {
+                        const modePresets = getPresetsByMode(mode);
+                        return modePresets.length > 0 ? (
+                            <div style={{ padding: '24px 40px 0' }}>
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '4px' }}>
+                                    {mode === 'cinematic' ? '시네마틱 프리셋' : '나레이션 프리셋'}
+                                </h2>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                                    {mode === 'cinematic'
+                                        ? '씬별 이미지/영상을 생성하는 시네마틱 스타일'
+                                        : '나레이션 음성을 먼저 생성하는 스토리텔링 스타일'}
+                                </p>
+                                <div className="style-preset-row">
+                                    {modePresets.map((preset) => (
+                                        <div
+                                            key={preset.id}
+                                            className={`style-preset-chip ${selectedPreset === preset.id ? 'selected' : ''}`}
+                                            onClick={() => {
+                                                setSelectedPreset(preset.id);
+                                                setSelectedStyle(preset.style);
+                                            }}
+                                        >
+                                            {preset.thumbnail && (
+                                                <img
+                                                    src={preset.thumbnail}
+                                                    alt={preset.name}
+                                                    className="style-preset-chip__img"
+                                                />
+                                            )}
+                                            <span className="style-preset-chip__name">{preset.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null;
+                    })()}
+
                     <div style={{ padding: '24px 40px 0' }}>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>
                             Choose a Style for Your Project
