@@ -91,7 +91,7 @@ const IdeaPage: React.FC = () => {
         if (selectedPreset) {
             setShowPresetModal(true);
         }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [selectedPreset]);
 
     // ── Script 탭 상태 ──
     const [isEditing, setIsEditing] = useState(false);

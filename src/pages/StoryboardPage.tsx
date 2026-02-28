@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HelpCircle } from 'lucide-react';
 import WorkflowSteps from '../components/WorkflowSteps';
+import CreditShortageModal from '../components/CreditShortageModal';
 import { CastSetupPhase, CutSplitPhase, SeedCheckPhase } from '../components/storyboard';
 import { useProjectStore } from '../store/projectStore';
 import type { Scene } from '../store/projectStore';
@@ -19,13 +20,23 @@ const StoryboardPage: React.FC = () => {
         selectedStyle, scenes: storeScenes, cardLibrary, addToCardLibrary,
         aiModelPreferences, setAiModelPreference, mode,
         narrationStep, setNarrationStep, narrationClips, setNarrationClips,
+        selectedPreset, aspectRatio,
     } = useProjectStore();
     const { remaining: creditsRemaining, canAfford, spend, CREDIT_COSTS } = useCredits();
 
-    const [phase, setPhase] = useState<StoryboardPhase>('cast-setup');
+    const [phase, setPhase] = useState<StoryboardPhase>(() => {
+        // 이미 이미지가 생성된 씬이 있으면 seed-check로 복원
+        if (mode === 'narration' && narrationStep >= 5) return 'seed-check';
+        return 'cast-setup';
+    });
     const [selectedScene, setSelectedScene] = useState<string | null>(null);
     const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(true);
     const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+
+    // 크레딧 부족 모달 상태
+    const [creditModal, setCreditModal] = useState<{ open: boolean; required: number; label: string }>({
+        open: false, required: 0, label: '',
+    });
 
     // ScriptPage에서 씬을 생성했으면 그것을 사용, 없으면 목업 폴백
     const scenes = (storeScenes.length > 0 ? storeScenes : mockStoryboardScenes) as Scene[];
@@ -40,6 +51,11 @@ const StoryboardPage: React.FC = () => {
         canAfford, spend, creditsRemaining, CREDIT_COSTS,
         imageModel: aiModelPreferences.image,
         videoModel: aiModelPreferences.video,
+        presetId: selectedPreset ?? undefined,
+        aspectRatio: aspectRatio,
+        onCreditShortage: (required, label) => {
+            setCreditModal({ open: true, required, label });
+        },
     });
 
     // ── AI 분석 핸들러 (deckApi + genApi 양쪽 조율) ──
@@ -233,6 +249,15 @@ const StoryboardPage: React.FC = () => {
                         nextLabel="다음: 영상화"
                     />
                 )}
+
+                {/* 크레딧 부족 모달 */}
+                <CreditShortageModal
+                    isOpen={creditModal.open}
+                    onClose={() => setCreditModal({ open: false, required: 0, label: '' })}
+                    requiredCredits={creditModal.required}
+                    currentCredits={creditsRemaining}
+                    actionLabel={creditModal.label}
+                />
             </div>
         );
     }
@@ -301,6 +326,15 @@ const StoryboardPage: React.FC = () => {
                     onVideoModelChange={(id) => setAiModelPreference('video', id)}
                 />
             )}
+
+            {/* 크레딧 부족 모달 */}
+            <CreditShortageModal
+                isOpen={creditModal.open}
+                onClose={() => setCreditModal({ open: false, required: 0, label: '' })}
+                requiredCredits={creditModal.required}
+                currentCredits={creditsRemaining}
+                actionLabel={creditModal.label}
+            />
         </div>
     );
 };

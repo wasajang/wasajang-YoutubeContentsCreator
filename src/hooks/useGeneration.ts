@@ -44,7 +44,7 @@ export function useGeneration({
 }: UseGenerationParams) {
     const [sceneGenStatus, setSceneGenStatus] = useState<Record<string, SceneGenStatus>>(() => {
         const init: Record<string, SceneGenStatus> = {};
-        scenes.forEach((s) => { init[s.id] = 'idle'; });
+        scenes.forEach((s) => { init[s.id] = s.imageUrl ? 'done' : 'idle'; });
         return init;
     });
 

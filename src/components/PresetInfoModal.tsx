@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Film, Ratio, Users, Bot } from 'lucide-react';
+import { X, Film, Ratio, Users, Bot, Mic } from 'lucide-react';
 import type { StylePreset } from '../data/stylePresets';
 import { useProjectStore } from '../store/projectStore';
 
@@ -64,6 +64,13 @@ const PresetInfoModal: React.FC<Props> = ({ preset, onApply, onCustomize, onClos
                 {/* 설정 항목 */}
                 <div className="preset-modal__items">
                     <div className="preset-modal__item">
+                        <Mic size={14} className="preset-modal__item-icon" />
+                        <span className="preset-modal__item-label">제작 방식</span>
+                        <span className="preset-modal__item-value">
+                            {preset.mode === 'narration' ? '나레이션형' : '시네마틱형'}
+                        </span>
+                    </div>
+                    <div className="preset-modal__item">
                         <Ratio size={14} className="preset-modal__item-icon" />
                         <span className="preset-modal__item-label">영상 비율</span>
                         <span className="preset-modal__item-value">
@@ -72,7 +79,7 @@ const PresetInfoModal: React.FC<Props> = ({ preset, onApply, onCustomize, onClos
                     </div>
                     <div className="preset-modal__item">
                         <Film size={14} className="preset-modal__item-icon" />
-                        <span className="preset-modal__item-label">기본 스타일</span>
+                        <span className="preset-modal__item-label">아트 스타일</span>
                         <span className="preset-modal__item-value">
                             {STYLE_LABEL[preset.style] ?? preset.style}
                         </span>
