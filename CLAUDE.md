@@ -4,15 +4,36 @@
 
 ---
 
+## 프로덕트 비전 (핵심 — 모든 작업 시 참조)
+
+> 상세 비전: `.plans/VISION.md` 참조
+
+**한 줄:** YouTube 크리에이터가 AI로 시네마틱 영상을 제작하고, 자신만의 스타일을 공유·판매하는 플랫폼.
+
+**3가지 시작점:** 대본부터 / 영상 스타일부터 / Cast(배우·장소·아이템)부터 — 어디서 시작하든 선택 옵션이 저장되어 이후 AI 프롬프트에 반영.
+
+**개발 시 항상 고려:**
+1. 옵션 영속성 — 사용자 선택은 store에 저장 → 이후 프롬프트 반영
+2. 프리셋 확장성 — 데이터만 추가하면 되도록 (코드 변경 최소화)
+3. BYOK 호환 — AI 호출 시 "BYOK 키 우선, 없으면 플랫폼 키" 패턴, **BYOK도 플랫폼 이용료는 차감**
+4. UGC 준비 — 프리셋/프롬프트를 나중에 DB 테이블로 이전 가능한 구조
+5. 다중 AI 모델 — 특정 모델 하드코딩 금지, 모델 ID로 분기
+
+**API 모델:** 하이브리드 (플랫폼 크레딧 기본 + BYOK 고급 옵션)
+**크레딧 구조:** 2계층 = 플랫폼 이용료(항상) + AI API 비용(BYOK 시 면제)
+**미래:** UGC 마켓플레이스 (유저 프리셋 판매 + 크레딧 수익 공유)
+
+---
+
 ## 프로젝트 개요
 
 **이름:** AntiGravity
 **목적:** YouTube 크리에이터가 AI를 활용해 시네마틱 영상을 쉽게 제작할 수 있는 웹 플랫폼
 **워크플로우:** 4단계 파이프라인
-1. **Idea** → 스크립트 작성 및 씬 분할
-2. **Storyboard** → 비주얼 스타일 선택 & 캐스트 배정
-3. **Video** → AI 이미지/영상 생성 & 프리뷰
-4. **Animate** → 타임라인 편집 & 최종 렌더링
+1. **Idea** → 스크립트 작성 및 스타일 선택
+2. **Storyboard** → 카드 선택(덱 구성) & 컷 분할
+3. **Generate** → 시드 매칭 & AI 이미지/영상 생성
+4. **Animate** → 타임라인 편집 & TTS & Export
 
 ---
 
@@ -85,6 +106,22 @@ npm run preview      # 프로덕션 빌드 프리뷰
 - **경험 수준:** 바이브코딩 초보자
 - **언어:** 한국어 선호
 - **작업 방식:** 대화형, 단계별 진행 선호
+- **인라인 메모:** plan.md 직접 편집 어려움 → 질문-답변 방식으로 피드백
+
+---
+
+## 🤖 모델 사용 전략 (필수 준수)
+
+> **매 세션 시작 시 사용자에게 현재 모델이 적절한지 안내할 것.**
+
+| 단계 | 모델 | 역할 |
+|------|------|------|
+| 리서치 + 계획 작성 + CTO 검토 | **Opus 4.6** | 깊은 분석, 상세 계획, 아키텍처 결정 |
+| 구현 (코딩) + 검증 | **Sonnet 4.6** | plan.md에 따라 기계적 코드 작성 |
+
+- 리서치/계획 단계에서 Sonnet을 사용 중이면 → "Opus 4.6으로 전환을 추천합니다" 안내
+- 구현 단계에서 Opus를 사용 중이면 → "Sonnet 4.6으로 전환하면 더 효율적입니다" 안내
+- 사용자가 의도적으로 다른 모델을 선택한 경우 존중
 
 ---
 
@@ -221,70 +258,61 @@ npm run preview      # 프로덕션 빌드 프리뷰
 
 ### 완성된 것 ✅
 - 프론트엔드 UI 프로토타입 (모든 4단계 페이지)
-- 라우팅 시스템 (7개 라우트)
-- Zustand 전역 상태 관리 + **localStorage 영속성** (persist v2, 마이그레이션 포함)
-- IdeaPage: SCRIPT | STYLE | CAST 3탭 통합 (아이디어 탭, 씬 분할, 스타일 12종)
-- IdeaPage Cast 탭: **카드 라이브러리** (타입 필터, 타입 뱃지, 삭제 기능)
-- StoryboardPage: 카드 선택 → 컷 분할 → 시드 매칭 & 생성
-- StoryboardPage **AI 대본 분석**: cardLibrary 우선 매칭 + aiSuggestedCards 보충 (Mock)
-- StoryboardPage **덱 시스템**: AI 5장 + 수동 3장 = 최대 8장, 상단 수동 "+" 슬롯
-- StoryboardPage **카드 풀**: 내 라이브러리 | AI 추천 | 즐겨찾기 | 새로 만들기 4탭
-- **cardLibrary 단일 데이터 소스**: IdeaPage↔StoryboardPage 카드 데이터 완전 동기화
-- 씬별 영상 개수 선택 (1/2/3), 일괄/개별 이미지+영상 생성 (Mock)
+- Git 버전 관리 + GitHub 리포지토리
+- Supabase 연동 (PostgreSQL + Auth + Storage)
+- Google OAuth 로그인 + 게스트 모드
+- 프로젝트 CRUD (Supabase ↔ localStorage 듀얼모드)
+- Zustand 전역 상태 관리 + **localStorage 영속성** (persist v3, 마이그레이션 포함)
+- IdeaPage: SCRIPT | STYLE | CAST 3탭 통합
+- StoryboardPage: 카드 선택 → 컷 분할 → 시드 매칭 & 생성 (Mock)
+- AI 서비스 프로바이더 패턴 (Mock/Real 전환 가능)
 - 다크 테마 + 한국어 지원
-- 목업 데이터 (12개 템플릿, 10개 씬, 8개 캐릭터+배경+아이템, 스타일별 프롬프트 prefix)
+
+### 현재 작업 중 🔄
+- **002-UX 플로우 개선** — plan.md v2.1 승인 완료, Phase 0 구현 대기
 
 ### 미완성 ❌
-- Git 버전 관리 (미초기화)
-- 백엔드 (API, DB, 인증)
-- AI 연동 (이미지/영상 생성) — 현재 Mock 데이터 플로우만 구현
-- 이미지 업로드
-- 영상 렌더링/내보내기
-- 에러 핸들링 / 에러 바운더리
+- UX 플로우 개선 (3진입점, CastPage, Settings, Admin)
+- AI 실 연동 (현재 Mock 모드)
+- 결제 시스템 (Stripe/토스)
 - 테스트 코드
-- 환경 변수 설정
-- 결제 시스템 (무료/유료 모델)
+- 배포 (Vercel)
 
 ---
 
-## MVP 런칭 로드맵 (무료/유료 웹서비스)
+## MVP 런칭 로드맵
 
-### Phase 0: 기반 인프라 (현재 진행 중) ← NOW
-1. **Git 초기화 + .gitignore** — 버전 관리 시작
-2. **환경 변수 (.env)** — API 키 관리 구조
-3. **deprecated 파일 정리** — ScriptPage.tsx, StyleCastPage.tsx 제거
-4. **StoryboardPage 리팩토링** — 963줄 → 컴포넌트 분리
+> **현재:** 002-UX 플로우 개선 작업 진행 중
+> **상세 계획:** `.plans/002-ux-flow/plan.md` (v2.1)
+> **프로덕트 비전:** `.plans/VISION.md`
 
-### Phase 1: 백엔드 + 인증 (2~3주)
-5. **Supabase 세팅** — PostgreSQL + Auth + Storage
-6. **DB 스키마** — users, projects, scenes, asset_cards, generations
-7. **소셜 로그인** — Google/카카오 OAuth
-8. **프로젝트 CRUD API** — localStorage → DB 마이그레이션
+### 현재 작업: UX 플로우 개선 (002) ← NOW
+- Phase 0~7로 구성 (상세: plan.md v2.1)
+- 3진입점, CastPage, SettingsPage, AdminPage, AI 모델 선택 등
 
-### Phase 2: AI 이미지 생성 (2~3주)
-9. **이미지 생성 API** — Replicate 또는 fal.ai (Flux/SDXL)
-10. **프롬프트 파이프라인** — 스타일 prefix + 씬 + 캐릭터 seed
-11. **이미지 저장소** — Supabase Storage 또는 Cloudflare R2
-12. **크레딧 시스템** — 무료 50장/월, 유료 500장/월
-
-### Phase 3: AI 영상 생성 (2~3주)
-13. **영상 생성 API** — Runway Gen-3 또는 Kling AI
-14. **비동기 작업 큐** — 웹훅 완료 알림
-15. **영상 프리뷰 & 다운로드**
-
-### Phase 4: 결제 + 유료 플랜 (1~2주)
-16. **Stripe + 토스페이먼츠** — 월 구독 모델
-17. **플랜 설계** — Free / Pro(₩19,900) / Enterprise(₩99,000)
-18. **사용량 대시보드** — 크레딧 잔량, 이력 조회
-
-### Phase 5: 배포 + 런칭 (1주)
-19. **Vercel + Supabase** 배포
-20. **모니터링** — Sentry + Analytics
-21. **랜딩 페이지 + SEO**
+### 이후 작업 (순서는 유동적)
+- AI 이미지 실 연동 (Replicate/fal.ai)
+- AI 영상 실 연동 (Runway/Kling)
+- 결제 + 유료 플랜 (Stripe + 토스)
+- 배포 (Vercel + Supabase)
 
 ---
 
 ## 변경 이력 (CHANGELOG)
+
+### 2026-02-27 - 세션 5~6: UX 플로우 리서치 + 계획
+- **UX 플로우 심층 리서치**: 전체 코드베이스 분석, research.md 작성 (770줄)
+- **plan.md v2.1 완성**: 9 Phase (0~7 + 2.5) 구현 계획
+- **VISION.md 생성**: 프로덕트 비전 (3진입점, Cast AI, 크레딧 2계층, AI 4카테고리, UGC)
+- **CTO 검토 6건 반영**: prompt-builder 스텁, CSS 분리, Store v4, StoryboardPage 리팩토링 등
+- **CLAUDE.md 업데이트**: 프로덕트 비전 섹션 추가, 모델 사용 전략 추가
+- **사용자 결정**: CastPage URL `/cast`, Cast→Script 이동, Phase 순서대로 진행
+- **모델 전략 확정**: Opus 4.6(리서치/계획) + Sonnet 4.6(구현)
+
+### 2026-02-27 - 세션 4: Supabase 실연결 E2E 검증
+- **Supabase 실연결 완료**: .env 설정, Google OAuth 동작, DB 저장/로드 확인
+- **hasActiveProject 버그 수정**: IdeaPage useEffect 추가
+- **커밋**: `4a07dc0` - Supabase 실연결 E2E 검증
 
 ### 2026-02-26 - 세션 3: 6가지 기능 구현
 - **ScriptPage 아이디어 탭 완성**: `generateMockScriptFromIdea()` 함수 추가, 2초 딜레이 Mock AI 생성, 로딩 스피너

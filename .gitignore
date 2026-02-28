@@ -41,6 +41,9 @@ desktop.ini
 # Vite
 vite.config.ts.timestamp-*
 
-# Claude Code (session files - keep .claude/launch.json)
-.claude/
+# Claude Code (session files - keep shared configs)
+.claude/*
 !.claude/launch.json
+!.claude/agents/
+!.claude/skills/
+!.claude/ORG-CHART.md

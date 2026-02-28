@@ -120,3 +120,39 @@ export type DbProject = Database['public']['Tables']['projects']['Row'];
 export type DbScene = Database['public']['Tables']['scenes']['Row'];
 export type DbAssetCard = Database['public']['Tables']['asset_cards']['Row'];
 export type DbGeneration = Database['public']['Tables']['generations']['Row'];
+
+// ── 결제 시스템 타입 ──
+export type CreditTransactionType = 'purchase' | 'spend' | 'refund' | 'signup_bonus' | 'admin_grant';
+export type PaymentGateway = 'stripe' | 'toss';
+export type OrderStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
+
+export interface DbUserCredits {
+  user_id: string;
+  balance: number;
+  lifetime_purchased: number;
+  lifetime_spent: number;
+  updated_at: string;
+}
+
+export interface DbCreditTransaction {
+  id: string;
+  user_id: string;
+  amount: number;
+  type: CreditTransactionType;
+  description: string | null;
+  reference_id: string | null;
+  balance_after: number;
+  created_at: string;
+}
+
+export interface DbOrder {
+  id: string;
+  order_id: string;
+  user_id: string;
+  credit_amount: number;
+  amount: number;
+  payment_gateway: PaymentGateway;
+  status: OrderStatus;
+  created_at: string;
+  completed_at: string | null;
+}

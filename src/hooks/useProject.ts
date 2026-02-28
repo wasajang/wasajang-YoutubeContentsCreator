@@ -17,6 +17,7 @@ import { useProjectStore } from '../store/projectStore';
 import { isSupabaseConfigured } from '../services/supabase';
 import { saveProject, loadProject, listProjects } from '../services/project-api';
 import { saveCards, loadCards } from '../services/card-api';
+import { useToastStore } from './useToast';
 
 const SAVE_DEBOUNCE_MS = 2000;
 
@@ -133,6 +134,7 @@ export function useProject() {
                 await saveCards(user.id, state.cardLibrary);
             } catch (err) {
                 console.error('[useProject] 자동 저장 실패:', err);
+                useToastStore.getState().addToast('자동 저장에 실패했습니다. 네트워크를 확인해주세요.', 'error');
             }
         }, SAVE_DEBOUNCE_MS);
     }, [user, isGuest]);

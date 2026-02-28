@@ -3,3 +3,7 @@ export { default as ManualAddModal } from './ManualAddModal';
 export { default as CastStrip } from './CastStrip';
 export { default as SceneRow } from './SceneRow';
 export { default as SceneFilmstrip } from './SceneFilmstrip';
+export { default as DeckPanel } from './DeckPanel';
+export { default as CastSetupPhase } from './CastSetupPhase';
+export { default as CutSplitPhase } from './CutSplitPhase';
+export { default as SeedCheckPhase } from './SeedCheckPhase';
