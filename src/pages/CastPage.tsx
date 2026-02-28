@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, Plus, X, Loader, Sparkles, Check, Trash2, Star } from 'lucide-react';
 import { useProjectStore } from '../store/projectStore';
 import type { AssetCard, AssetType } from '../store/projectStore';
@@ -19,8 +19,9 @@ const TYPE_LABELS: Record<AssetType, string> = {
 
 const CastPage: React.FC = () => {
     const navigate = useNavigate();
-    // /cast와 /cast?mode=project 모두 동일하게 프로젝트 시작 가능
-    const isProjectMode = true;
+    const [searchParams] = useSearchParams();
+    // ?mode=project 쿼리 파라미터로 프로젝트 시작 모드 구분
+    const isProjectMode = searchParams.get('mode') === 'project';
 
     const {
         cardLibrary, addToCardLibrary, removeFromCardLibrary,
@@ -114,10 +115,10 @@ const CastPage: React.FC = () => {
         setShowStyleSelect(true);
     };
 
-    // 스타일 프리셋 선택 → 프로젝트 시작 & IdeaPage로 이동
+    // 스타일 프리셋 선택 → 프로젝트 시작 & IdeaPage로 이동 (keepDeck으로 선택 카드 유지)
     const handlePresetSelect = (preset: StylePreset) => {
+        startNewProject(preset.name, preset.mode, { keepDeck: true });
         setEntryPoint('cast');
-        startNewProject(preset.name, preset.mode);
         setSelectedPreset(preset.id);
         setSelectedStyle(preset.style);
         setAspectRatio(preset.aspectRatio);

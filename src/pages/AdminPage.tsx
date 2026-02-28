@@ -6,13 +6,14 @@
  */
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Settings2, FileText, Palette, Bot, BarChart2, Save, CheckCircle2 } from 'lucide-react';
+import { Settings2, FileText, Palette, Bot, BarChart2, Save, CheckCircle2, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { stylePresets } from '../data/stylePresets';
 import type { StylePreset } from '../data/stylePresets';
 import { getPromptBuilderModels } from '../data/aiModels';
 
 const ADMIN_EMAILS = ['wofou7@gmail.com'];
+const PRESET_OVERRIDE_KEY = 'antigravity-preset-overrides';
 
 type VisibilityKey = StylePreset['visibility'];
 const VISIBILITY_OPTIONS: { value: VisibilityKey; label: string; color: string }[] = [
@@ -39,23 +40,44 @@ function useSaveState() {
     return { saved, triggerSave };
 }
 
+/* ── 프리셋 편집 타입 ── */
+interface PresetPromptEdit {
+    script?: string;
+    imagePrefix?: string;
+    videoPrefix?: string;
+    negativePrompt?: string;
+}
+
 const AdminPage: React.FC = () => {
     const { user } = useAuth();
 
-    /* 접근 제어 */
-    if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
-        return <Navigate to="/" replace />;
-    }
+    /* ──────────────────────────────────────────────────────
+       모든 useState를 조건부 return 위에 선언
+       (React Hooks 규칙 준수)
+    ────────────────────────────────────────────────────── */
 
     /* 프롬프트 템플릿 상태 */
     const [prompts, setPrompts] = useState(DEFAULT_PROMPTS);
     const { saved: promptSaved, triggerSave: savePrompt } = useSaveState();
 
-    /* 프리셋 visibility 상태 (초기값 = stylePresets.ts 데이터) */
+    /* 프리셋 visibility 상태 */
     const [presetVisibility, setPresetVisibility] = useState<Record<string, VisibilityKey>>(
         Object.fromEntries(stylePresets.map((p) => [p.id, p.visibility]))
     );
     const { saved: presetSaved, triggerSave: savePreset } = useSaveState();
+
+    /* 프리셋 아코디언 상태 */
+    const [expandedPresetId, setExpandedPresetId] = useState<string | null>(null);
+
+    /* 프리셋 프롬프트 편집 상태 (localStorage에서 초기 로드) */
+    const [editedPrompts, setEditedPrompts] = useState<Record<string, PresetPromptEdit>>(() => {
+        try {
+            const overrides = JSON.parse(localStorage.getItem(PRESET_OVERRIDE_KEY) || '{}');
+            return Object.keys(overrides).length > 0 ? overrides : {};
+        } catch {
+            return {};
+        }
+    });
 
     /* 프롬프트 생성 AI 모델 (내부 전용) */
     const promptBuilderModels = getPromptBuilderModels();
@@ -63,6 +85,52 @@ const AdminPage: React.FC = () => {
         promptBuilderModels.find((m) => m.isDefault)?.id ?? promptBuilderModels[0]?.id ?? ''
     );
     const { saved: modelSaved, triggerSave: saveModel } = useSaveState();
+
+    /* ── 접근 제어 (모든 훅 선언 이후) ── */
+    if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
+        return <Navigate to="/" replace />;
+    }
+
+    /* ── 프리셋 저장/리셋 핸들러 ── */
+    const handleSavePreset = (presetId: string) => {
+        const edited = editedPrompts[presetId];
+        if (!edited) return;
+        try {
+            const overrides = JSON.parse(localStorage.getItem(PRESET_OVERRIDE_KEY) || '{}');
+            overrides[presetId] = edited;
+            localStorage.setItem(PRESET_OVERRIDE_KEY, JSON.stringify(overrides));
+            savePreset();
+        } catch (err) {
+            console.error('[Admin] 프리셋 저장 실패:', err);
+        }
+    };
+
+    const handleResetPreset = (presetId: string) => {
+        try {
+            const overrides = JSON.parse(localStorage.getItem(PRESET_OVERRIDE_KEY) || '{}');
+            delete overrides[presetId];
+            localStorage.setItem(PRESET_OVERRIDE_KEY, JSON.stringify(overrides));
+        } catch {
+            // 무시
+        }
+        setEditedPrompts((prev) => {
+            const next = { ...prev };
+            delete next[presetId];
+            return next;
+        });
+    };
+
+    /* ── 프리셋 현재 프롬프트 값 결정 헬퍼 ── */
+    const getPromptValue = (presetId: string, field: keyof PresetPromptEdit, fallback: string): string => {
+        return editedPrompts[presetId]?.[field] ?? fallback;
+    };
+
+    const updateEditedPrompt = (presetId: string, field: keyof PresetPromptEdit, value: string) => {
+        setEditedPrompts((prev) => ({
+            ...prev,
+            [presetId]: { ...prev[presetId], [field]: value },
+        }));
+    };
 
     return (
         <div className="page-container admin-page">
@@ -102,7 +170,7 @@ const AdminPage: React.FC = () => {
                     </div>
                 </section>
 
-                {/* ── 2. 스타일 프리셋 관리 ── */}
+                {/* ── 2. 스타일 프리셋 관리 (아코디언) ── */}
                 <section className="admin-section">
                     <div className="admin-section__head">
                         <Palette size={15} />
@@ -110,37 +178,163 @@ const AdminPage: React.FC = () => {
                         <span className="admin-section__count">{stylePresets.length}개</span>
                     </div>
 
-                    <div className="admin-preset-grid">
+                    <div className="admin-preset-list">
                         {stylePresets.map((preset) => {
                             const vis = presetVisibility[preset.id] ?? preset.visibility;
                             const opt = VISIBILITY_OPTIONS.find((o) => o.value === vis)!;
+                            const isExpanded = expandedPresetId === preset.id;
+                            const hasEdits = !!editedPrompts[preset.id];
+
                             return (
-                                <div key={preset.id} className="admin-preset-card">
-                                    {preset.thumbnail && (
-                                        <img src={preset.thumbnail} className="admin-preset-card__img" alt={preset.name} />
-                                    )}
-                                    <div className="admin-preset-card__info">
-                                        <span className="admin-preset-card__name">{preset.name}</span>
-                                        <span className="admin-preset-card__cat">{preset.category}</span>
-                                    </div>
-                                    <select
-                                        className="admin-preset-select"
-                                        style={{ color: opt.color }}
-                                        value={vis}
-                                        onChange={(e) => setPresetVisibility((prev) => ({ ...prev, [preset.id]: e.target.value as VisibilityKey }))}
+                                <div key={preset.id} className={`admin-preset-detail-card ${isExpanded ? 'expanded' : ''}`}>
+                                    {/* 카드 헤더 */}
+                                    <div
+                                        className="admin-preset-detail-card__header"
+                                        onClick={() => setExpandedPresetId(isExpanded ? null : preset.id)}
                                     >
-                                        {VISIBILITY_OPTIONS.map((o) => (
-                                            <option key={o.value} value={o.value}>{o.label}</option>
-                                        ))}
-                                    </select>
+                                        {/* 썸네일 */}
+                                        <div className="admin-preset-detail-card__thumb">
+                                            {preset.thumbnail ? (
+                                                <img src={preset.thumbnail} alt={preset.name} />
+                                            ) : (
+                                                <div className="admin-preset-detail-card__thumb-placeholder">
+                                                    <Palette size={16} />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 이름 + 태그 */}
+                                        <div className="admin-preset-detail-card__meta">
+                                            <span className="admin-preset-detail-card__name">
+                                                {preset.name}
+                                                {hasEdits && <span className="admin-preset-detail-card__edited-dot" title="편집됨" />}
+                                            </span>
+                                            <div className="admin-preset-detail-card__tags">
+                                                <span className="admin-preset-tag admin-preset-tag--mode">
+                                                    {preset.mode === 'cinematic' ? '시네마틱형' : '나레이션형'}
+                                                </span>
+                                                <span className="admin-preset-tag admin-preset-tag--ratio">
+                                                    {preset.aspectRatio}
+                                                </span>
+                                                <span className="admin-preset-tag admin-preset-tag--style">
+                                                    {preset.style}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Visibility 드롭다운 */}
+                                        <select
+                                            className="admin-preset-select"
+                                            style={{ color: opt.color }}
+                                            value={vis}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                setPresetVisibility((prev) => ({ ...prev, [preset.id]: e.target.value as VisibilityKey }));
+                                            }}
+                                        >
+                                            {VISIBILITY_OPTIONS.map((o) => (
+                                                <option key={o.value} value={o.value}>{o.label}</option>
+                                            ))}
+                                        </select>
+
+                                        {/* 펼침 아이콘 */}
+                                        <span className="admin-preset-detail-card__chevron">
+                                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                        </span>
+                                    </div>
+
+                                    {/* 카드 본문 (아코디언) */}
+                                    {isExpanded && (
+                                        <div className="admin-preset-detail-card__body">
+                                            {/* 프롬프트 4종 */}
+                                            <div className="admin-preset-prompt-group">
+                                                <div className="admin-prompt-row">
+                                                    <label className="admin-prompt-row__label">📝 대본 생성 지시</label>
+                                                    <textarea
+                                                        className="admin-textarea"
+                                                        rows={3}
+                                                        value={getPromptValue(preset.id, 'script', preset.prompts?.script ?? '')}
+                                                        onChange={(e) => updateEditedPrompt(preset.id, 'script', e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="admin-prompt-row">
+                                                    <label className="admin-prompt-row__label">🖼 이미지 프롬프트 접두사</label>
+                                                    <textarea
+                                                        className="admin-textarea"
+                                                        rows={2}
+                                                        value={getPromptValue(preset.id, 'imagePrefix', preset.prompts?.imagePrefix ?? '')}
+                                                        onChange={(e) => updateEditedPrompt(preset.id, 'imagePrefix', e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="admin-prompt-row">
+                                                    <label className="admin-prompt-row__label">🎬 영상 프롬프트 접두사</label>
+                                                    <textarea
+                                                        className="admin-textarea"
+                                                        rows={2}
+                                                        value={getPromptValue(preset.id, 'videoPrefix', preset.prompts?.videoPrefix ?? '')}
+                                                        onChange={(e) => updateEditedPrompt(preset.id, 'videoPrefix', e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="admin-prompt-row">
+                                                    <label className="admin-prompt-row__label">🚫 네거티브 프롬프트</label>
+                                                    <textarea
+                                                        className="admin-textarea"
+                                                        rows={2}
+                                                        value={getPromptValue(preset.id, 'negativePrompt', '')}
+                                                        onChange={(e) => updateEditedPrompt(preset.id, 'negativePrompt', e.target.value)}
+                                                        placeholder="생성에서 제외할 요소 (예: blurry, low quality, watermark)"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* 모델/캐스트 정보 */}
+                                            <div className="admin-preset-info-grid">
+                                                <div className="admin-preset-info-item">
+                                                    <span className="admin-preset-info-item__label">기본 모델</span>
+                                                    <span className="admin-preset-info-item__value">
+                                                        이미지: {preset.defaultModels.image} / 영상: {preset.defaultModels.video}
+                                                    </span>
+                                                </div>
+                                                <div className="admin-preset-info-item">
+                                                    <span className="admin-preset-info-item__label">추천 캐스트</span>
+                                                    <span className="admin-preset-info-item__value">
+                                                        배우 {preset.recommendedCast.characters}명 / 배경 {preset.recommendedCast.backgrounds}개 / 소품 {preset.recommendedCast.items}개
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* 저장/리셋 버튼 */}
+                                            <div className="admin-preset-detail-card__foot">
+                                                <button
+                                                    className="btn-secondary"
+                                                    style={{ fontSize: '0.78rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5 }}
+                                                    onClick={() => handleResetPreset(preset.id)}
+                                                    disabled={!hasEdits}
+                                                >
+                                                    <RotateCcw size={13} />
+                                                    원본으로 리셋
+                                                </button>
+                                                <button
+                                                    className="btn-primary"
+                                                    style={{ fontSize: '0.78rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5 }}
+                                                    onClick={() => handleSavePreset(preset.id)}
+                                                    disabled={!hasEdits}
+                                                >
+                                                    {presetSaved ? <><CheckCircle2 size={13} /> 저장됨</> : <><Save size={13} /> 저장</>}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
                     </div>
 
+                    {/* Visibility 일괄 저장 */}
                     <div className="admin-section__foot">
                         <button className="btn-primary" style={{ fontSize: '0.8rem', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 6 }} onClick={savePreset}>
-                            {presetSaved ? <><CheckCircle2 size={14} /> 저장됨</> : <><Save size={14} /> 저장</>}
+                            {presetSaved ? <><CheckCircle2 size={14} /> 저장됨</> : <><Save size={14} /> 공개 설정 저장</>}
                         </button>
                         {presetSaved && <span className="admin-saved-note">변경사항이 저장되었습니다.</span>}
                     </div>

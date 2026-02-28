@@ -7121,14 +7121,14 @@ img {
   border-color: var(--accent-primary);
 }
 
-/* 프리셋 그리드 */
-.admin-preset-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+/* 프리셋 아코디언 리스트 */
+.admin-preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.admin-preset-card {
+.admin-preset-detail-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -7136,45 +7136,167 @@ img {
   transition: border-color var(--transition-fast);
 }
 
-.admin-preset-card:hover { border-color: var(--border-accent); }
-
-.admin-preset-card__img {
-  width: 100%;
-  height: 80px;
-  object-fit: cover;
-  display: block;
+.admin-preset-detail-card.expanded {
+  border-color: var(--border-accent);
 }
 
-.admin-preset-card__info {
-  padding: 8px 10px 4px;
+.admin-preset-detail-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.admin-preset-detail-card__header:hover {
+  background: var(--bg-card-hover);
+}
+
+.admin-preset-detail-card__thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.admin-preset-detail-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-preset-detail-card__thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.admin-preset-detail-card__meta {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
-.admin-preset-card__name {
-  font-size: 0.8125rem;
+.admin-preset-detail-card__name {
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.admin-preset-card__cat {
+.admin-preset-detail-card__edited-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.admin-preset-detail-card__tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.admin-preset-tag {
   font-size: 0.625rem;
-  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
+}
+
+.admin-preset-tag--mode {
+  background: rgba(124, 58, 237, 0.15);
+  color: #a78bfa;
+}
+
+.admin-preset-tag--ratio {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+}
+
+.admin-preset-tag--style {
+  background: rgba(233, 30, 140, 0.15);
+  color: #f472b6;
 }
 
 .admin-preset-select {
-  width: 100%;
   background: var(--bg-primary);
-  border: none;
-  border-top: 1px solid var(--border-subtle);
-  padding: 6px 10px;
-  font-size: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.7rem;
   font-weight: 600;
   cursor: pointer;
   outline: none;
+  flex-shrink: 0;
+}
+
+.admin-preset-detail-card__chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* 아코디언 본문 */
+.admin-preset-detail-card__body {
+  border-top: 1px solid var(--border-subtle);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-preset-prompt-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-preset-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.admin-preset-info-item {
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.admin-preset-info-item__label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 3px;
+}
+
+.admin-preset-info-item__value {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.admin-preset-detail-card__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* AI 모델 */
@@ -9219,4 +9341,96 @@ button.export-btn:disabled {
   .payment-balance-card {
     padding: 20px 32px;
   }
+}
+
+/* ========== CREDIT SHORTAGE MODAL ========== */
+.credit-shortage-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+  position: relative;
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+}
+
+.credit-shortage-modal__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+
+.credit-shortage-modal__close:hover {
+  color: var(--text-primary);
+}
+
+.credit-shortage-modal__icon {
+  color: var(--accent-primary);
+  margin-bottom: 12px;
+}
+
+.credit-shortage-modal__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.credit-shortage-modal__info {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.credit-shortage-modal__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.credit-shortage-modal__amount {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.credit-shortage-modal__amount--low {
+  color: #ef4444;
+}
+
+.credit-shortage-modal__action {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.credit-shortage-modal__note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.credit-shortage-modal__btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  padding: 10px 20px;
 }

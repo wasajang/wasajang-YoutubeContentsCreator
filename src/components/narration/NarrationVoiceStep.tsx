@@ -12,6 +12,7 @@ import { Mic, Volume2, Loader, RefreshCw, Play, Pause } from 'lucide-react';
 import { useProjectStore } from '../../store/projectStore';
 import type { SentenceTiming } from '../../store/projectStore';
 import { generateTTS } from '../../services/ai-tts';
+import { getPresetById } from '../../data/stylePresets';
 import { useCredits } from '../../hooks/useCredits';
 import { getUserSelectableModels } from '../../data/aiModels';
 
@@ -28,6 +29,7 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
     const setSentenceTimings = useProjectStore((s) => s.setSentenceTimings);
     const aiModelPreferences = useProjectStore((s) => s.aiModelPreferences);
     const setAiModelPreference = useProjectStore((s) => s.setAiModelPreference);
+    const selectedPreset = useProjectStore((s) => s.selectedPreset);
 
     const { canAfford, spend } = useCredits();
 
@@ -52,11 +54,14 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
         if (!spend('tts')) return;
 
         setIsGenerating(true);
+        const activePreset = selectedPreset ? getPresetById(selectedPreset) : null;
         try {
             const result = await generateTTS({
                 text,
                 clipId: 'narrative',
                 model: aiModelPreferences.tts,
+                voiceId: activePreset?.voice?.voiceId,
+                speed: activePreset?.voice?.speed,
             });
             setNarrativeAudioUrl(result.audioUrl);
 

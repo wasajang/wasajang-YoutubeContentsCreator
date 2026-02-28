@@ -141,6 +141,8 @@ const IdeaPage: React.FC = () => {
                 sceneCount,
                 style: selectedStyle,
                 model: aiModelPreferences.script,
+                presetId: selectedPreset ?? undefined,
+                mode,
             });
             // LLM 결과를 store 씬 형태로 변환
             const storeScenes = result.scenes.map((s) => ({

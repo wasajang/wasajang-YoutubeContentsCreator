@@ -119,7 +119,7 @@ export interface ProjectState {
 
   // Active project flag
   hasActiveProject: boolean;
-  startNewProject: (title: string, mode?: ProjectMode) => void;
+  startNewProject: (title: string, mode?: ProjectMode, options?: { keepDeck?: boolean }) => void;
 
   // ── v4 신규 필드 ──
 
@@ -213,8 +213,8 @@ export const useProjectStore = create<ProjectState>()(
       resetCredits: () => set({ credits: 10000 }),
 
       hasActiveProject: false,
-      startNewProject: (title, mode = 'cinematic') =>
-        set({
+      startNewProject: (title, mode = 'cinematic', options) =>
+        set((state) => ({
           projectId: null,
           title,
           hasActiveProject: true,
@@ -225,7 +225,7 @@ export const useProjectStore = create<ProjectState>()(
           timelineClips: [],
           entryPoint: null,
           selectedPreset: null,
-          selectedDeck: [],
+          selectedDeck: options?.keepDeck ? state.selectedDeck : [],
           aiModelPreferences: { ...DEFAULT_AI_MODELS },
           mode,
           narrativeAudioUrl: '',
@@ -233,7 +233,7 @@ export const useProjectStore = create<ProjectState>()(
           narrationClips: [],
           narrationStep: 1,
           // cardLibrary는 리셋하지 않음 — 카드 에셋은 프로젝트 간 유지
-        }),
+        })),
 
       // ── v4 신규 필드 초기값 & 액션 ──
       entryPoint: null,

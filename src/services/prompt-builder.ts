@@ -3,9 +3,10 @@
  *
  * 스타일 prefix + 씬 대본 + 캐릭터 시드 → 완성 프롬프트 조립
  *
- * 구조: [스타일 prefix] + [씬 설명] + [캐릭터/배경 시드 참조] + [네거티브]
+ * 구조: [프리셋 prefix 우선 → artStyle prefix 폴백] + [씬 설명] + [캐릭터/배경 시드 참조] + [네거티브]
  */
 import { stylePromptPrefix } from '../data/mockData';
+import { getPresetById } from '../data/stylePresets';
 import type { AssetCard } from '../store/projectStore';
 
 export interface PromptContext {
@@ -21,18 +22,67 @@ export interface PromptContext {
     cameraAngle?: string;
     /** 로케이션 */
     location?: string;
+    /** 선택된 프리셋 ID (있으면 프리셋 prompts 우선 적용) */
+    presetId?: string;
+}
+
+// ── 헬퍼 함수 ──
+
+/**
+ * 문자열 첫 글자를 대문자로 변환
+ * 빈 문자열이나 이미 대문자인 경우도 안전하게 처리
+ */
+function capitalize(s: string): string {
+    if (!s) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * 화면 비율 문자열을 픽셀 크기로 변환
+ */
+export function aspectRatioToSize(ratio: string): { width: number; height: number } {
+    switch (ratio) {
+        case '9:16': return { width: 768, height: 1344 };
+        case '1:1':  return { width: 1024, height: 1024 };
+        case '16:9':
+        default:     return { width: 1344, height: 768 };
+    }
+}
+
+/**
+ * 네거티브 프롬프트 반환
+ * 프리셋에 negativePrompt가 있으면 우선 사용, 없으면 기본값 반환
+ */
+export function getNegativePrompt(presetId?: string): string {
+    if (presetId) {
+        const preset = getPresetById(presetId);
+        if (preset?.prompts.negativePrompt) return preset.prompts.negativePrompt;
+    }
+    return 'blurry, low quality, distorted, deformed, ugly, watermark, text, logo, oversaturated';
 }
 
 /**
  * 이미지 생성용 프롬프트 조립
+ *
+ * 우선순위: 프리셋 imagePrefix > stylePromptPrefix[style] > 빈 문자열
  *
  * @returns 완성된 프롬프트 문자열
  */
 export function buildImagePrompt(ctx: PromptContext): string {
     const parts: string[] = [];
 
-    // 1. 스타일 prefix
-    const prefix = stylePromptPrefix[ctx.style] || stylePromptPrefix['Cinematic'] || '';
+    // 1. 스타일 prefix (프리셋 우선, artStyle 폴백)
+    let prefix = '';
+    if (ctx.presetId) {
+        const preset = getPresetById(ctx.presetId);
+        if (preset?.prompts.imagePrefix) {
+            prefix = preset.prompts.imagePrefix;
+        }
+    }
+    if (!prefix) {
+        // stylePromptPrefix 키는 'Cinematic' 대문자로 저장되어 있음
+        prefix = stylePromptPrefix[capitalize(ctx.style)] || stylePromptPrefix['Cinematic'] || '';
+    }
     if (prefix) parts.push(prefix);
 
     // 2. 씬 설명 (커스텀 프롬프트 우선)
@@ -73,12 +123,23 @@ export function buildImagePrompt(ctx: PromptContext): string {
 
 /**
  * 영상 생성용 프롬프트 조립 (이미지 프롬프트보다 간결)
+ *
+ * 우선순위: 프리셋 videoPrefix > stylePromptPrefix[style] > 빈 문자열
  */
 export function buildVideoPrompt(ctx: PromptContext): string {
     const parts: string[] = [];
 
-    // 스타일
-    const prefix = stylePromptPrefix[ctx.style] || '';
+    // 스타일 (프리셋 우선, artStyle 폴백)
+    let prefix = '';
+    if (ctx.presetId) {
+        const preset = getPresetById(ctx.presetId);
+        if (preset?.prompts.videoPrefix) {
+            prefix = preset.prompts.videoPrefix;
+        }
+    }
+    if (!prefix) {
+        prefix = stylePromptPrefix[capitalize(ctx.style)] || '';
+    }
     if (prefix) parts.push(prefix);
 
     // 모션/액션 중심 설명
@@ -94,8 +155,9 @@ export function buildVideoPrompt(ctx: PromptContext): string {
 }
 
 /**
- * 기본 네거티브 프롬프트
+ * 기본 네거티브 프롬프트 (하위 호환성 유지)
+ * @deprecated getNegativePrompt(presetId) 사용 권장
  */
 export function getDefaultNegativePrompt(): string {
-    return 'blurry, low quality, distorted, deformed, ugly, watermark, text, logo, oversaturated';
+    return getNegativePrompt();
 }

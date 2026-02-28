@@ -8,6 +8,8 @@
  *   - 'anthropic' → Anthropic Claude API
  */
 
+import { getPresetById } from '../data/stylePresets';
+
 // ── 타입 정의 ──
 
 export interface ScriptGenerationRequest {
@@ -23,6 +25,10 @@ export interface ScriptGenerationRequest {
     style?: string;
     /** AI 모델 ID (기본값: 'gpt-4o-mini'). Phase 6에서 유저 선택 지원. */
     model?: string;
+    /** 선택된 프리셋 ID (있으면 프리셋의 script 지시 우선 적용) */
+    presetId?: string;
+    /** 제작 모드 */
+    mode?: 'cinematic' | 'narration';
 }
 
 export interface GeneratedScene {
@@ -235,8 +241,21 @@ const geminiProvider: LLMProvider = {
 // ── 공통 프롬프트 빌더 ──
 
 function buildSystemPrompt(req: ScriptGenerationRequest): string {
-    return `당신은 YouTube 영상 시나리오 작가입니다.
-사용자의 아이디어를 기반으로 시네마틱 영상 대본을 작성합니다.
+    // 프리셋 script 지시 우선 적용
+    let roleInstruction = '당신은 YouTube 영상 시나리오 작가입니다.\n사용자의 아이디어를 기반으로 시네마틱 영상 대본을 작성합니다.';
+    if (req.presetId) {
+        const preset = getPresetById(req.presetId);
+        if (preset?.prompts.script) {
+            roleInstruction = preset.prompts.script;
+        }
+    }
+
+    // 모드별 추가 지시
+    const modeInstruction = req.mode === 'narration'
+        ? '- 나레이션 형식으로 작성: 시청자에게 직접 이야기하듯 서술\n- 각 씬은 나레이션 문장 단위로 구성'
+        : '- 씬별 시각적 장면 묘사에 집중\n- 카메라 앵글과 로케이션을 구체적으로 명시';
+
+    return `${roleInstruction}
 
 규칙:
 - 정확히 ${req.sceneCount || 10}개의 씬으로 나누어 작성
@@ -244,6 +263,7 @@ function buildSystemPrompt(req: ScriptGenerationRequest): string {
 - 각 씬에는 text(대본), location(촬영장소), cameraAngle(카메라앵글) 포함
 - 카메라 앵글: Wide Angle, Close Up, Medium Shot, Low Angle, Extreme Long Shot, Pan Up, Over The Shoulder 중 선택
 - 대본은 한국어로, 생동감 있고 시각적 묘사가 풍부하게 작성
+${modeInstruction}
 - ${req.style ? `아트 스타일: ${req.style}` : ''}
 ${req.genre ? `- 장르: ${req.genre}` : ''}
 

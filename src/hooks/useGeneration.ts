@@ -8,7 +8,7 @@ import type { AssetCard, Scene } from '../store/projectStore';
 import { mockScenePrompts } from '../data/mockData';
 import { generateImage } from '../services/ai-image';
 import { generateVideo } from '../services/ai-video';
-import { buildImagePrompt, buildVideoPrompt } from '../services/prompt-builder';
+import { buildImagePrompt, buildVideoPrompt, getNegativePrompt, aspectRatioToSize } from '../services/prompt-builder';
 import type { GenerationType } from './useCredits';
 
 type SceneGenStatus = 'idle' | 'generating' | 'done';
@@ -23,6 +23,9 @@ interface UseGenerationParams {
     CREDIT_COSTS: Record<GenerationType, number>;
     imageModel?: string;
     videoModel?: string;
+    presetId?: string;
+    aspectRatio?: string;
+    onCreditShortage?: (required: number, label: string) => void;
 }
 
 export function useGeneration({
@@ -35,6 +38,9 @@ export function useGeneration({
     CREDIT_COSTS,
     imageModel,
     videoModel,
+    presetId,
+    aspectRatio,
+    onCreditShortage,
 }: UseGenerationParams) {
     const [sceneGenStatus, setSceneGenStatus] = useState<Record<string, SceneGenStatus>>(() => {
         const init: Record<string, SceneGenStatus> = {};
@@ -66,7 +72,11 @@ export function useGeneration({
 
     const generateSingleScene = useCallback(async (sceneId: string) => {
         if (!canAfford('image')) {
-            alert(`크레딧이 부족합니다! (이미지 생성 ${CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            if (onCreditShortage) {
+                onCreditShortage(CREDIT_COSTS.image, '이미지 생성');
+            } else {
+                alert(`크레딧이 부족합니다! (이미지 생성 ${CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            }
             return;
         }
         if (!spend('image')) return;
@@ -77,6 +87,7 @@ export function useGeneration({
             const seedCards = (sceneSeeds[sceneId] || [])
                 .map((cardId) => deck.find((c) => c.id === cardId))
                 .filter((c): c is AssetCard => !!c);
+
             const prompt = buildImagePrompt({
                 style: selectedStyle,
                 sceneText: scene.text,
@@ -84,30 +95,51 @@ export function useGeneration({
                 customImagePrompt: mockScenePrompts[sceneId]?.imagePrompt,
                 cameraAngle: scene.cameraAngle,
                 location: scene.location,
+                presetId,
             });
-            const result = await generateImage({ prompt, seed: seedCards[0]?.seed, model: imageModel });
+
+            // aspectRatio로 width/height 계산
+            const { width, height } = aspectRatioToSize(aspectRatio || '16:9');
+            const negativePrompt = getNegativePrompt(presetId);
+
+            const result = await generateImage({
+                prompt,
+                negativePrompt,
+                width,
+                height,
+                seed: seedCards[0]?.seed,
+                model: imageModel,
+            });
             console.log(`[Scene ${sceneId}] 이미지 생성 완료: ${result.imageUrl}`);
             setSceneGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
         } catch (err) {
             console.error(`[Scene ${sceneId}] 이미지 생성 실패:`, err);
             setSceneGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
         }
-    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS]);
+    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS, presetId, aspectRatio, imageModel, onCreditShortage]);
 
     const generateAllScenes = useCallback(() => {
         const pending = scenes.filter((s) => sceneGenStatus[s.id] === 'idle');
         if (!canAfford('image', pending.length)) {
-            alert(`크레딧이 부족합니다! (${pending.length}장 × ${CREDIT_COSTS.image} = ${pending.length * CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            if (onCreditShortage) {
+                onCreditShortage(pending.length * CREDIT_COSTS.image, `이미지 전체 생성 (${pending.length}장)`);
+            } else {
+                alert(`크레딧이 부족합니다! (${pending.length}장 × ${CREDIT_COSTS.image} = ${pending.length * CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            }
             return;
         }
         pending.forEach((scene, i) => {
             setTimeout(() => generateSingleScene(scene.id), i * 600);
         });
-    }, [scenes, sceneGenStatus, generateSingleScene, canAfford, creditsRemaining, CREDIT_COSTS]);
+    }, [scenes, sceneGenStatus, generateSingleScene, canAfford, creditsRemaining, CREDIT_COSTS, onCreditShortage]);
 
     const generateSingleVideo = useCallback(async (sceneId: string) => {
         if (!canAfford('video')) {
-            alert(`크레딧이 부족합니다! (영상 생성 ${CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            if (onCreditShortage) {
+                onCreditShortage(CREDIT_COSTS.video, '영상 생성');
+            } else {
+                alert(`크레딧이 부족합니다! (영상 생성 ${CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            }
             return;
         }
         if (!spend('video')) return;
@@ -118,11 +150,13 @@ export function useGeneration({
             const seedCards = (sceneSeeds[sceneId] || [])
                 .map((cardId) => deck.find((c) => c.id === cardId))
                 .filter((c): c is AssetCard => !!c);
+
             const prompt = buildVideoPrompt({
                 style: selectedStyle,
                 sceneText: scene.text,
                 seedCards,
                 cameraAngle: scene.cameraAngle,
+                presetId,
             });
             await generateVideo({
                 imageUrl: scene.imageUrl || '',
@@ -136,18 +170,22 @@ export function useGeneration({
             console.error(`[Video ${sceneId}] 영상 생성 실패:`, err);
             setVideoGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
         }
-    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS]);
+    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS, presetId, videoModel, onCreditShortage]);
 
     const generateAllVideos = useCallback(() => {
         const pending = scenes.filter((s) => videoGenStatus[s.id] !== 'done');
         if (!canAfford('video', pending.length)) {
-            alert(`크레딧이 부족합니다! (${pending.length}편 × ${CREDIT_COSTS.video} = ${pending.length * CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            if (onCreditShortage) {
+                onCreditShortage(pending.length * CREDIT_COSTS.video, `영상 전체 생성 (${pending.length}편)`);
+            } else {
+                alert(`크레딧이 부족합니다! (${pending.length}편 × ${CREDIT_COSTS.video} = ${pending.length * CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            }
             return;
         }
         pending.forEach((scene, i) => {
             setTimeout(() => generateSingleVideo(scene.id), i * 800);
         });
-    }, [scenes, videoGenStatus, canAfford, creditsRemaining, CREDIT_COSTS, generateSingleVideo]);
+    }, [scenes, videoGenStatus, canAfford, creditsRemaining, CREDIT_COSTS, generateSingleVideo, onCreditShortage]);
 
     const regenerateSingleVideo = useCallback((sceneId: string) => {
         generateSingleVideo(sceneId);

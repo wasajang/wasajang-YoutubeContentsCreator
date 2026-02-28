@@ -37,6 +37,9 @@ const HomePage: React.FC = () => {
     // Template grid filter
     const [activeFilter, setActiveFilter] = useState('MOST POPULAR');
 
+    // 선택된 템플릿 (모드 선택 오버레이에서 제목 반영용)
+    const [pendingTemplate, setPendingTemplate] = useState<typeof templateCards[0] | null>(null);
+
     // 카드 라이브러리 초기 주입 (비어있는 경우에만)
     useEffect(() => {
         if (cardLibrary.length === 0) {
@@ -56,14 +59,25 @@ const HomePage: React.FC = () => {
 
     // [A] 대본부터 시작 → 모드 선택 오버레이 표시
     const handleScriptStart = () => {
+        setPendingTemplate(null);
+        setShowModeSelect(true);
+    };
+
+    // 템플릿 카드 클릭 → 템플릿 제목을 캡처하고 모드 선택 오버레이 표시
+    const handleTemplateSelect = (template: typeof templateCards[0]) => {
+        setPendingTemplate(template);
         setShowModeSelect(true);
     };
 
     const handleModeSelect = (mode: ProjectMode) => {
-        startNewProject('Untitled Project', mode);
+        startNewProject(
+            pendingTemplate ? pendingTemplate.title : 'Untitled Project',
+            mode
+        );
         setEntryPoint('script');
         setSelectedPreset(null);
         setShowModeSelect(false);
+        setPendingTemplate(null);
         navigate('/project/idea');
     };
 
@@ -366,7 +380,7 @@ const HomePage: React.FC = () => {
                             <div
                                 key={template.id}
                                 className="template-card"
-                                onClick={handleScriptStart}
+                                onClick={() => handleTemplateSelect(template)}
                             >
                                 {template.imageUrl ? (
                                     <img

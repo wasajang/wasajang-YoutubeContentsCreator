@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import type { NarrationClip } from '../../store/projectStore';
 import { generateVideo } from '../../services/ai-video';
+import { buildVideoPrompt } from '../../services/prompt-builder';
 import { useCredits } from '../../hooks/useCredits';
 import { getUserSelectableModels } from '../../data/aiModels';
 
@@ -31,6 +32,8 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
   const setNarrationClips    = useProjectStore((s) => s.setNarrationClips);
   const aiModelPreferences   = useProjectStore((s) => s.aiModelPreferences);
   const setAiModelPreference = useProjectStore((s) => s.setAiModelPreference);
+  const selectedStyle        = useProjectStore((s) => s.selectedStyle);
+  const selectedPreset       = useProjectStore((s) => s.selectedPreset);
 
   const { canAfford, spend, getCost } = useCredits();
 
@@ -96,9 +99,16 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
       try {
         if (!spend('video')) break;
 
+        const videoPrompt = buildVideoPrompt({
+          style: selectedStyle,
+          sceneText: clip.text,
+          seedCards: [],
+          presetId: selectedPreset ?? undefined,
+        });
+
         const result = await generateVideo({
           imageUrl: clip.imageUrl,
-          prompt:   clip.text,
+          prompt:   videoPrompt,
           duration: Math.min(6, Math.ceil(clip.duration)),
           sceneId:  clip.sceneId,
           model:    aiModelPreferences.video,

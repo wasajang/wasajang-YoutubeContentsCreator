@@ -19,6 +19,7 @@ import {
 import WorkflowSteps from '../components/WorkflowSteps';
 import { useProjectStore } from '../store/projectStore';
 import type { SentenceTiming, Scene } from '../store/projectStore';
+import { getPresetById } from '../data/stylePresets';
 import { mockStoryboardScenes } from '../data/mockData';
 import { generateTTS } from '../services/ai-tts';
 import { useCredits, CREDIT_COSTS } from '../hooks/useCredits';
@@ -47,7 +48,7 @@ const TimelinePage: React.FC = () => {
     const {
         title, scenes: storeScenes, aiModelPreferences, setAiModelPreference,
         mode, sentenceTimings, setSentenceTimings, narrativeAudioUrl, setNarrativeAudioUrl, setScenes,
-        narrationStep, setNarrationStep,
+        narrationStep, setNarrationStep, selectedPreset,
     } = useProjectStore();
 
     // store 씬이 없으면 mockData 폴백
@@ -91,8 +92,15 @@ const TimelinePage: React.FC = () => {
             return;
         }
         setNarrativeTtsGenerating(true);
+        const narrativePreset = selectedPreset ? getPresetById(selectedPreset) : null;
         try {
-            const result = await generateTTS({ text, clipId: 'narrative', model: aiModelPreferences.tts });
+            const result = await generateTTS({
+                text,
+                clipId: 'narrative',
+                model: aiModelPreferences.tts,
+                voiceId: narrativePreset?.voice?.voiceId,
+                speed: narrativePreset?.voice?.speed,
+            });
             setNarrativeAudioUrl(result.audioUrl);
 
             // 문장 단위 타이밍 추정 (한국어 4자/초)
@@ -116,7 +124,7 @@ const TimelinePage: React.FC = () => {
         } finally {
             setNarrativeTtsGenerating(false);
         }
-    }, [fullScript, aiModelPreferences.tts, setNarrativeAudioUrl, setSentenceTimings]);
+    }, [fullScript, aiModelPreferences.tts, selectedPreset, setNarrativeAudioUrl, setSentenceTimings]);
 
     // 나레이션 모드 — 씬 자동 분할 후 스토리보드로 이동
     const handleAutoSplit = useCallback(() => {
@@ -282,12 +290,16 @@ const TimelinePage: React.FC = () => {
             return;
         }
 
+        const activePreset = selectedPreset ? getPresetById(selectedPreset) : null;
+
         setTtsGenerating((prev) => ({ ...prev, [clipId]: true }));
         try {
             const result = await generateTTS({
                 text: clip.text,
                 clipId: clip.id,
                 model: aiModelPreferences.tts,
+                voiceId: activePreset?.voice?.voiceId,
+                speed: activePreset?.voice?.speed,
             });
 
             spend('script', 1); // TTS도 script 크레딧 1 사용
@@ -303,7 +315,7 @@ const TimelinePage: React.FC = () => {
         } finally {
             setTtsGenerating((prev) => ({ ...prev, [clipId]: false }));
         }
-    }, [clips, ttsGenerating, canAfford, spend, aiModelPreferences.tts]);
+    }, [clips, ttsGenerating, canAfford, spend, aiModelPreferences.tts, selectedPreset]);
 
     // ── TTS 전체 일괄 생성 ──
     const handleGenerateAllTTS = useCallback(async () => {
@@ -318,6 +330,7 @@ const TimelinePage: React.FC = () => {
 
         setTtsAllGenerating(true);
         let generated = 0;
+        const batchPreset = selectedPreset ? getPresetById(selectedPreset) : null;
 
         for (const clip of pendingClips) {
             setTtsGenerating((prev) => ({ ...prev, [clip.id]: true }));
@@ -326,6 +339,8 @@ const TimelinePage: React.FC = () => {
                     text: clip.text,
                     clipId: clip.id,
                     model: aiModelPreferences.tts,
+                    voiceId: batchPreset?.voice?.voiceId,
+                    speed: batchPreset?.voice?.speed,
                 });
 
                 spend('script', 1);
@@ -345,7 +360,7 @@ const TimelinePage: React.FC = () => {
 
         setTtsAllGenerating(false);
         console.log(`[TTS] 전체 생성 완료: ${generated}/${pendingClips.length}`);
-    }, [clips, credits, spend, aiModelPreferences.tts]);
+    }, [clips, credits, spend, aiModelPreferences.tts, selectedPreset]);
 
     const ttsCount = clips.filter((c) => c.audioUrl).length;
     const ttsPendingCount = clips.length - ttsCount;
