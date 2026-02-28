@@ -5,6 +5,7 @@
  */
 import { useState, useCallback } from 'react';
 import type { AssetCard, Scene } from '../store/projectStore';
+import { useProjectStore } from '../store/projectStore';
 import { mockScenePrompts } from '../data/mockData';
 import { generateImage } from '../services/ai-image';
 import { generateVideo } from '../services/ai-video';
@@ -42,6 +43,8 @@ export function useGeneration({
     aspectRatio,
     onCreditShortage,
 }: UseGenerationParams) {
+    const updateSceneImage = useProjectStore((s) => s.updateSceneImage);
+
     const [sceneGenStatus, setSceneGenStatus] = useState<Record<string, SceneGenStatus>>(() => {
         const init: Record<string, SceneGenStatus> = {};
         scenes.forEach((s) => { init[s.id] = s.imageUrl ? 'done' : 'idle'; });
@@ -111,12 +114,13 @@ export function useGeneration({
                 model: imageModel,
             });
             console.log(`[Scene ${sceneId}] 이미지 생성 완료: ${result.imageUrl}`);
+            updateSceneImage(sceneId, result.imageUrl);
             setSceneGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
         } catch (err) {
             console.error(`[Scene ${sceneId}] 이미지 생성 실패:`, err);
             setSceneGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
         }
-    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS, presetId, aspectRatio, imageModel, onCreditShortage]);
+    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS, presetId, aspectRatio, imageModel, onCreditShortage, updateSceneImage]);
 
     const generateAllScenes = useCallback(() => {
         const pending = scenes.filter((s) => sceneGenStatus[s.id] === 'idle');

@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, FolderOpen, Plus, Settings, Zap, LogIn, LogOut, User, Coins, Users } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProjectStore } from '../store/projectStore';
 import { useCredits } from '../hooks/useCredits';
+import SettingsModal from './SettingsModal';
 
 const NavBar: React.FC = () => {
     const location = useLocation();
@@ -11,6 +12,7 @@ const NavBar: React.FC = () => {
     const { user, loading, isGuest, signInWithGoogle, signInWithKakao, signOut } = useAuth();
     const { remaining } = useCredits();
     const startNewProject = useProjectStore((s) => s.startNewProject);
+    const [showSettings, setShowSettings] = useState(false);
 
     const handleNewProject = () => {
         startNewProject('Untitled Project');
@@ -64,10 +66,10 @@ const NavBar: React.FC = () => {
                     <Plus size={14} />
                     New Project
                 </button>
-                <Link to="/settings" className="btn-ghost">
+                <button className="btn-ghost" onClick={() => setShowSettings(true)}>
                     <Settings size={15} />
                     SETTINGS
-                </Link>
+                </button>
 
                 {/* Auth Section */}
                 {loading ? null : isGuest ? (
@@ -96,6 +98,7 @@ const NavBar: React.FC = () => {
                     </div>
                 )}
             </div>
+            <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
         </nav>
     );
 };

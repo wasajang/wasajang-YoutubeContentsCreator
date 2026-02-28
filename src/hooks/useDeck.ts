@@ -3,8 +3,9 @@
  *
  * StoryboardPage의 cast-setup 단계에서 사용하는 모든 덱 관련 상태와 액션을 담당합니다.
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { AssetCard, AssetType } from '../store/projectStore';
+import { useProjectStore } from '../store/projectStore';
 import { aiSuggestedCards, favoritesPool } from '../data/mockData';
 import { generateImage } from '../services/ai-image';
 import type { GenerationType } from './useCredits';
@@ -31,7 +32,26 @@ export function useDeck({
     creditsRemaining,
     CREDIT_COSTS,
 }: UseDeckParams) {
-    const [deck, setDeck] = useState<AssetCard[]>([]);
+    const storeSelectedDeck = useProjectStore((s) => s.selectedDeck);
+    const setSelectedDeck = useProjectStore((s) => s.setSelectedDeck);
+
+    // store의 selectedDeck(ID 배열)에서 cardLibrary를 참조하여 풀 객체 복원
+    const [deck, setDeck] = useState<AssetCard[]>(() => {
+        if (storeSelectedDeck.length === 0) return [];
+        const idSet = new Set(storeSelectedDeck);
+        return cardLibrary.filter((c) => idSet.has(c.id));
+    });
+
+    // deck이 변경될 때마다 store에 ID 배열로 동기화
+    const isInitialMount = useRef(true);
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+        const ids = deck.map((c) => c.id);
+        setSelectedDeck(ids);
+    }, [deck, setSelectedDeck]);
     const [poolTab, setPoolTab] = useState<'library' | 'ai' | 'favorites' | 'new'>('library');
     const [poolFilter, setPoolFilter] = useState<AssetType | 'all'>('all');
     const [addType, setAddType] = useState<AssetType>('character');

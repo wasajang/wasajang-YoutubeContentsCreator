@@ -96,6 +96,7 @@ export interface ProjectState {
   // Script / Scenes
   scenes: Scene[];
   setScenes: (scenes: Scene[]) => void;
+  updateSceneImage: (sceneId: string, imageUrl: string) => void;
   toggleSceneCheck: (id: string) => void;
 
   // Style
@@ -170,6 +171,12 @@ export const useProjectStore = create<ProjectState>()(
 
       scenes: [],
       setScenes: (scenes) => set({ scenes }),
+      updateSceneImage: (sceneId, imageUrl) =>
+        set((state) => ({
+          scenes: state.scenes.map((s) =>
+            s.id === sceneId ? { ...s, imageUrl } : s
+          ),
+        })),
       toggleSceneCheck: (id) =>
         set((state) => ({
           scenes: state.scenes.map((s) =>

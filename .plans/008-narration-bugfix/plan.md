@@ -30,6 +30,16 @@
 - **수정:** useEffect `[]` → `[selectedPreset]`
 - **파일:** `IdeaPage.tsx`
 
+### 6. 마이덱 카드 소실 (페이지 이동 시) ✅
+- **원인:** useDeck이 React useState로만 관리 → 페이지 unmount 시 전부 소실
+- **수정:** store의 selectedDeck(string[])에서 초기값 복원, deck 변경 시 store에 자동 동기화
+- **파일:** `useDeck.ts`
+
+### 7. 설정 페이지 이동 시 상태 소실 ✅
+- **원인:** Settings가 별도 라우트(/settings) → 이동 시 현재 페이지 unmount → 로컬 상태 전부 소실
+- **수정:** SettingsModal 오버레이 컴포넌트 생성, NavBar에서 모달로 열기 (페이지 이동 없음)
+- **파일:** `SettingsModal.tsx` (신규), `NavBar.tsx`
+
 ---
 
 ## 수정 파일
@@ -38,5 +48,9 @@
 |------|----------|
 | `src/pages/StoryboardPage.tsx` | CreditShortageModal 연결, presetId/aspectRatio 전달, phase 복원 |
 | `src/hooks/useGeneration.ts` | sceneGenStatus 초기화 시 imageUrl 기반 done 복원 |
+| `src/hooks/useDeck.ts` | store selectedDeck 연동 (초기화 + 동기화) |
 | `src/components/PresetInfoModal.tsx` | 제작 방식(모드) 표시 추가 |
+| `src/components/SettingsModal.tsx` | 설정 모달 오버레이 (신규) |
+| `src/components/NavBar.tsx` | Settings Link → 모달 버튼으로 변경 |
 | `src/pages/IdeaPage.tsx` | useEffect 의존성 수정 |
+| `src/index.css` | SettingsModal CSS 추가 |
