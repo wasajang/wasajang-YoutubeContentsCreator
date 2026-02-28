@@ -21,6 +21,10 @@ interface CastSetupPhaseProps {
     isAiAnalyzing: boolean;
     onAiAnalysis: (doAnalysis: boolean) => void;
     onNextPhase: () => void;
+    /** 나레이션 모드에서 이전 스텝(Step 3)으로 돌아갈 때 사용 */
+    onPrevPhase?: () => void;
+    /** 다음 버튼 레이블 (기본값: "다음: 컷 분할") */
+    nextLabel?: string;
 }
 
 const CastSetupPhase: React.FC<CastSetupPhaseProps> = ({
@@ -29,6 +33,8 @@ const CastSetupPhase: React.FC<CastSetupPhaseProps> = ({
     isAiAnalyzing,
     onAiAnalysis,
     onNextPhase,
+    onPrevPhase,
+    nextLabel,
 }) => {
     const {
         deck, deckChars, deckBgs, deckItems,
@@ -258,11 +264,16 @@ const CastSetupPhase: React.FC<CastSetupPhaseProps> = ({
             </div>
 
             <div className="sb-bottom-actions">
+                {onPrevPhase && (
+                    <button className="btn-secondary" onClick={onPrevPhase}>
+                        이전
+                    </button>
+                )}
                 <span className="sb-bottom-actions__info">
                     {deck.filter((c) => c.status === 'done').length}/{deck.length} 카드 준비 완료
                 </span>
                 <button className="btn-primary sb-bottom-actions__btn" onClick={onNextPhase}>
-                    다음: 컷 분할 <ArrowRight size={14} />
+                    {nextLabel ?? '다음: 컷 분할'} <ArrowRight size={14} />
                 </button>
             </div>
         </div>

@@ -70,7 +70,7 @@ const IdeaPage: React.FC = () => {
         hasActiveProject, startNewProject,
         selectedPreset, setSelectedPreset,
         aiModelPreferences, setAiModelPreference,
-        mode,
+        mode, setNarrationStep,
     } = useProjectStore();
     const { canAfford, spend, remaining: creditsRemaining, CREDIT_COSTS } = useCredits();
 
@@ -473,7 +473,14 @@ const IdeaPage: React.FC = () => {
             }}>
                 <button
                     className="btn-primary"
-                    onClick={() => navigate(mode === 'narration' ? '/project/timeline' : '/project/storyboard')}
+                    onClick={() => {
+                        if (mode === 'narration') {
+                            setNarrationStep(2);
+                            navigate('/project/timeline');
+                        } else {
+                            navigate('/project/storyboard');
+                        }
+                    }}
                 >
                     {mode === 'narration' ? '다음: 나레이션 생성 →' : '다음: 스토리보드 →'}
                 </button>

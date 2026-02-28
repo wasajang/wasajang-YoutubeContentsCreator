@@ -23,6 +23,10 @@ import { mockStoryboardScenes } from '../data/mockData';
 import { generateTTS } from '../services/ai-tts';
 import { useCredits, CREDIT_COSTS } from '../hooks/useCredits';
 import { getUserSelectableModels } from '../data/aiModels';
+import NarrationVoiceStep from '../components/narration/NarrationVoiceStep';
+import NarrationSplitStep from '../components/narration/NarrationSplitStep';
+import NarrationVideoStep from '../components/narration/NarrationVideoStep';
+import NarrationEditView from '../components/narration/NarrationEditView';
 
 // ── 타임라인 클립 타입 ──
 interface TimelineClip {
@@ -43,6 +47,7 @@ const TimelinePage: React.FC = () => {
     const {
         title, scenes: storeScenes, aiModelPreferences, setAiModelPreference,
         mode, sentenceTimings, setSentenceTimings, narrativeAudioUrl, setNarrativeAudioUrl, setScenes,
+        narrationStep, setNarrationStep,
     } = useProjectStore();
 
     // store 씬이 없으면 mockData 폴백
@@ -344,6 +349,97 @@ const TimelinePage: React.FC = () => {
 
     const ttsCount = clips.filter((c) => c.audioUrl).length;
     const ttsPendingCount = clips.length - ttsCount;
+
+    // ── 나레이션 모드 — 스텝 클릭 시 라우팅 ──
+    const handleNarrationMainClick = useCallback((step: number) => {
+        const routes: Record<number, string> = {
+            1: '/project/idea',
+            2: '/project/timeline',
+            3: '/project/timeline',
+            4: '/project/storyboard',
+            5: '/project/storyboard',
+            6: '/project/timeline',
+            7: '/project/timeline',
+            8: '/project/timeline',
+        };
+        setNarrationStep(step);
+        const route = routes[step];
+        if (route && route !== '/project/timeline') {
+            navigate(route);
+        }
+    }, [setNarrationStep, navigate]);
+
+    // ── 나레이션 모드 분기 ──
+    if (mode === 'narration') {
+        // Step 2: Voice (TTS 생성)
+        if (narrationStep <= 2) {
+            return (
+                <div className="page-container">
+                    <WorkflowSteps currentMain={2} onMainClick={handleNarrationMainClick} />
+                    <NarrationVoiceStep
+                        onNext={() => setNarrationStep(3)}
+                        onPrev={() => {
+                            setNarrationStep(1);
+                            navigate('/project/idea');
+                        }}
+                    />
+                </div>
+            );
+        }
+        // Step 3: Split (씬 분할)
+        if (narrationStep === 3) {
+            return (
+                <div className="page-container">
+                    <WorkflowSteps currentMain={3} onMainClick={handleNarrationMainClick} />
+                    <NarrationSplitStep
+                        onNext={() => {
+                            setNarrationStep(4);
+                            navigate('/project/storyboard');
+                        }}
+                        onPrev={() => setNarrationStep(2)}
+                    />
+                </div>
+            );
+        }
+        // Step 6: Video
+        if (narrationStep === 6) {
+            return (
+                <div className="page-container">
+                    <WorkflowSteps currentMain={6} onMainClick={handleNarrationMainClick} />
+                    <NarrationVideoStep
+                        onNext={() => setNarrationStep(7)}
+                        onPrev={() => {
+                            setNarrationStep(5);
+                            navigate('/project/storyboard');
+                        }}
+                    />
+                </div>
+            );
+        }
+        // Step 7: Edit
+        if (narrationStep === 7) {
+            return (
+                <div className="page-container">
+                    <WorkflowSteps currentMain={7} onMainClick={handleNarrationMainClick} />
+                    <NarrationEditView
+                        onNext={() => setNarrationStep(8)}
+                        onPrev={() => setNarrationStep(6)}
+                    />
+                </div>
+            );
+        }
+        // Step 8: Export — placeholder
+        if (narrationStep >= 8) {
+            return (
+                <div className="page-container">
+                    <WorkflowSteps currentMain={8} onMainClick={handleNarrationMainClick} />
+                    <div className="narration-placeholder">
+                        <p>Step 8: 내보내기 (구현 예정)</p>
+                    </div>
+                </div>
+            );
+        }
+    }
 
     return (
         <div className="page-container" style={{ minHeight: 0, height: 'calc(100vh - 56px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

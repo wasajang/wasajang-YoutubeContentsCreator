@@ -48,34 +48,14 @@ const CINEMATIC_WORKFLOW: MainStep[] = [
 ];
 
 const NARRATION_WORKFLOW: MainStep[] = [
-  {
-    num: 1, label: 'Idea', route: '/project/idea',
-    subSteps: [
-      { key: 'script', label: '대본 작성' },
-      { key: 'style', label: '스타일 선택' },
-    ],
-  },
-  {
-    num: 2, label: 'Narrate', route: '/project/timeline',
-    subSteps: [
-      { key: 'tts', label: 'TTS 생성' },
-      { key: 'timing', label: '타이밍 분석' },
-    ],
-  },
-  {
-    num: 3, label: 'Generate', route: '/project/storyboard',
-    subSteps: [
-      { key: 'cast-setup', label: '카드 선택' },
-      { key: 'image-gen', label: '이미지 생성' },
-    ],
-  },
-  {
-    num: 4, label: 'Edit', route: '/project/timeline',
-    subSteps: [
-      { key: 'timeline', label: '타임라인' },
-      { key: 'export', label: 'Export' },
-    ],
-  },
+  { num: 1, label: 'Script', route: '/project/idea', subSteps: [{ key: 'script', label: '대본' }, { key: 'style', label: '스타일' }] },
+  { num: 2, label: 'Voice', route: '/project/timeline', subSteps: [{ key: 'tts', label: 'TTS 생성' }] },
+  { num: 3, label: 'Split', route: '/project/timeline', subSteps: [{ key: 'split', label: '씬 분할' }] },
+  { num: 4, label: 'Direct', route: '/project/storyboard', subSteps: [{ key: 'cast-setup', label: '캐스트' }] },
+  { num: 5, label: 'Image', route: '/project/storyboard', subSteps: [{ key: 'image-gen', label: '이미지' }] },
+  { num: 6, label: 'Video', route: '/project/timeline', subSteps: [{ key: 'video', label: '영상화' }] },
+  { num: 7, label: 'Edit', route: '/project/timeline', subSteps: [{ key: 'edit', label: '편집' }] },
+  { num: 8, label: 'Export', route: '/project/timeline', subSteps: [{ key: 'export', label: '내보내기' }] },
 ];
 
 interface Props {
@@ -91,7 +71,7 @@ const WorkflowSteps: React.FC<Props> = ({ currentMain, currentSub, onMainClick, 
   const activeStep = WORKFLOW.find((s) => s.num === currentMain);
 
   return (
-    <div className="workflow-steps">
+    <div className={`workflow-steps ${mode === 'narration' ? 'workflow-steps--narration' : ''}`}>
       {/* 상위 단계 행 */}
       <div className="workflow-steps__main-row">
         {WORKFLOW.map((step, i) => (

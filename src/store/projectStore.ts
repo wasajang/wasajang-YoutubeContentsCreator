@@ -39,6 +39,22 @@ export interface SentenceTiming {
   endTime: number;
 }
 
+export interface NarrationClip {
+  id: string;
+  sceneId: string;
+  text: string;
+  sentences: SentenceTiming[];
+  imageUrl: string;
+  videoUrl: string;
+  isVideoEnabled: boolean;
+  effect: 'none' | 'zoom-in' | 'zoom-out' | 'pan-left' | 'pan-right';
+  audioStartTime: number;
+  audioEndTime: number;
+  duration: number;
+  order: number;
+  isModified: boolean;
+}
+
 export interface TimelineClip {
   id: string;
   sceneId: string;
@@ -130,6 +146,12 @@ export interface ProjectState {
   setNarrativeAudioUrl: (url: string) => void;
   sentenceTimings: SentenceTiming[];
   setSentenceTimings: (timings: SentenceTiming[]) => void;
+
+  // ── v6 신규: 나레이션 클립 ──
+  narrationClips: NarrationClip[];
+  setNarrationClips: (clips: NarrationClip[]) => void;
+  narrationStep: number;
+  setNarrationStep: (step: number) => void;
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -208,6 +230,8 @@ export const useProjectStore = create<ProjectState>()(
           mode,
           narrativeAudioUrl: '',
           sentenceTimings: [],
+          narrationClips: [],
+          narrationStep: 1,
           // cardLibrary는 리셋하지 않음 — 카드 에셋은 프로젝트 간 유지
         }),
 
@@ -234,10 +258,16 @@ export const useProjectStore = create<ProjectState>()(
       setNarrativeAudioUrl: (narrativeAudioUrl) => set({ narrativeAudioUrl }),
       sentenceTimings: [],
       setSentenceTimings: (sentenceTimings) => set({ sentenceTimings }),
+
+      // ── v6 신규 필드 초기값 & 액션 ──
+      narrationClips: [],
+      setNarrationClips: (narrationClips) => set({ narrationClips }),
+      narrationStep: 1,
+      setNarrationStep: (narrationStep) => set({ narrationStep }),
     }),
     {
       name: 'antigravity-project',
-      version: 5,
+      version: 6,
       migrate: (persistedState: unknown, version: number) => {
         let state = persistedState as Record<string, unknown>;
         if (version < 2) {
@@ -286,6 +316,14 @@ export const useProjectStore = create<ProjectState>()(
             sentenceTimings: [],
           };
         }
+        if (version < 6) {
+          // v5→v6: 나레이션 클립 필드 추가
+          state = {
+            ...state,
+            narrationClips: [],
+            narrationStep: 1,
+          };
+        }
         return state;
       },
       partialize: (state) => ({
@@ -305,6 +343,8 @@ export const useProjectStore = create<ProjectState>()(
         mode: state.mode,
         narrativeAudioUrl: state.narrativeAudioUrl,
         sentenceTimings: state.sentenceTimings,
+        narrationClips: state.narrationClips,
+        narrationStep: state.narrationStep,
       }),
     }
   )

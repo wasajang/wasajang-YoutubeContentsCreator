@@ -9,12 +9,17 @@ import { mockStoryboardScenes, mockScript, aiSuggestedCards } from '../data/mock
 import { useCredits } from '../hooks/useCredits';
 import { useDeck, MAX_AI_SLOTS } from '../hooks/useDeck';
 import { useGeneration } from '../hooks/useGeneration';
+import { syncScenesImageToClips } from '../utils/narration-sync';
 
 type StoryboardPhase = 'script-review' | 'cast-setup' | 'seed-check' | 'generating-video' | 'complete';
 
 const StoryboardPage: React.FC = () => {
     const navigate = useNavigate();
-    const { selectedStyle, scenes: storeScenes, cardLibrary, addToCardLibrary, aiModelPreferences, setAiModelPreference, mode } = useProjectStore();
+    const {
+        selectedStyle, scenes: storeScenes, cardLibrary, addToCardLibrary,
+        aiModelPreferences, setAiModelPreference, mode,
+        narrationStep, setNarrationStep, narrationClips, setNarrationClips,
+    } = useProjectStore();
     const { remaining: creditsRemaining, canAfford, spend, CREDIT_COSTS } = useCredits();
 
     const [phase, setPhase] = useState<StoryboardPhase>('cast-setup');
@@ -107,7 +112,7 @@ const StoryboardPage: React.FC = () => {
         return g[i % g.length];
     };
 
-    // ── WorkflowSteps 매핑 ──
+    // ── WorkflowSteps 매핑 (시네마틱) ──
     const workflowStep = (phase === 'seed-check' || phase === 'generating-video' || phase === 'complete') ? 3 : 2;
     const phaseToSub: Record<StoryboardPhase, string> = {
         'cast-setup': 'cast-setup',
@@ -117,6 +122,7 @@ const StoryboardPage: React.FC = () => {
         'complete': 'video-gen',
     };
 
+    // 시네마틱 모드 메인 스텝 클릭
     const handleMainClick = (step: number) => {
         switch (step) {
             case 1: navigate('/project/idea'); break;
@@ -125,6 +131,111 @@ const StoryboardPage: React.FC = () => {
             case 4: navigate('/project/timeline'); break;
         }
     };
+
+    // 나레이션 모드 메인 스텝 클릭
+    const handleNarrationMainClick = (step: number) => {
+        setNarrationStep(step);
+        const routes: Record<number, string> = {
+            1: '/project/idea',
+            2: '/project/timeline',
+            3: '/project/timeline',
+            4: '/project/storyboard',
+            5: '/project/storyboard',
+            6: '/project/timeline',
+            7: '/project/timeline',
+            8: '/project/timeline',
+        };
+        const target = routes[step];
+        if (target && target !== '/project/storyboard') {
+            navigate(target);
+        } else if (step === 4) {
+            setPhase('cast-setup');
+        } else if (step === 5) {
+            setPhase('seed-check');
+        }
+    };
+
+    // 나레이션 Step 5(seed-check) 완료 후 Step 6으로 이동
+    const handleGoToVideo = () => {
+        const synced = syncScenesImageToClips(
+            scenes.map((s) => ({ id: s.id, imageUrl: s.imageUrl || '' })),
+            narrationClips,
+        );
+        setNarrationClips(synced);
+        setNarrationStep(6);
+        navigate('/project/timeline');
+    };
+
+    // ── 나레이션 모드 분기 ──
+    if (mode === 'narration') {
+        // narrationStep에 따라 currentMain 결정 (4 또는 5)
+        const narrationMain = narrationStep === 5 ? 5 : 4;
+
+        return (
+            <div className="page-container" style={{ minHeight: 0, height: 'calc(100vh - 56px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {/* 헤더 */}
+                <div className="storyboard-header">
+                    <h2 className="storyboard-header__title">강철의 북진</h2>
+                    <div className="storyboard-header__center">
+                        <WorkflowSteps
+                            currentMain={narrationMain}
+                            currentSub={phaseToSub[phase]}
+                            onMainClick={handleNarrationMainClick}
+                        />
+                    </div>
+                    <div className="storyboard-header__right">
+                        <button className="export-btn" disabled title="Edit 단계에서 이용 가능">Export</button>
+                        <button className="btn-icon"><HelpCircle size={16} /></button>
+                    </div>
+                </div>
+
+                {/* Step 4: Direct — 카드 선택 */}
+                {phase === 'cast-setup' && (
+                    <CastSetupPhase
+                        deckApi={deckApi}
+                        showAiAnalysisModal={showAiAnalysisModal}
+                        isAiAnalyzing={isAiAnalyzing}
+                        onAiAnalysis={handleAiAnalysis}
+                        onNextPhase={() => {
+                            // 나레이션 모드: CutSplit 스킵 → 바로 시드 매칭
+                            setPhase('seed-check');
+                            setNarrationStep(5);
+                        }}
+                        onPrevPhase={() => {
+                            // Step 4 이전: Step 3(Split, TimelinePage)으로
+                            setNarrationStep(3);
+                            navigate('/project/timeline');
+                        }}
+                    />
+                )}
+
+                {/* Step 5: Image — 시드 매칭 & 이미지 생성 */}
+                {phase === 'seed-check' && (
+                    <SeedCheckPhase
+                        scenes={scenes}
+                        deck={deckApi.deck}
+                        selectedStyle={selectedStyle}
+                        selectedScene={selectedScene}
+                        setSelectedScene={setSelectedScene}
+                        genApi={genApi}
+                        deckApi={deckApi}
+                        getSceneGradient={getSceneGradient}
+                        onPrevPhase={() => {
+                            // Step 5 이전: Step 4(cast-setup)으로
+                            setPhase('cast-setup');
+                            setNarrationStep(4);
+                        }}
+                        onNavigateToTimeline={handleGoToVideo}
+                        imageModel={aiModelPreferences.image}
+                        videoModel={aiModelPreferences.video}
+                        onImageModelChange={(id) => setAiModelPreference('image', id)}
+                        onVideoModelChange={(id) => setAiModelPreference('video', id)}
+                        nextLabel="다음: 영상화"
+                    />
+                )}
+            </div>
+        );
+    }
 
     return (
         <div className="page-container" style={{ minHeight: 0, height: 'calc(100vh - 56px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -152,12 +263,8 @@ const StoryboardPage: React.FC = () => {
                     isAiAnalyzing={isAiAnalyzing}
                     onAiAnalysis={handleAiAnalysis}
                     onNextPhase={() => {
-                        // 나레이션 모드: CutSplit 스킵 → 바로 시드 매칭으로
-                        if (mode === 'narration') {
-                            setPhase('seed-check');
-                        } else {
-                            setPhase('script-review');
-                        }
+                        // 시네마틱 모드: script-review → seed-check 순서
+                        setPhase('script-review');
                     }}
                 />
             )}

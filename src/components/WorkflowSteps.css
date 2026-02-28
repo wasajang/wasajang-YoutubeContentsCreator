@@ -108,3 +108,32 @@
 .workflow-sub-step.active .workflow-sub-step__dot {
   background: var(--accent-primary);
 }
+
+/* == Narration 8-step WorkflowSteps == */
+.workflow-steps--narration .workflow-steps__main-row {
+  gap: 2px;
+}
+
+.workflow-steps--narration .workflow-step {
+  gap: 4px;
+  font-size: 0.65rem;
+}
+
+.workflow-steps--narration .workflow-step__num {
+  width: 18px;
+  height: 18px;
+  font-size: 0.6rem;
+}
+
+.workflow-steps--narration .workflow-step__divider {
+  width: 12px;
+}
+
+/* 8스텝일 때 라벨 숨기고 active일 때만 표시 */
+.workflow-steps--narration .workflow-step span {
+  display: none;
+}
+
+.workflow-steps--narration .workflow-step.active span {
+  display: inline;
+}

@@ -38,6 +38,8 @@ interface SeedCheckPhaseProps {
     videoModel?: string;
     onImageModelChange?: (modelId: string) => void;
     onVideoModelChange?: (modelId: string) => void;
+    /** 타임라인 이동 버튼 레이블 커스터마이즈 (기본값: "타임라인으로 이동") */
+    nextLabel?: string;
 }
 
 const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
@@ -55,6 +57,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
     videoModel,
     onImageModelChange,
     onVideoModelChange,
+    nextLabel,
 }) => {
     const {
         sceneGenStatus,
@@ -200,33 +203,56 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                 <button className="btn-secondary" onClick={onPrevPhase}>
                     <ChevronLeft size={14} /> 이전
                 </button>
-                {allVideosDone ? (
-                    <>
-                        <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
-                            <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                            모든 이미지 및 영상 생성 완료!
-                        </span>
-                        <button className="btn-primary sb-bottom-actions__btn" onClick={onNavigateToTimeline}>
-                            타임라인으로 이동 <ArrowRight size={14} />
-                        </button>
-                    </>
-                ) : allImagesDone ? (
-                    <>
-                        <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
-                            <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                            모든 이미지 생성 완료! ({doneVideoCount}/{scenes.length} 영상)
-                        </span>
-                        <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllVideos}>
-                            <Video size={14} /> 5초 영상 일괄 생성
-                        </button>
-                    </>
+                {/* nextLabel이 있으면 (나레이션 모드): 이미지 생성 완료 후 바로 다음 단계로 */}
+                {nextLabel ? (
+                    allImagesDone ? (
+                        <>
+                            <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
+                                <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                                모든 이미지 생성 완료!
+                            </span>
+                            <button className="btn-primary sb-bottom-actions__btn" onClick={onNavigateToTimeline}>
+                                {nextLabel} <ArrowRight size={14} />
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <span className="sb-bottom-actions__info">{doneSceneCount}/{scenes.length} 이미지</span>
+                            <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllScenes}>
+                                <Zap size={14} /> 일괄 이미지 생성
+                            </button>
+                        </>
+                    )
                 ) : (
-                    <>
-                        <span className="sb-bottom-actions__info">{doneSceneCount}/{scenes.length} 이미지</span>
-                        <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllScenes}>
-                            <Zap size={14} /> 일괄 이미지 생성
-                        </button>
-                    </>
+                    /* 시네마틱 모드: 기존 로직 유지 */
+                    allVideosDone ? (
+                        <>
+                            <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
+                                <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                                모든 이미지 및 영상 생성 완료!
+                            </span>
+                            <button className="btn-primary sb-bottom-actions__btn" onClick={onNavigateToTimeline}>
+                                타임라인으로 이동 <ArrowRight size={14} />
+                            </button>
+                        </>
+                    ) : allImagesDone ? (
+                        <>
+                            <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
+                                <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                                모든 이미지 생성 완료! ({doneVideoCount}/{scenes.length} 영상)
+                            </span>
+                            <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllVideos}>
+                                <Video size={14} /> 5초 영상 일괄 생성
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <span className="sb-bottom-actions__info">{doneSceneCount}/{scenes.length} 이미지</span>
+                            <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllScenes}>
+                                <Zap size={14} /> 일괄 이미지 생성
+                            </button>
+                        </>
+                    )
                 )}
             </div>
         </div>
