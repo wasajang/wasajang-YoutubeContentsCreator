@@ -204,7 +204,7 @@ export const useProjectStore = create<ProjectState>()(
       setTimelineClips: (timelineClips) => set({ timelineClips }),
 
       // Credits
-      credits: 10000,
+      credits: 100,
       spendCredits: (amount) => {
         let success = false;
         set((state) => {
@@ -217,7 +217,7 @@ export const useProjectStore = create<ProjectState>()(
         return success;
       },
       addCredits: (amount) => set((state) => ({ credits: state.credits + amount })),
-      resetCredits: () => set({ credits: 10000 }),
+      resetCredits: () => set({ credits: 100 }),
 
       hasActiveProject: false,
       startNewProject: (title, mode = 'cinematic', options) =>
@@ -274,7 +274,7 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'antigravity-project',
-      version: 6,
+      version: 7,
       migrate: (persistedState: unknown, version: number) => {
         let state = persistedState as Record<string, unknown>;
         if (version < 2) {
@@ -330,6 +330,10 @@ export const useProjectStore = create<ProjectState>()(
             narrationClips: [],
             narrationStep: 1,
           };
+        }
+        if (version < 7) {
+          // v6→v7: 크레딧 100으로 리셋 (무료 API 보호)
+          state = { ...state, credits: 100 };
         }
         return state;
       },
