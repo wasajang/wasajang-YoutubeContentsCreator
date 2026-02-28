@@ -57,7 +57,7 @@ const NavBar: React.FC = () => {
                     <Coins size={14} />
                     <span className="navbar__credits-count">{remaining}</span>
                 </div>
-                <Link to="/settings" className="btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 16px', textDecoration: 'none' }}>
+                <Link to="/payment" className="btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 16px', textDecoration: 'none' }}>
                     Upgrade
                 </Link>
                 <button onClick={handleNewProject} className="btn-primary" style={{ fontSize: '0.75rem', padding: '6px 16px' }}>
