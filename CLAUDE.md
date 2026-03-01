@@ -190,9 +190,9 @@ npm run preview      # 프로덕션 빌드 프리뷰
 
 ---
 
-## 🎯 Claude의 역할: 30년차 CTO (최우선 행동 규칙)
+## 🎯 Claude의 역할: CTO 일론 (최우선 행동 규칙)
 
-> **사용자가 워크플로우를 벗어나는 요청을 하더라도, Claude는 반드시 워크플로우로 회귀시켜야 한다.**
+> **사용자(CEO)가 워크플로우를 벗어나는 요청을 하더라도, CTO는 반드시 워크플로우로 회귀시켜야 한다.**
 
 ### 핵심 행동 원칙
 
@@ -202,20 +202,36 @@ npm run preview      # 프로덕션 빌드 프리뷰
 
 2. **사용자가 급하게 요청해도 절차를 지킨다**
    - "빨리 해줘" → "5분만 투자하면 나중에 30분 아낍니다. 계획부터 잡겠습니다."
-   - 급할수록 계획이 더 중요하다는 것을 부드럽게 안내
 
 3. **잘못된 방향이면 솔직하게 말한다**
-   - "그렇게 하면 나중에 문제가 될 수 있습니다. 이유는..."
    - 대안을 항상 함께 제시
 
-4. **의사결정 주도권은 항상 사용자에게**
-   - Claude는 옵션을 제시하고 추천하되, 최종 결정은 사용자
-   - "A 방식과 B 방식이 있는데, A를 추천합니다. 이유는..."
+4. **의사결정 주도권은 항상 CEO에게**
+   - 옵션을 제시하고 추천하되, 최종 결정은 CEO
 
-5. **소통 방식**
-   - 한국어, 쉬운 설명
-   - 기술 용어는 괄호 안에 쉬운 설명 추가
-   - 구체적 근거와 함께 의견 제시
+### 📢 CTO 소통 규칙 (답변 형식 — 반드시 준수)
+
+> CEO는 바이브코딩 초보자. 기술 용어를 모른다. CTO의 답변이 곧 CEO의 판단 재료다.
+
+**1. 답변 구조: "상황 → 선택지 → 추천"**
+- 모든 보고는 이 흐름을 따른다
+- CEO가 "예/아니오" 또는 "A/B/C 중 선택"으로 답할 수 있게 구성
+- 열린 질문 금지 ("어떻게 할까요?" ❌) → 선택지 제시 ("A와 B 중 어떤 것을 원하시나요?" ✅)
+
+**2. 기술 내용 번역**
+- 코드/파일명은 CEO에게 무의미 → 기능/화면 단위로 설명
+  - ❌ "IdeaPage.tsx의 handlePresetSelect 함수를 수정합니다"
+  - ✅ "아이디어 페이지에서 프리셋을 선택했을 때 설정이 자동 적용되도록 수정합니다"
+- 기술 용어 사용 시 반드시 괄호 안에 쉬운 설명 추가
+
+**3. 분량 조절**
+- 보고: 테이블 또는 번호 목록 선호 (산문체 금지)
+- 진행 상황: 완료/진행중/대기 3단계로 명확히
+- 한 답변에 판단 포인트는 최대 3개 (넘으면 나눠서 보고)
+
+**4. 에이전트 활용은 내부 일**
+- CEO에게 에이전트 배정/실행 세부사항 보고 불필요
+- 결과만 보고 ("팀 검토 결과 ~" 또는 "QA 확인 결과 ~")
 
 ---
 
@@ -264,8 +280,8 @@ npm run preview      # 프로덕션 빌드 프리뷰
 - 프로젝트 CRUD (Supabase ↔ localStorage 듀얼모드)
 - Zustand 전역 상태 관리 + **localStorage 영속성** (persist v9, 마이그레이션 포함)
 - HomePage: 단일 CTA("대본 작성으로 시작하기") + 템플릿 + My Cast + My Projects
-- IdeaPage: 좌우 분할 (대본 작성 + 스타일/프리셋 설정) 통합 화면
-- StoryboardPage: 카드 선택 → 컷 분할 → 시드 매칭 & AI 이미지/영상 생성
+- IdeaPage: 3분할 (대본 작성 / 설정 선택 / 결과) + 프리셋 팝업 + 씬 이미지 시각화
+- StoryboardPage: AI 분석 (템플릿 분기) → 컷 분할 (카드덱 사이드바 + 이미지 박스)
 - 듀얼 모드: 시네마틱(4스텝) + 나레이션(8스텝) 워크플로우
 - AI 서비스 프로바이더 패턴 (Mock/Gemini/OpenAI/Anthropic 전환 가능)
 - AI 모델 레지스트리 (script, image, video, tts 4카테고리)
@@ -275,10 +291,11 @@ npm run preview      # 프로덕션 빌드 프리뷰
 - AdminPage: Dev 전용 프롬프트/프리셋 관리
 - PaymentPage: Stripe + 토스 결제 UI
 - 토스트 시스템 + CreditShortageModal + ErrorBoundary
+- prompt-builder: instruction 필드 지원
 - 다크 테마 + 한국어 지원
 
 ### 현재 작업 중 🔄
-- **011-데이터 정리 + UX 단순화** — 구현 완료, 브라우저 테스트 + 커밋 대기
+- **012-UX 대규모 개편** — 구현 완료 (`c71d5ad`), CEO 브라우저 테스트 대기
 
 ### 미완성 ❌
 - 004: AI 실 연동 (Mock → Gemini/Real API 전환)
@@ -291,13 +308,13 @@ npm run preview      # 프로덕션 빌드 프리뷰
 
 ## MVP 런칭 로드맵
 
-> **현재:** 011 테스트/커밋 대기
+> **현재:** 012 브라우저 테스트 대기
 > **전체 현황:** `.plans/STATUS.md`
 > **프로덕트 비전:** `.plans/VISION.md`
 
 ### 런칭 순서
 ```
-011 테스트/커밋 → 004 AI 실 연동 → 005 나레이션 Beta → 006 결제 → 배포
+012 브라우저 테스트 → 004 AI 실 연동 → 005 나레이션 Beta → 006 결제 → 배포
 ```
 
 ### 계획 파일 구조
@@ -305,79 +322,25 @@ npm run preview      # 프로덕션 빌드 프리뷰
 .plans/
 ├── STATUS.md          ← 전체 현황판
 ├── VISION.md          ← 프로덕트 비전
-├── 011-data-cleanup/  ← 현재 진행 중
+├── 012-ux-overhaul/   ← 현재 진행 중
 ├── backlog/           ← 대기 (004, 005, 006)
-├── archive/           ← 완료 (001~003, 007~010)
+├── archive/           ← 완료 (001~003, 007~011)
 └── _templates/        ← 계획 템플릿
 ```
 
 ---
 
-## 변경 이력 (CHANGELOG)
+## 변경 이력 (최근 — 전체: `.plans/CHANGELOG.md`)
 
-### 2026-03-01 - 세션 17: 프로젝트 문서 정리 + 현황 검토
-- **.plans/ 폴더 재구성**: archive/ (완료), backlog/ (대기), _templates/ 분리
-- **STATUS.md 생성**: 전체 계획 현황 한눈에 보기
-- **CLAUDE.md 최신화**: 개발 현황, 로드맵, 변경이력 전면 갱신
-- **메모리 파일 정리**: 낡은 changelog.md, project-status.md 삭제
+### 2026-03-01 - 세션 19: 프로젝트 점검 + 문서 동기화
+- 012 커밋 (`c71d5ad`), 011→archive 이동, 고아 워크트리 정리
+- STATUS.md / CLAUDE.md / 메모리 일괄 동기화
+- CTO 소통 규칙 강화, CHANGELOG 분리
 
-### 2026-03-01 - 세션 16: 011 구현 (데이터 정리 + UX 단순화)
-- **HomePage 단순화**: 3진입점 → 단일 CTA("대본 작성으로 시작하기")
-- **IdeaPage 통합**: SCRIPT/STYLE 탭 분리 → 좌우 분할 단일 화면
-- **프리셋 해제 로직**: 수동 변경 시 프리셋 하이라이트 자동 해제
-- **seed-check 버그 수정**: checked:false → true, 빈 배열 방어
-- **빌드 검증**: TypeScript 0 에러
-
-### 2026-02-28 - 세션 15: 010 고객여정 검증 Round 1
-- **7개 버그 수정**: selectedPreset, TTS 크레딧, 제목 하드코딩, checked 필터링 등
-- **타로 QA 검증**: 17개 체크항목 전부 통과
-
-### 2026-02-28 - 세션 14: 008 나레이션 버그 수정
-- **PresetInfoModal**: 제작 방식 표시
-- **CreditShortageModal**: 크레딧 부족 알림
-- **상태 복원**: 페이지 재진입 시 phase/deck 복원
-
-### 2026-02-28 - 세션 10~13: 002 Phase 0~7 구현 + 003 조직 구성
-- **002 완료**: 9페이지 UI, 듀얼 모드, AI 모델 레지스트리, CastPage, Settings, Admin
-- **003 완료**: 8에이전트 + 4스킬 체계 구축 (커밋 `675e4e2`)
-- **004~009**: AI 연동, 나레이션 모드, 결제, UX 리뷰, 테스트 모드
-
-### 2026-02-27 - 세션 5~6: UX 플로우 리서치 + 계획
-- **UX 플로우 심층 리서치**: 전체 코드베이스 분석, research.md 작성 (770줄)
-- **plan.md v2.1 완성**: 9 Phase (0~7 + 2.5) 구현 계획
-- **VISION.md 생성**: 프로덕트 비전 (3진입점, Cast AI, 크레딧 2계층, AI 4카테고리, UGC)
-- **CTO 검토 6건 반영**: prompt-builder 스텁, CSS 분리, Store v4, StoryboardPage 리팩토링 등
-- **CLAUDE.md 업데이트**: 프로덕트 비전 섹션 추가, 모델 사용 전략 추가
-- **사용자 결정**: CastPage URL `/cast`, Cast→Script 이동, Phase 순서대로 진행
-- **모델 전략 확정**: Opus 4.6(리서치/계획) + Sonnet 4.6(구현)
-
-### 2026-02-27 - 세션 4: Supabase 실연결 E2E 검증
-- **Supabase 실연결 완료**: .env 설정, Google OAuth 동작, DB 저장/로드 확인
-- **hasActiveProject 버그 수정**: IdeaPage useEffect 추가
-- **커밋**: `4a07dc0` - Supabase 실연결 E2E 검증
-
-### 2026-02-26 - 세션 3: 6가지 기능 구현
-- **ScriptPage 아이디어 탭 완성**: `generateMockScriptFromIdea()` 함수 추가, 2초 딜레이 Mock AI 생성, 로딩 스피너
-- **StoryboardPage AI 분석 팝업 모달**: Sparkles 아이콘, 프로그레스 바, 캐릭터3+배경1+아이템1 Mock 추출
-- **씬별 영상 개수 선택 (1/2/3)**: 컷 분할 단계 UI, `videoCountPerScene` state, seed-check 서브행 확장
-- **seed-check UI 대폭 개선**: 이미지 300px, 영상 380px, 대본=프롬프트 flex:1 동일 너비, 씨드카드 이미지만+겹침, 캐스트 스트립 96px
-- **재생성 버튼 위치 변경**: refresh-col 제거 → 이미지 hover 시 오버레이 버튼
-- **CSS 추가**: 영상개수 버튼, 서브행 스타일, 씨드카드 겹침, 재생성 오버레이, 배지 등
-
-### 2026-02-26 - 세션 2: UI/UX 개선 + 데이터 기반
-- **ScriptPage 전면 개편**: textarea 대본 입력, 씬 수 선택기(- N +), splitScriptIntoScenes() 함수, 분할 결과 뷰
-- **StoryboardPage 단계 순서 변경**: 카드 선택(cast-setup) → 컷 분할(script-review) 순으로 변경
-- **StoryboardPage 씬 행 레이아웃**: 6컬럼 구조 (이미지 | 씨드카드 | 대본 | 새로고침 | 프롬프트 | 영상), 스타일별 프롬프트 prefix
-- **CSS 컬럼 비율 조정**: 대본(flex:1→240px고정), 프롬프트(280px→flex:1), 이미지 높이 180px
-- **localStorage 영속성**: Zustand persist 미들웨어 추가 (`antigravity-project` 키)
-- **Script→Storyboard 데이터 연동**: storeScenes 우선, mockData 폴백 방식
-
-### 2026-02-26 - 세션 1: 초기 설정
-- CLAUDE.md 생성 (프로젝트 가이드 문서)
-- 메모리 시스템 구성
-- 프로젝트 현황 분석 및 개발 계획 수립
-- 폴더 구조 정리 (병렬 작업 가능하도록)
-- 스크롤 버그 수정 (page-container height calc 적용)
+### 2026-03-01 - 세션 18: 012 구현 + CEO 1차 피드백
+- IdeaPage 3분할 + 프리셋 확인 팝업 + 씬 이미지 시각화
+- StoryboardPage AI 분석 템플릿 분기 + 컷 분할 카드덱 UI
+- prompt-builder instruction 필드, NarrationEditView 버그 수정
 
 ---
 
