@@ -124,6 +124,14 @@ export function buildImagePrompt(ctx: PromptContext): string {
     // 5. suffix (마지막에 추가)
     if (suffix) parts.push(suffix);
 
+    // 6. B5: 템플릿 instruction 반영
+    if (ctx.templateId) {
+        const tmpl = getTemplateById(ctx.templateId);
+        if (tmpl?.promptRules?.imagePromptRules?.instruction) {
+            parts.push(tmpl.promptRules.imagePromptRules.instruction);
+        }
+    }
+
     return parts.join('. ').replace(/\.\./g, '.').trim();
 }
 
@@ -156,6 +164,14 @@ export function buildVideoPrompt(ctx: PromptContext): string {
     // 카메라 무브먼트 힌트
     if (ctx.cameraAngle) {
         parts.push(`Camera: ${ctx.cameraAngle}, slow cinematic movement`);
+    }
+
+    // B5: 템플릿 video instruction 반영
+    if (ctx.templateId) {
+        const tmpl = getTemplateById(ctx.templateId);
+        if (tmpl?.promptRules?.videoPromptRules?.instruction) {
+            parts.push(tmpl.promptRules.videoPromptRules.instruction);
+        }
     }
 
     return parts.join('. ').trim();

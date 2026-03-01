@@ -22,7 +22,7 @@ const StoryboardPage: React.FC = () => {
         artStyleId, scenes: storeScenes, cardLibrary, addToCardLibrary,
         aiModelPreferences, setAiModelPreference, mode,
         narrationStep, setNarrationStep, narrationClips, setNarrationClips,
-        templateId, aspectRatio,
+        templateId, aspectRatio, selectedDeck,
     } = useProjectStore();
     const { remaining: creditsRemaining, canAfford, spend, CREDIT_COSTS } = useCredits();
 
@@ -32,7 +32,7 @@ const StoryboardPage: React.FC = () => {
         return 'cast-setup';
     });
     const [selectedScene, setSelectedScene] = useState<string | null>(null);
-    const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(true);
+    const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(selectedDeck.length === 0);
     const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
 
     // 크레딧 부족 모달 상태

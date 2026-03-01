@@ -183,8 +183,7 @@ const NarrationEditView: React.FC<NarrationEditViewProps> = ({ onNext, onPrev })
         <button
           className="narration-edit-view__next-btn"
           onClick={onNext}
-          disabled
-          title="내보내기 기능은 추후 지원 예정입니다"
+          title="다음 단계로 이동"
         >
           다음: 내보내기 &rarr;
         </button>
