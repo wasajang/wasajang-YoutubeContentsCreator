@@ -10111,7 +10111,6 @@ button.export-btn:disabled {
     }
 }
 
-}
 /* ========== AI ANALYSIS MODAL — TEMPLATE BRANCH ========== */
 .ai-analysis-cast-preview {
   display: flex;
@@ -10299,3 +10298,4 @@ button.export-btn:disabled {
   font-size: 0.6rem;
   font-weight: 500;
   color: var(--text-muted);
+}
