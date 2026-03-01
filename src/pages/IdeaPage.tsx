@@ -4,15 +4,15 @@ import {
     Pencil, Wand2, Check, Minus, Plus, ArrowRight, RotateCcw, Loader,
 } from 'lucide-react';
 import WorkflowSteps from '../components/WorkflowSteps';
-import PresetInfoModal from '../components/PresetInfoModal';
 import { useProjectStore } from '../store/projectStore';
-import { mockScript, artStyles, mockCardLibrary } from '../data/mockData';
-import { getPresetById, getPresetsByMode } from '../data/stylePresets';
+import { mockScript, mockCardLibrary } from '../data/mockData';
+import { artStyles } from '../data/artStyles';
+import { getTemplateById, getTemplatesByMode } from '../data/templates';
+import type { Template } from '../data/templates';
 import { generateScript } from '../services/ai-llm';
 import { useCredits } from '../hooks/useCredits';
 import { getUserSelectableModels } from '../data/aiModels';
 
-type IdeaTab = 'script' | 'style';
 type InputMode = 'script' | 'idea';
 
 // ── 텍스트를 N개 씬으로 균등 분할하는 함수 ──
@@ -56,7 +56,7 @@ function splitScriptIntoScenes(text: string, count: number) {
         imageUrl: '',
         characters: [] as string[],
         status: 'pending' as const,
-        checked: false,
+        checked: true,
     }));
 }
 
@@ -65,10 +65,10 @@ const IdeaPage: React.FC = () => {
     const {
         title, setTitle, scenes, setScenes,
         aspectRatio, setAspectRatio, toggleSceneCheck,
-        selectedStyle, setSelectedStyle,
+        artStyleId, setArtStyleId,
         cardLibrary, addToCardLibrary,
         hasActiveProject, startNewProject,
-        selectedPreset, setSelectedPreset,
+        templateId, setTemplateId,
         aiModelPreferences, setAiModelPreference,
         mode, setNarrationStep,
     } = useProjectStore();
@@ -83,17 +83,6 @@ const IdeaPage: React.FC = () => {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── 공통 상태 ──
-    const [activeTab, setActiveTab] = useState<IdeaTab>('script');
-
-    // ── 프리셋 모달 (스타일부터 진입 시 표시) ──
-    const [showPresetModal, setShowPresetModal] = useState(false);
-    useEffect(() => {
-        if (selectedPreset) {
-            setShowPresetModal(true);
-        }
-    }, [selectedPreset]);
-
-    // ── Script 탭 상태 ──
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState(title);
     const [inputMode, setInputMode] = useState<InputMode>('script');
@@ -139,9 +128,9 @@ const IdeaPage: React.FC = () => {
             const result = await generateScript({
                 idea: ideaText,
                 sceneCount,
-                style: selectedStyle,
+                style: artStyleId,
                 model: aiModelPreferences.script,
-                presetId: selectedPreset ?? undefined,
+                presetId: templateId ?? undefined,
                 mode,
             });
             // LLM 결과를 store 씬 형태로 변환
@@ -181,6 +170,35 @@ const IdeaPage: React.FC = () => {
         setEditingSceneId(null);
     };
 
+    // ── 프리셋 선택/해제 핸들러 ──
+    const handlePresetSelect = (tmpl: Template) => {
+        setTemplateId(tmpl.id);
+        setArtStyleId(tmpl.artStyleId);
+        setAspectRatio(tmpl.aspectRatio);
+    };
+
+    // 아트스타일 수동 변경 → 프리셋 해제
+    const handleArtStyleChange = (styleId: string) => {
+        setArtStyleId(styleId);
+        if (templateId) {
+            const tmpl = getTemplateById(templateId);
+            if (tmpl && tmpl.artStyleId !== styleId) {
+                setTemplateId(null);
+            }
+        }
+    };
+
+    // 비율 수동 변경 → 프리셋 해제
+    const handleAspectChange = (ratio: '16:9' | '9:16' | '1:1') => {
+        setAspectRatio(ratio);
+        if (templateId) {
+            const tmpl = getTemplateById(templateId);
+            if (tmpl && tmpl.aspectRatio !== ratio) {
+                setTemplateId(null);
+            }
+        }
+    };
+
     // ── 스타일 그라디언트 ──
     const getStyleGradient = (color: string) =>
         `linear-gradient(145deg, ${color} 0%, ${color}88 50%, ${color}44 100%)`;
@@ -195,41 +213,20 @@ const IdeaPage: React.FC = () => {
         }
     };
 
-    const handleSubClick = (key: string) => {
-        if (key === 'script') setActiveTab('script');
-        if (key === 'style') setActiveTab('style');
-    };
-
-    const aspectOptions = [
-        { ratio: '16:9' as const, label: '16:9 landscape', icon: '🖥️' },
-        { ratio: '9:16' as const, label: '9:16 portrait', icon: '📱' },
-        { ratio: '1:1' as const, label: '1:1 square', icon: '⬜' },
+    const aspectOptions: { ratio: '16:9' | '9:16' | '1:1'; label: string }[] = [
+        { ratio: '16:9', label: '16:9' },
+        { ratio: '9:16', label: '9:16' },
+        { ratio: '1:1', label: '1:1' },
     ];
 
-    // 프리셋 모달에서 사용할 preset 객체
-    const activePreset = selectedPreset ? getPresetById(selectedPreset) : null;
+    // ── 다음 버튼 활성화 조건 ──
+    const canProceed = isGenerated && scenes.length > 0 && artStyleId !== '';
+
+    // ── 현재 모드의 템플릿 목록 ──
+    const modeTemplates = getTemplatesByMode(mode);
 
     return (
         <div className="page-container">
-            {/* 프리셋 정보 모달 (스타일부터 진입 시) */}
-            {showPresetModal && activePreset && (
-                <PresetInfoModal
-                    preset={activePreset}
-                    onApply={() => {
-                        setShowPresetModal(false);
-                        setSelectedPreset(null); // 적용 후 초기화 (재방문 시 미표시)
-                    }}
-                    onCustomize={() => {
-                        setShowPresetModal(false);
-                        setSelectedPreset(null);
-                    }}
-                    onClose={() => {
-                        setShowPresetModal(false);
-                        setSelectedPreset(null);
-                    }}
-                />
-            )}
-
             {/* Phase Header */}
             <div className="phase-header">
                 <div className="phase-header__left">
@@ -265,48 +262,17 @@ const IdeaPage: React.FC = () => {
                     </div>
                     <WorkflowSteps
                         currentMain={1}
-                        currentSub={activeTab}
+                        currentSub={''}
                         onMainClick={handleMainClick}
-                        onSubClick={handleSubClick}
+                        onSubClick={() => {}}
                     />
-                </div>
-
-                <div className="phase-tabs">
-                    <button
-                        className={`phase-tab ${activeTab === 'script' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('script')}
-                    >
-                        SCRIPT
-                    </button>
-                    <span className="phase-tab-separator">&gt;</span>
-                    <button
-                        className={`phase-tab ${activeTab === 'style' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('style')}
-                    >
-                        STYLE
-                    </button>
-                </div>
-
-                <div className="phase-header__right">
-                    {aspectOptions.map((opt) => (
-                        <button
-                            key={opt.ratio}
-                            className="aspect-ratio-btn"
-                            onClick={() => setAspectRatio(opt.ratio)}
-                            style={{
-                                borderColor: aspectRatio === opt.ratio ? 'var(--accent-primary)' : undefined,
-                            }}
-                        >
-                            <span>{opt.icon}</span>
-                            <span>{opt.label}</span>
-                        </button>
-                    ))}
                 </div>
             </div>
 
-            {/* ═══ SCRIPT 탭 ═══ */}
-            {activeTab === 'script' && (
-                <>
+            {/* ═══ 좌우 분할 레이아웃 ═══ */}
+            <div className="idea-layout">
+                {/* 좌: 대본 작성 */}
+                <div className="idea-layout__script">
                     {!isGenerated ? (
                         <div className="script-input-area">
                             <div className="script-input-tabs">
@@ -431,88 +397,102 @@ const IdeaPage: React.FC = () => {
                             ))}
                         </div>
                     )}
-                </>
-            )}
+                </div>
 
-            {/* ═══ STYLE 탭 ═══ */}
-            {activeTab === 'style' && (
-                <div className="page-scrollable-content">
-                    {/* 모드에 맞는 스타일 프리셋 섹션 */}
-                    {(() => {
-                        const modePresets = getPresetsByMode(mode);
-                        return modePresets.length > 0 ? (
-                            <div style={{ padding: '24px 40px 0' }}>
-                                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '4px' }}>
-                                    {mode === 'cinematic' ? '시네마틱 프리셋' : '나레이션 프리셋'}
-                                </h2>
-                                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                                    {mode === 'cinematic'
-                                        ? '씬별 이미지/영상을 생성하는 시네마틱 스타일'
-                                        : '나레이션 음성을 먼저 생성하는 스토리텔링 스타일'}
-                                </p>
-                                <div className="style-preset-row">
-                                    {modePresets.map((preset) => (
-                                        <div
-                                            key={preset.id}
-                                            className={`style-preset-chip ${selectedPreset === preset.id ? 'selected' : ''}`}
-                                            onClick={() => {
-                                                setSelectedPreset(preset.id);
-                                                setSelectedStyle(preset.style);
-                                            }}
-                                        >
-                                            {preset.thumbnail && (
-                                                <img
-                                                    src={preset.thumbnail}
-                                                    alt={preset.name}
-                                                    className="style-preset-chip__img"
-                                                />
-                                            )}
-                                            <span className="style-preset-chip__name">{preset.name}</span>
-                                        </div>
-                                    ))}
-                                </div>
+                {/* 우: 스타일 설정 */}
+                <div className="idea-layout__style">
+                    {/* 프리셋 섹션 */}
+                    {modeTemplates.length > 0 && (
+                        <div className="idea-style-section">
+                            <div className="idea-style-section__title">
+                                {mode === 'cinematic' ? '시네마틱 프리셋' : '나레이션 프리셋'}
                             </div>
-                        ) : null;
-                    })()}
-
-                    <div style={{ padding: '24px 40px 0' }}>
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>
-                            Choose a Style for Your Project
-                        </h2>
-                    </div>
-                    <div className="style-grid">
-                        {artStyles.map((style) => (
-                            <div
-                                key={style.id}
-                                className={`style-card ${selectedStyle === style.name ? 'selected' : ''}`}
-                                onClick={() => setSelectedStyle(style.name)}
-                            >
-                                {style.imageUrl ? (
-                                    <img src={style.imageUrl} className="style-card__img" alt={style.name} />
-                                ) : (
+                            <div className="idea-preset-row">
+                                {modeTemplates.map((tmpl) => (
                                     <div
-                                        className="style-card__img"
-                                        style={{ background: getStyleGradient(style.color || '#333') }}
-                                    />
-                                )}
-                                <span className="style-card__label">{style.name}</span>
+                                        key={tmpl.id}
+                                        className={`idea-preset-chip${templateId === tmpl.id ? ' selected' : ''}`}
+                                        onClick={() => handlePresetSelect(tmpl)}
+                                    >
+                                        {tmpl.thumbnail && (
+                                            <img
+                                                src={tmpl.thumbnail}
+                                                alt={tmpl.name}
+                                                className="idea-preset-chip__img"
+                                            />
+                                        )}
+                                        <span className="idea-preset-chip__name">{tmpl.name}</span>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                        </div>
+                    )}
+
+                    {/* 아트 스타일 섹션 */}
+                    <div className="idea-style-section">
+                        <div className="idea-style-section__title">아트 스타일</div>
+                        <div className="idea-artstyle-grid">
+                            {artStyles.map((style) => (
+                                <div
+                                    key={style.id}
+                                    className={`idea-artstyle-card${artStyleId === style.id ? ' selected' : ''}`}
+                                    onClick={() => handleArtStyleChange(style.id)}
+                                >
+                                    {style.thumbnail ? (
+                                        <img
+                                            src={style.thumbnail}
+                                            className="idea-artstyle-card__img"
+                                            alt={style.nameKo}
+                                        />
+                                    ) : (
+                                        <div
+                                            className="idea-artstyle-card__img"
+                                            style={{ background: getStyleGradient(style.color || '#333') }}
+                                        />
+                                    )}
+                                    <span className="idea-artstyle-card__label">{style.nameKo}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 화면 비율 섹션 */}
+                    <div className="idea-style-section">
+                        <div className="idea-style-section__title">화면 비율</div>
+                        <div className="idea-ratio-row">
+                            {aspectOptions.map((opt) => (
+                                <button
+                                    key={opt.ratio}
+                                    className={`idea-ratio-btn${aspectRatio === opt.ratio ? ' selected' : ''}`}
+                                    onClick={() => handleAspectChange(opt.ratio)}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
-            )}
+            </div>
 
             {/* Bottom Navigation */}
             <div style={{
                 display: 'flex',
                 justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: '12px',
                 padding: '16px 40px',
                 flexShrink: 0,
                 borderTop: '1px solid var(--border-subtle)',
                 background: 'var(--bg-secondary)',
             }}>
+                {!canProceed && (
+                    <span className="idea-bottom__hint">
+                        {!isGenerated ? '대본을 먼저 생성해주세요' : !artStyleId ? '아트 스타일을 선택해주세요' : ''}
+                    </span>
+                )}
                 <button
                     className="btn-primary"
+                    disabled={!canProceed}
                     onClick={() => {
                         if (mode === 'narration') {
                             setNarrationStep(2);

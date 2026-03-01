@@ -13,22 +13,6 @@ export const genreFilters = [
     'YOUTUBE SHORTS',
 ];
 
-export const heroTemplates = [
-    {
-        id: 'hero-1',
-        title: 'Sci-Fi Trailer',
-        description: 'Visualize your sci-fi story concept',
-        imageUrl: 'https://images.unsplash.com/photo-1506318137071-a8e063b4bcc0?auto=format&fit=crop&w=1200&q=80',
-        gradient: 'linear-gradient(135deg, #1a0533 0%, #0f2027 100%)',
-    },
-    {
-        id: 'hero-2',
-        title: 'Anime Love Story',
-        description: 'Create an anime-inspired romance storyboard',
-        imageUrl: 'https://images.unsplash.com/photo-1528319725582-ddc096101511?auto=format&fit=crop&w=1200&q=80',
-        gradient: 'linear-gradient(135deg, #2d1b3d 0%, #1a1a2e 100%)',
-    },
-];
 
 export const templateCards = [
     { id: 't1', title: 'Mars Colony', genre: 'MOST POPULAR', imageUrl: 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=800&q=80' },
@@ -45,21 +29,6 @@ export const templateCards = [
     { id: 't12', title: 'Space Drama', genre: 'FILM', imageUrl: 'https://images.unsplash.com/photo-1502134249126-9f3755a50d78?auto=format&fit=crop&w=800&q=80' },
 ];
 
-// ========== Style Data ==========
-export const artStyles = [
-    { id: 'cinematic', name: 'Cinematic', imageUrl: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=400&q=80', color: '#3a2518' },
-    { id: 'sketch', name: 'Sketch', imageUrl: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=400&q=80', color: '#2a2a2a' },
-    { id: 'oil-painting', name: 'Oil Painting', imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?auto=format&fit=crop&w=400&q=80', color: '#2d3a1e' },
-    { id: 'computer-animation', name: 'Computer Animation', imageUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=400&q=80', color: '#1e2a3a' },
-    { id: 'children-illustration', name: "Children's Illustration", imageUrl: 'https://images.unsplash.com/photo-1515569067071-ec3b51335ec0?auto=format&fit=crop&w=400&q=80', color: '#3a2d1e' },
-    { id: 'cartoon', name: 'Cartoon', imageUrl: 'https://images.unsplash.com/photo-1533518463841-d62e1fc91373?auto=format&fit=crop&w=400&q=80', color: '#1e3a2e' },
-    { id: 'anime', name: 'Anime', imageUrl: 'https://images.unsplash.com/photo-1528319725582-ddc096101511?auto=format&fit=crop&w=400&q=80', color: '#2e1e3a' },
-    { id: 'storyboard-sketch', name: 'Storyboard Sketch', imageUrl: 'https://images.unsplash.com/photo-1515462277126-2dd0c162007a?auto=format&fit=crop&w=400&q=80', color: '#2a2a2a' },
-    { id: 'comic-book', name: 'Comic Book', imageUrl: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?auto=format&fit=crop&w=400&q=80', color: '#3a1e1e' },
-    { id: 'woodblock-print', name: 'Woodblock Print', imageUrl: 'https://images.unsplash.com/photo-1578301978693-85fa9c0320b9?auto=format&fit=crop&w=400&q=80', color: '#2d2a1e' },
-    { id: '3d-render', name: '3D Render', imageUrl: 'https://images.unsplash.com/photo-1633167606207-d840b5070fc2?auto=format&fit=crop&w=400&q=80', color: '#1e2e3a' },
-    { id: 'watercolor', name: 'Watercolor', imageUrl: 'https://images.unsplash.com/photo-1541462608141-ad6031335f74?auto=format&fit=crop&w=400&q=80', color: '#1e3a3a' },
-];
 
 // ========== Mock Script (Steel March North) ==========
 export const mockScript = [
@@ -205,53 +174,6 @@ export const mockStoryboardScenes = [
     },
 ];
 
-// ========== Mock Timeline Clips ==========
-export const mockTimelineClips = [
-    { id: 'clip-v1', sceneId: 'scene-1', type: 'video' as const, label: 'Scene 01 - Portal Opens', duration: 5 },
-    { id: 'clip-v2', sceneId: 'scene-2', type: 'video' as const, label: 'Scene 02 - K2 Arrives', duration: 6 },
-    { id: 'clip-v3', sceneId: 'scene-3', type: 'video' as const, label: 'Scene 03 - Infantry Deploy', duration: 5 },
-    { id: 'clip-v4', sceneId: 'scene-4', type: 'video' as const, label: 'Scene 04 - K2 Fires', duration: 4 },
-    { id: 'clip-v5', sceneId: 'scene-5', type: 'video' as const, label: 'Scene 05 - Artillery Rain', duration: 5 },
-    { id: 'clip-v6', sceneId: 'scene-6', type: 'video' as const, label: 'Scene 06 - Trench Reaction', duration: 5 },
-    { id: 'clip-v7', sceneId: 'scene-7', type: 'video' as const, label: 'Scene 07 - Salute', duration: 6 },
-    { id: 'clip-v8', sceneId: 'scene-8', type: 'video' as const, label: 'Scene 08 - Dawn', duration: 5 },
-    { id: 'clip-v9', sceneId: 'scene-9', type: 'video' as const, label: 'Scene 09 - Flag', duration: 4 },
-    { id: 'clip-v10', sceneId: 'scene-10', type: 'video' as const, label: 'Scene 10 - Silence', duration: 5 },
-    { id: 'clip-a1', sceneId: 'scene-1', type: 'audio' as const, label: 'Narrator - Opening', duration: 8 },
-    { id: 'clip-a2', sceneId: 'scene-4', type: 'audio' as const, label: 'Daesung - Command', duration: 4 },
-    { id: 'clip-a3', sceneId: 'scene-7', type: 'audio' as const, label: 'Sangho & Daesung - Dialogue', duration: 6 },
-    { id: 'clip-a4', sceneId: 'scene-9', type: 'audio' as const, label: 'Narrator - Closing', duration: 8 },
-    { id: 'clip-s1', sceneId: 'scene-1', type: 'sfx' as const, label: 'Thunder Crack', duration: 3 },
-    { id: 'clip-s2', sceneId: 'scene-2', type: 'sfx' as const, label: 'Tank Engine Roar', duration: 5 },
-    { id: 'clip-s3', sceneId: 'scene-4', type: 'sfx' as const, label: 'Cannon Fire', duration: 2 },
-    { id: 'clip-s4', sceneId: 'scene-5', type: 'sfx' as const, label: 'Explosions', duration: 4 },
-    { id: 'clip-s5', sceneId: 'scene-8', type: 'sfx' as const, label: 'Helicopter Blades', duration: 5 },
-];
-
-// ========== Voice Assignments ==========
-export const voiceAssignments = [
-    { characterId: 'char-1', characterName: '민수 (Minsoo)', voice: 'Korean Male - Young' },
-    { characterId: 'char-3', characterName: '상호 (Sangho)', voice: 'Korean Male - Deep' },
-    { characterId: 'char-4', characterName: '대성 (Daesung)', voice: 'Korean Male - Authoritative' },
-    { characterId: 'char-5', characterName: '혜진 (Hyejin)', voice: 'Korean Female - Clear' },
-];
-
-// ========== Style-based Prompt Prefix ==========
-// Dev 팀이 스타일별로 미리 정의한 프롬프트 prefix
-export const stylePromptPrefix: Record<string, string> = {
-    'Cinematic':              'photorealistic cinematic still, anamorphic lens, dramatic lighting, film grain, 4K,',
-    'Anime':                  'anime style illustration, detailed line art, vibrant cel shading, dramatic composition,',
-    'Oil Painting':           'oil painting, thick impasto brushstrokes, rich warm tones, classical art,',
-    'Computer Animation':     '3D computer animation, Pixar-style render, volumetric lighting, smooth textures,',
-    "Children's Illustration":'children\'s book illustration, soft watercolor style, gentle pastel colors, friendly,',
-    'Cartoon':                'cartoon style, bold outlines, flat vibrant colors, expressive characters,',
-    'Storyboard Sketch':      'black and white storyboard sketch, rough gestural lines, pencil texture, directorial framing,',
-    'Comic Book':             'comic book style, halftone dot texture, bold ink outlines, dynamic action poses,',
-    'Watercolor':             'watercolor painting, soft transparent washes, wet-on-wet bleeding edges, delicate,',
-    '3D Render':              '3D render, octane render, physically based rendering, ray-traced lighting, hyper-detailed,',
-    'Woodblock Print':        'Japanese woodblock print, ukiyo-e style, flat bold colors, strong outlines,',
-    'Sketch':                 'detailed pencil sketch, crosshatch shading, monochrome, architectural precision,',
-};
 
 // ========== Scene-level Mock Prompts ==========
 // 추후 dev 팀의 스타일별 세팅값으로 동적 생성 예정 — 현재는 mock

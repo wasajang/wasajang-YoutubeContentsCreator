@@ -8,7 +8,7 @@
  *   - 'anthropic' → Anthropic Claude API
  */
 
-import { getPresetById } from '../data/stylePresets';
+import { getTemplateById } from '../data/templates';
 
 // ── 타입 정의 ──
 
@@ -244,9 +244,9 @@ function buildSystemPrompt(req: ScriptGenerationRequest): string {
     // 프리셋 script 지시 우선 적용
     let roleInstruction = '당신은 YouTube 영상 시나리오 작가입니다.\n사용자의 아이디어를 기반으로 시네마틱 영상 대본을 작성합니다.';
     if (req.presetId) {
-        const preset = getPresetById(req.presetId);
-        if (preset?.prompts.script) {
-            roleInstruction = preset.prompts.script;
+        const template = getTemplateById(req.presetId);
+        if (template?.promptRules.scriptSystemPrompt) {
+            roleInstruction = template.promptRules.scriptSystemPrompt;
         }
     }
 

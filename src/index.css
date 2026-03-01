@@ -9511,3 +9511,202 @@ button.export-btn:disabled {
   font-size: 0.85rem;
   padding: 10px 20px;
 }
+
+/* ══════════════════════════════════════════════════
+   IdeaPage 좌우 분할 레이아웃 + 스타일 선택 UI
+   ══════════════════════════════════════════════════ */
+
+.idea-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.idea-layout__script {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 32px;
+}
+
+.idea-layout__style {
+  width: 300px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: 20px 16px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-subtle);
+}
+
+/* 스타일 섹션 */
+.idea-style-section {
+  margin-bottom: 20px;
+}
+
+.idea-style-section__title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 프리셋 카드 */
+.idea-preset-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.idea-preset-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.idea-preset-chip:hover {
+  border-color: var(--border-accent);
+  background: var(--bg-card-hover);
+}
+
+.idea-preset-chip.selected {
+  border-color: var(--accent-primary);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.idea-preset-chip__img {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.idea-preset-chip__name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 아트스타일 카드 */
+.idea-artstyle-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.idea-artstyle-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.idea-artstyle-card:hover {
+  border-color: var(--border-accent);
+  background: var(--bg-card-hover);
+}
+
+.idea-artstyle-card.selected {
+  border-color: var(--accent-primary);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.idea-artstyle-card__img {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.idea-artstyle-card__label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* 비율 버튼 */
+.idea-ratio-row {
+  display: flex;
+  gap: 6px;
+}
+
+.idea-ratio-btn {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: center;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.idea-ratio-btn:hover {
+  border-color: var(--border-accent);
+  color: var(--text-primary);
+}
+
+.idea-ratio-btn.selected {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+/* 하단 힌트 */
+.idea-bottom__hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ══════════════════════════════════════════════════
+   홈 CTA 버튼
+   ══════════════════════════════════════════════════ */
+
+.home-cta {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 28px;
+}
+
+.home-cta__btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 40px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.home-cta__btn:hover {
+  background: var(--accent-primary-hover);
+  transform: translateY(-1px);
+}
+
+.home-cta__btn:active {
+  transform: translateY(0);
+}

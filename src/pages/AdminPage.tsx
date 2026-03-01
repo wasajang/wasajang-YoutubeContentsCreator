@@ -8,14 +8,14 @@ import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Settings2, FileText, Palette, Bot, BarChart2, Save, CheckCircle2, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { stylePresets } from '../data/stylePresets';
-import type { StylePreset } from '../data/stylePresets';
+import { templates } from '../data/templates';
+import type { Template } from '../data/templates';
 import { getPromptBuilderModels } from '../data/aiModels';
 
 const ADMIN_EMAILS = ['wofou7@gmail.com'];
 const PRESET_OVERRIDE_KEY = 'antigravity-preset-overrides';
 
-type VisibilityKey = StylePreset['visibility'];
+type VisibilityKey = Template['visibility'];
 const VISIBILITY_OPTIONS: { value: VisibilityKey; label: string; color: string }[] = [
     { value: 'public', label: '공개',    color: '#10b981' },
     { value: 'soon',   label: '곧 출시', color: '#f59e0b' },
@@ -62,7 +62,7 @@ const AdminPage: React.FC = () => {
 
     /* 프리셋 visibility 상태 */
     const [presetVisibility, setPresetVisibility] = useState<Record<string, VisibilityKey>>(
-        Object.fromEntries(stylePresets.map((p) => [p.id, p.visibility]))
+        Object.fromEntries(templates.map((t) => [t.id, t.visibility]))
     );
     const { saved: presetSaved, triggerSave: savePreset } = useSaveState();
 
@@ -175,11 +175,11 @@ const AdminPage: React.FC = () => {
                     <div className="admin-section__head">
                         <Palette size={15} />
                         <h3>스타일 프리셋 관리</h3>
-                        <span className="admin-section__count">{stylePresets.length}개</span>
+                        <span className="admin-section__count">{templates.length}개</span>
                     </div>
 
                     <div className="admin-preset-list">
-                        {stylePresets.map((preset) => {
+                        {templates.map((preset) => {
                             const vis = presetVisibility[preset.id] ?? preset.visibility;
                             const opt = VISIBILITY_OPTIONS.find((o) => o.value === vis)!;
                             const isExpanded = expandedPresetId === preset.id;
@@ -217,7 +217,7 @@ const AdminPage: React.FC = () => {
                                                     {preset.aspectRatio}
                                                 </span>
                                                 <span className="admin-preset-tag admin-preset-tag--style">
-                                                    {preset.style}
+                                                    {preset.artStyleId}
                                                 </span>
                                             </div>
                                         </div>
@@ -254,7 +254,7 @@ const AdminPage: React.FC = () => {
                                                     <textarea
                                                         className="admin-textarea"
                                                         rows={3}
-                                                        value={getPromptValue(preset.id, 'script', preset.prompts?.script ?? '')}
+                                                        value={getPromptValue(preset.id, 'script', preset.promptRules?.scriptSystemPrompt ?? '')}
                                                         onChange={(e) => updateEditedPrompt(preset.id, 'script', e.target.value)}
                                                     />
                                                 </div>
@@ -263,7 +263,7 @@ const AdminPage: React.FC = () => {
                                                     <textarea
                                                         className="admin-textarea"
                                                         rows={2}
-                                                        value={getPromptValue(preset.id, 'imagePrefix', preset.prompts?.imagePrefix ?? '')}
+                                                        value={getPromptValue(preset.id, 'imagePrefix', preset.promptRules?.imagePromptRules?.prefix ?? '')}
                                                         onChange={(e) => updateEditedPrompt(preset.id, 'imagePrefix', e.target.value)}
                                                     />
                                                 </div>
@@ -272,7 +272,7 @@ const AdminPage: React.FC = () => {
                                                     <textarea
                                                         className="admin-textarea"
                                                         rows={2}
-                                                        value={getPromptValue(preset.id, 'videoPrefix', preset.prompts?.videoPrefix ?? '')}
+                                                        value={getPromptValue(preset.id, 'videoPrefix', preset.promptRules?.videoPromptRules?.prefix ?? '')}
                                                         onChange={(e) => updateEditedPrompt(preset.id, 'videoPrefix', e.target.value)}
                                                     />
                                                 </div>
@@ -299,7 +299,7 @@ const AdminPage: React.FC = () => {
                                                 <div className="admin-preset-info-item">
                                                     <span className="admin-preset-info-item__label">추천 캐스트</span>
                                                     <span className="admin-preset-info-item__value">
-                                                        배우 {preset.recommendedCast.characters}명 / 배경 {preset.recommendedCast.backgrounds}개 / 소품 {preset.recommendedCast.items}개
+                                                        배우 {preset.castPreset.characters.length}명 / 배경 {preset.castPreset.backgrounds.length}개 / 소품 {preset.castPreset.items.length}개
                                                     </span>
                                                 </div>
                                             </div>

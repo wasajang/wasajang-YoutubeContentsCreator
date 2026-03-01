@@ -47,7 +47,7 @@ export function useProject() {
                     if (result) {
                         store.setProjectId(latest.id);
                         store.setTitle(result.project.title);
-                        store.setSelectedStyle(result.project.selected_style);
+                        store.setArtStyleId(result.project.selected_style);
                         store.setAspectRatio(result.project.aspect_ratio);
                         if (result.scenes.length > 0) {
                             store.setScenes(result.scenes);
@@ -72,7 +72,7 @@ export function useProject() {
                             projectId: null,
                             userId: user.id,
                             title: store.title,
-                            selectedStyle: store.selectedStyle,
+                            selectedStyle: store.artStyleId,
                             aspectRatio: store.aspectRatio,
                             scenes: store.scenes,
                         });
@@ -118,7 +118,7 @@ export function useProject() {
                     projectId: state.projectId,
                     userId: user.id,
                     title: state.title,
-                    selectedStyle: state.selectedStyle,
+                    selectedStyle: state.artStyleId,
                     aspectRatio: state.aspectRatio,
                     scenes: state.scenes,
                 });
@@ -147,7 +147,7 @@ export function useProject() {
     }, [
         store.title,
         store.scenes,
-        store.selectedStyle,
+        store.artStyleId,
         store.aspectRatio,
         store.cardLibrary,
         store.hasActiveProject,

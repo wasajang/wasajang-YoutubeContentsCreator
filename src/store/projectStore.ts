@@ -14,7 +14,7 @@ export interface AssetCard {
   status: 'pending' | 'generating' | 'done' | 'failed';
   isRequired?: boolean;
   isFavorite?: boolean;
-  source?: 'ai' | 'manual';
+  source?: 'ai' | 'manual' | 'template';
 }
 
 export interface Scene {
@@ -72,8 +72,8 @@ export interface AiModelPreferences {
 }
 
 const DEFAULT_AI_MODELS: AiModelPreferences = {
-  script: 'gemini-flash',
-  image: 'gemini-image',
+  script: 'gemini-2.5-flash',
+  image: 'gemini-2.0-flash-exp-image-generation',
   video: 'runway-gen3',
   tts: 'fish-speech',
 };
@@ -100,8 +100,8 @@ export interface ProjectState {
   toggleSceneCheck: (id: string) => void;
 
   // Style
-  selectedStyle: string;
-  setSelectedStyle: (style: string) => void;
+  artStyleId: string;
+  setArtStyleId: (id: string) => void;
 
   // Card Asset Library (모든 카드 에셋 보관 — 단일 데이터 소스)
   cardLibrary: AssetCard[];
@@ -128,9 +128,9 @@ export interface ProjectState {
   entryPoint: 'script' | 'style' | 'cast' | null;
   setEntryPoint: (ep: 'script' | 'style' | 'cast' | null) => void;
 
-  // 선택된 스타일 프리셋 ID (Phase 2에서 사용)
-  selectedPreset: string | null;
-  setSelectedPreset: (preset: string | null) => void;
+  // 선택된 템플릿 ID (Phase 2에서 사용)
+  templateId: string | null;
+  setTemplateId: (id: string | null) => void;
 
   // 프로젝트별 선택 카드 ID 목록 (cardLibrary 중 이 프로젝트에서 사용할 카드)
   selectedDeck: string[];
@@ -184,8 +184,8 @@ export const useProjectStore = create<ProjectState>()(
           ),
         })),
 
-      selectedStyle: 'Cinematic',
-      setSelectedStyle: (selectedStyle) => set({ selectedStyle }),
+      artStyleId: 'cinematic',
+      setArtStyleId: (artStyleId) => set({ artStyleId }),
 
       // Card Asset Library
       cardLibrary: [],
@@ -227,11 +227,11 @@ export const useProjectStore = create<ProjectState>()(
           hasActiveProject: true,
           currentPhase: 1,
           scenes: [],
-          selectedStyle: 'Cinematic',
+          artStyleId: 'cinematic',
           aspectRatio: '16:9',
           timelineClips: [],
           entryPoint: null,
-          selectedPreset: null,
+          templateId: null,
           selectedDeck: options?.keepDeck ? state.selectedDeck : [],
           aiModelPreferences: { ...DEFAULT_AI_MODELS },
           mode,
@@ -246,8 +246,8 @@ export const useProjectStore = create<ProjectState>()(
       entryPoint: null,
       setEntryPoint: (entryPoint) => set({ entryPoint }),
 
-      selectedPreset: null,
-      setSelectedPreset: (selectedPreset) => set({ selectedPreset }),
+      templateId: null,
+      setTemplateId: (templateId) => set({ templateId }),
 
       selectedDeck: [],
       setSelectedDeck: (selectedDeck) => set({ selectedDeck }),
@@ -274,7 +274,7 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'antigravity-project',
-      version: 7,
+      version: 9,
       migrate: (persistedState: unknown, version: number) => {
         let state = persistedState as Record<string, unknown>;
         if (version < 2) {
@@ -335,20 +335,46 @@ export const useProjectStore = create<ProjectState>()(
           // v6→v7: 크레딧 100으로 리셋 (무료 API 보호)
           state = { ...state, credits: 100 };
         }
+        if (version < 8) {
+          // v7→v8: AI 모델 ID를 실제 API 모델명으로 업데이트
+          const prefs = (state.aiModelPreferences || {}) as Record<string, string>;
+          const MODEL_ID_MAP: Record<string, string> = {
+            'gemini-flash': 'gemini-2.5-flash',
+            'gemini-image': 'gemini-2.0-flash-exp-image-generation',
+          };
+          state = {
+            ...state,
+            aiModelPreferences: {
+              ...DEFAULT_AI_MODELS,
+              ...prefs,
+              script: MODEL_ID_MAP[prefs.script] || prefs.script || DEFAULT_AI_MODELS.script,
+              image: MODEL_ID_MAP[prefs.image] || prefs.image || DEFAULT_AI_MODELS.image,
+            },
+          };
+        }
+        if (version < 9) {
+          // v8→v9: selectedPreset → templateId, selectedStyle → artStyleId
+          const oldStyle = (state.selectedStyle || 'Cinematic') as string;
+          state = {
+            ...state,
+            templateId: (state as Record<string, unknown>).selectedPreset ?? null,
+            artStyleId: oldStyle.toLowerCase() === 'cinematic' ? 'cinematic' : oldStyle.toLowerCase(),
+          };
+        }
         return state;
       },
       partialize: (state) => ({
         projectId: state.projectId,
         title: state.title,
         scenes: state.scenes,
-        selectedStyle: state.selectedStyle,
+        artStyleId: state.artStyleId,
         cardLibrary: state.cardLibrary,
         credits: state.credits,
         hasActiveProject: state.hasActiveProject,
         currentPhase: state.currentPhase,
         aspectRatio: state.aspectRatio,
         entryPoint: state.entryPoint,
-        selectedPreset: state.selectedPreset,
+        templateId: state.templateId,
         selectedDeck: state.selectedDeck,
         aiModelPreferences: state.aiModelPreferences,
         mode: state.mode,

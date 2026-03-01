@@ -155,7 +155,7 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
             imageUrl: '',
             characters: [],
             status: 'pending' as const,
-            checked: false,
+            checked: true,
         }));
         setScenes(newScenes);
 

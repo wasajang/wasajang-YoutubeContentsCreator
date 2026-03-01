@@ -1,10 +1,11 @@
 import React from 'react';
 import { X, Film, Ratio, Users, Bot, Mic } from 'lucide-react';
-import type { StylePreset } from '../data/stylePresets';
+import type { Template } from '../data/templates';
+import { getArtStyleById } from '../data/artStyles';
 import { useProjectStore } from '../store/projectStore';
 
 interface Props {
-    preset: StylePreset;
+    template: Template;
     onApply: () => void;
     onCustomize: () => void;
     onClose: () => void;
@@ -16,31 +17,19 @@ const ASPECT_RATIO_LABEL: Record<string, string> = {
     '1:1': '1:1 (정사각, Instagram)',
 };
 
-const STYLE_LABEL: Record<string, string> = {
-    cinematic: 'Cinematic',
-    anime: 'Anime',
-    'children-illustration': "Children's Illustration",
-    'comic-book': 'Comic Book',
-    'oil-painting': 'Oil Painting',
-    sketch: 'Sketch',
-    cartoon: 'Cartoon',
-    watercolor: 'Watercolor',
-    '3d-render': '3D Render',
-};
-
-const PresetInfoModal: React.FC<Props> = ({ preset, onApply, onCustomize, onClose }) => {
-    const setSelectedStyle = useProjectStore((s) => s.setSelectedStyle);
+const PresetInfoModal: React.FC<Props> = ({ template, onApply, onCustomize, onClose }) => {
+    const setArtStyleId = useProjectStore((s) => s.setArtStyleId);
     const setAspectRatio = useProjectStore((s) => s.setAspectRatio);
     const setAiModelPreference = useProjectStore((s) => s.setAiModelPreference);
 
     const handleApply = () => {
-        // 프리셋 설정을 store에 반영
-        setSelectedStyle(preset.style);
-        setAspectRatio(preset.aspectRatio);
-        setAiModelPreference('script', preset.defaultModels.script);
-        setAiModelPreference('image', preset.defaultModels.image);
-        setAiModelPreference('video', preset.defaultModels.video);
-        setAiModelPreference('tts', preset.defaultModels.tts);
+        // 템플릿 설정을 store에 반영
+        setArtStyleId(template.artStyleId);
+        setAspectRatio(template.aspectRatio);
+        setAiModelPreference('script', template.defaultModels.script);
+        setAiModelPreference('image', template.defaultModels.image);
+        setAiModelPreference('video', template.defaultModels.video);
+        setAiModelPreference('tts', template.defaultModels.tts);
         onApply();
     };
 
@@ -51,15 +40,15 @@ const PresetInfoModal: React.FC<Props> = ({ preset, onApply, onCustomize, onClos
                 <div className="preset-modal__header">
                     <div className="preset-modal__title-row">
                         <Film size={18} />
-                        <h2 className="preset-modal__title">{preset.name}</h2>
-                        <span className="preset-modal__category">{preset.category}</span>
+                        <h2 className="preset-modal__title">{template.name}</h2>
+                        <span className="preset-modal__category">{template.category}</span>
                     </div>
                     <button className="preset-modal__close" onClick={onClose}>
                         <X size={18} />
                     </button>
                 </div>
 
-                <p className="preset-modal__desc">{preset.description}</p>
+                <p className="preset-modal__desc">{template.description}</p>
 
                 {/* 설정 항목 */}
                 <div className="preset-modal__items">
@@ -67,37 +56,37 @@ const PresetInfoModal: React.FC<Props> = ({ preset, onApply, onCustomize, onClos
                         <Mic size={14} className="preset-modal__item-icon" />
                         <span className="preset-modal__item-label">제작 방식</span>
                         <span className="preset-modal__item-value">
-                            {preset.mode === 'narration' ? '나레이션형' : '시네마틱형'}
+                            {template.mode === 'narration' ? '나레이션형' : '시네마틱형'}
                         </span>
                     </div>
                     <div className="preset-modal__item">
                         <Ratio size={14} className="preset-modal__item-icon" />
                         <span className="preset-modal__item-label">영상 비율</span>
                         <span className="preset-modal__item-value">
-                            {ASPECT_RATIO_LABEL[preset.aspectRatio] ?? preset.aspectRatio}
+                            {ASPECT_RATIO_LABEL[template.aspectRatio] ?? template.aspectRatio}
                         </span>
                     </div>
                     <div className="preset-modal__item">
                         <Film size={14} className="preset-modal__item-icon" />
                         <span className="preset-modal__item-label">아트 스타일</span>
                         <span className="preset-modal__item-value">
-                            {STYLE_LABEL[preset.style] ?? preset.style}
+                            {getArtStyleById(template.artStyleId)?.nameKo ?? template.artStyleId}
                         </span>
                     </div>
                     <div className="preset-modal__item">
                         <Users size={14} className="preset-modal__item-icon" />
                         <span className="preset-modal__item-label">추천 캐스트</span>
                         <span className="preset-modal__item-value">
-                            배우 {preset.recommendedCast.characters}명 ·
-                            배경 {preset.recommendedCast.backgrounds}개 ·
-                            소품 {preset.recommendedCast.items}개
+                            배우 {template.castPreset.characters.length}명 ·
+                            배경 {template.castPreset.backgrounds.length}개 ·
+                            소품 {template.castPreset.items.length}개
                         </span>
                     </div>
                     <div className="preset-modal__item">
                         <Bot size={14} className="preset-modal__item-icon" />
                         <span className="preset-modal__item-label">AI 모델</span>
                         <span className="preset-modal__item-value">
-                            {preset.defaultModels.image} / {preset.defaultModels.video}
+                            {template.defaultModels.image} / {template.defaultModels.video}
                         </span>
                     </div>
                 </div>

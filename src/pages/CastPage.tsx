@@ -4,8 +4,8 @@ import { Users, Plus, X, Loader, Sparkles, Check, Trash2, Star } from 'lucide-re
 import { useProjectStore } from '../store/projectStore';
 import type { AssetCard, AssetType } from '../store/projectStore';
 import { mockCardLibrary } from '../data/mockData';
-import { getPublicPresets } from '../data/stylePresets';
-import type { StylePreset } from '../data/stylePresets';
+import { getPublicTemplates } from '../data/templates';
+import type { Template } from '../data/templates';
 import { generateImage } from '../services/ai-image';
 import { useCredits } from '../hooks/useCredits';
 
@@ -26,7 +26,7 @@ const CastPage: React.FC = () => {
     const {
         cardLibrary, addToCardLibrary, removeFromCardLibrary,
         selectedDeck, setSelectedDeck, setEntryPoint, startNewProject,
-        setSelectedPreset, setSelectedStyle, setAspectRatio,
+        setTemplateId, setArtStyleId, setAspectRatio,
     } = useProjectStore();
     const { canAfford, spend, CREDIT_COSTS } = useCredits();
 
@@ -43,7 +43,7 @@ const CastPage: React.FC = () => {
     // AI 생성 폼 상태
     // 스타일 선택 오버레이 상태
     const [showStyleSelect, setShowStyleSelect] = useState(false);
-    const allPresets = getPublicPresets();
+    const allPresets = getPublicTemplates();
 
     const [genType, setGenType] = useState<AssetType>('character');
     const [genName, setGenName] = useState('');
@@ -116,11 +116,11 @@ const CastPage: React.FC = () => {
     };
 
     // 스타일 프리셋 선택 → 프로젝트 시작 & IdeaPage로 이동 (keepDeck으로 선택 카드 유지)
-    const handlePresetSelect = (preset: StylePreset) => {
+    const handlePresetSelect = (preset: Template) => {
         startNewProject(preset.name, preset.mode, { keepDeck: true });
         setEntryPoint('cast');
-        setSelectedPreset(preset.id);
-        setSelectedStyle(preset.style);
+        setTemplateId(preset.id);
+        setArtStyleId(preset.artStyleId);
         setAspectRatio(preset.aspectRatio);
         setShowStyleSelect(false);
         navigate('/project/idea');

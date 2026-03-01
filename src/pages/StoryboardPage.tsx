@@ -7,8 +7,9 @@ import { CastSetupPhase, CutSplitPhase, SeedCheckPhase } from '../components/sto
 import { useProjectStore } from '../store/projectStore';
 import type { Scene } from '../store/projectStore';
 import { mockStoryboardScenes, mockScript, aiSuggestedCards } from '../data/mockData';
+import { getTemplateById } from '../data/templates';
 import { useCredits } from '../hooks/useCredits';
-import { useDeck, MAX_AI_SLOTS } from '../hooks/useDeck';
+import { useDeck } from '../hooks/useDeck';
 import { useGeneration } from '../hooks/useGeneration';
 import { syncScenesImageToClips } from '../utils/narration-sync';
 
@@ -17,10 +18,11 @@ type StoryboardPhase = 'script-review' | 'cast-setup' | 'seed-check' | 'generati
 const StoryboardPage: React.FC = () => {
     const navigate = useNavigate();
     const {
-        selectedStyle, scenes: storeScenes, cardLibrary, addToCardLibrary,
+        title,
+        artStyleId, scenes: storeScenes, cardLibrary, addToCardLibrary,
         aiModelPreferences, setAiModelPreference, mode,
         narrationStep, setNarrationStep, narrationClips, setNarrationClips,
-        selectedPreset, aspectRatio,
+        templateId, aspectRatio,
     } = useProjectStore();
     const { remaining: creditsRemaining, canAfford, spend, CREDIT_COSTS } = useCredits();
 
@@ -39,7 +41,8 @@ const StoryboardPage: React.FC = () => {
     });
 
     // ScriptPage에서 씬을 생성했으면 그것을 사용, 없으면 목업 폴백
-    const scenes = (storeScenes.length > 0 ? storeScenes : mockStoryboardScenes) as Scene[];
+    const allScenes = (storeScenes.length > 0 ? storeScenes : mockStoryboardScenes) as Scene[];
+    const scenes = allScenes.filter(s => s.checked !== false);
     const scriptCuts = storeScenes.length > 0
         ? storeScenes.map((s) => s.text)
         : mockScript;
@@ -47,11 +50,11 @@ const StoryboardPage: React.FC = () => {
     // ── 훅 ──
     const deckApi = useDeck({ cardLibrary, addToCardLibrary, canAfford, spend, creditsRemaining, CREDIT_COSTS });
     const genApi = useGeneration({
-        scenes, deck: deckApi.deck, selectedStyle,
+        scenes, deck: deckApi.deck, artStyleId,
         canAfford, spend, creditsRemaining, CREDIT_COSTS,
         imageModel: aiModelPreferences.image,
         videoModel: aiModelPreferences.video,
-        presetId: selectedPreset ?? undefined,
+        templateId: templateId ?? undefined,
         aspectRatio: aspectRatio,
         onCreditShortage: (required, label) => {
             setCreditModal({ open: true, required, label });
@@ -60,8 +63,15 @@ const StoryboardPage: React.FC = () => {
 
     // ── AI 분석 핸들러 (deckApi + genApi 양쪽 조율) ──
     const handleAiAnalysis = (doAnalysis: boolean) => {
+        const template = templateId ? getTemplateById(templateId) : null;
+        const castPreset = template?.castPreset;
+        const castConfig = castPreset
+            ? { characters: castPreset.characters.length, backgrounds: castPreset.backgrounds.length, items: castPreset.items.length }
+            : { characters: 3, backgrounds: 1, items: 1 };
+        const totalSlots = castConfig.characters + castConfig.backgrounds + castConfig.items;
+
         if (!doAnalysis) {
-            const defaultDeck = aiSuggestedCards.slice(0, MAX_AI_SLOTS).map((c) => ({ ...c, source: 'ai' as const }));
+            const defaultDeck = aiSuggestedCards.slice(0, totalSlots).map((c) => ({ ...c, source: 'ai' as const }));
             deckApi.setDeck(defaultDeck);
             defaultDeck.forEach((c) => addToCardLibrary(c));
             genApi.setSceneSeeds((prev) => {
@@ -79,23 +89,23 @@ const StoryboardPage: React.FC = () => {
             const libBgs = cardLibrary.filter((c) => c.type === 'background');
             const libItems = cardLibrary.filter((c) => c.type === 'item');
 
-            const selectedChars = libChars.slice(0, 3).map((c) => ({ ...c, source: 'ai' as const, isRequired: true }));
-            const selectedBgs = libBgs.slice(0, 1).map((c) => ({ ...c, source: 'ai' as const, isRequired: true }));
-            const selectedItems = libItems.slice(0, 1).map((c) => ({ ...c, source: 'ai' as const, isRequired: true }));
+            const selectedChars = libChars.slice(0, castConfig.characters).map((c) => ({ ...c, source: 'ai' as const, isRequired: true }));
+            const selectedBgs = libBgs.slice(0, castConfig.backgrounds).map((c) => ({ ...c, source: 'ai' as const, isRequired: true }));
+            const selectedItems = libItems.slice(0, castConfig.items).map((c) => ({ ...c, source: 'ai' as const, isRequired: true }));
 
             const aiCharsPool = aiSuggestedCards.filter((c) => c.type === 'character');
             const aiBgsPool = aiSuggestedCards.filter((c) => c.type === 'background');
             const aiItemsPool = aiSuggestedCards.filter((c) => c.type === 'item');
 
-            while (selectedChars.length < 3 && aiCharsPool.length > 0) {
+            while (selectedChars.length < castConfig.characters && aiCharsPool.length > 0) {
                 const next = aiCharsPool.shift()!;
                 if (!selectedChars.some((c) => c.id === next.id)) selectedChars.push({ ...next, source: 'ai', isRequired: true });
             }
-            while (selectedBgs.length < 1 && aiBgsPool.length > 0) {
+            while (selectedBgs.length < castConfig.backgrounds && aiBgsPool.length > 0) {
                 const next = aiBgsPool.shift()!;
                 if (!selectedBgs.some((c) => c.id === next.id)) selectedBgs.push({ ...next, source: 'ai', isRequired: true });
             }
-            while (selectedItems.length < 1 && aiItemsPool.length > 0) {
+            while (selectedItems.length < castConfig.items && aiItemsPool.length > 0) {
                 const next = aiItemsPool.shift()!;
                 if (!selectedItems.some((c) => c.id === next.id)) selectedItems.push({ ...next, source: 'ai', isRequired: true });
             }
@@ -191,7 +201,7 @@ const StoryboardPage: React.FC = () => {
             <div className="page-container" style={{ minHeight: 0, height: 'calc(100vh - 56px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 {/* 헤더 */}
                 <div className="storyboard-header">
-                    <h2 className="storyboard-header__title">강철의 북진</h2>
+                    <h2 className="storyboard-header__title">{title || 'Untitled Project'}</h2>
                     <div className="storyboard-header__center">
                         <WorkflowSteps
                             currentMain={narrationMain}
@@ -230,7 +240,7 @@ const StoryboardPage: React.FC = () => {
                     <SeedCheckPhase
                         scenes={scenes}
                         deck={deckApi.deck}
-                        selectedStyle={selectedStyle}
+                        artStyleId={artStyleId}
                         selectedScene={selectedScene}
                         setSelectedScene={setSelectedScene}
                         genApi={genApi}
@@ -266,7 +276,7 @@ const StoryboardPage: React.FC = () => {
         <div className="page-container" style={{ minHeight: 0, height: 'calc(100vh - 56px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {/* 헤더 */}
             <div className="storyboard-header">
-                <h2 className="storyboard-header__title">강철의 북진</h2>
+                <h2 className="storyboard-header__title">{title || 'Untitled Project'}</h2>
                 <div className="storyboard-header__center">
                     <WorkflowSteps
                         currentMain={workflowStep}
@@ -312,7 +322,7 @@ const StoryboardPage: React.FC = () => {
                 <SeedCheckPhase
                     scenes={scenes}
                     deck={deckApi.deck}
-                    selectedStyle={selectedStyle}
+                    artStyleId={artStyleId}
                     selectedScene={selectedScene}
                     setSelectedScene={setSelectedScene}
                     genApi={genApi}

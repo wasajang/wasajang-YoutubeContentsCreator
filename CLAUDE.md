@@ -254,51 +254,93 @@ npm run preview      # 프로덕션 빌드 프리뷰
 
 ---
 
-## 개발 현황 (2026-02-27 기준)
+## 개발 현황 (2026-03-01 기준)
 
 ### 완성된 것 ✅
-- 프론트엔드 UI 프로토타입 (모든 4단계 페이지)
+- 프론트엔드 UI 프로토타입 (9개 라우트, 듀얼 모드)
 - Git 버전 관리 + GitHub 리포지토리
 - Supabase 연동 (PostgreSQL + Auth + Storage)
 - Google OAuth 로그인 + 게스트 모드
 - 프로젝트 CRUD (Supabase ↔ localStorage 듀얼모드)
-- Zustand 전역 상태 관리 + **localStorage 영속성** (persist v3, 마이그레이션 포함)
-- IdeaPage: SCRIPT | STYLE | CAST 3탭 통합
-- StoryboardPage: 카드 선택 → 컷 분할 → 시드 매칭 & 생성 (Mock)
-- AI 서비스 프로바이더 패턴 (Mock/Real 전환 가능)
+- Zustand 전역 상태 관리 + **localStorage 영속성** (persist v9, 마이그레이션 포함)
+- HomePage: 단일 CTA("대본 작성으로 시작하기") + 템플릿 + My Cast + My Projects
+- IdeaPage: 좌우 분할 (대본 작성 + 스타일/프리셋 설정) 통합 화면
+- StoryboardPage: 카드 선택 → 컷 분할 → 시드 매칭 & AI 이미지/영상 생성
+- 듀얼 모드: 시네마틱(4스텝) + 나레이션(8스텝) 워크플로우
+- AI 서비스 프로바이더 패턴 (Mock/Gemini/OpenAI/Anthropic 전환 가능)
+- AI 모델 레지스트리 (script, image, video, tts 4카테고리)
+- Template 데이터 구조 (5개 공식 템플릿 + promptRules + castPreset)
+- CastPage: AI 생성 스튜디오 + 카드 라이브러리
+- SettingsPage: BYOK 관리 + 크레딧 추적
+- AdminPage: Dev 전용 프롬프트/프리셋 관리
+- PaymentPage: Stripe + 토스 결제 UI
+- 토스트 시스템 + CreditShortageModal + ErrorBoundary
 - 다크 테마 + 한국어 지원
 
 ### 현재 작업 중 🔄
-- **002-UX 플로우 개선** — plan.md v2.1 승인 완료, Phase 0 구현 대기
+- **011-데이터 정리 + UX 단순화** — 구현 완료, 브라우저 테스트 + 커밋 대기
 
 ### 미완성 ❌
-- UX 플로우 개선 (3진입점, CastPage, Settings, Admin)
-- AI 실 연동 (현재 Mock 모드)
-- 결제 시스템 (Stripe/토스)
+- 004: AI 실 연동 (Mock → Gemini/Real API 전환)
+- 005: 나레이션 모드 Beta 완성
+- 006: 결제 시스템 실 연동 (Stripe + 토스)
 - 테스트 코드
-- 배포 (Vercel)
+- 배포 (Vercel + Supabase)
 
 ---
 
 ## MVP 런칭 로드맵
 
-> **현재:** 002-UX 플로우 개선 작업 진행 중
-> **상세 계획:** `.plans/002-ux-flow/plan.md` (v2.1)
+> **현재:** 011 테스트/커밋 대기
+> **전체 현황:** `.plans/STATUS.md`
 > **프로덕트 비전:** `.plans/VISION.md`
 
-### 현재 작업: UX 플로우 개선 (002) ← NOW
-- Phase 0~7로 구성 (상세: plan.md v2.1)
-- 3진입점, CastPage, SettingsPage, AdminPage, AI 모델 선택 등
+### 런칭 순서
+```
+011 테스트/커밋 → 004 AI 실 연동 → 005 나레이션 Beta → 006 결제 → 배포
+```
 
-### 이후 작업 (순서는 유동적)
-- AI 이미지 실 연동 (Replicate/fal.ai)
-- AI 영상 실 연동 (Runway/Kling)
-- 결제 + 유료 플랜 (Stripe + 토스)
-- 배포 (Vercel + Supabase)
+### 계획 파일 구조
+```
+.plans/
+├── STATUS.md          ← 전체 현황판
+├── VISION.md          ← 프로덕트 비전
+├── 011-data-cleanup/  ← 현재 진행 중
+├── backlog/           ← 대기 (004, 005, 006)
+├── archive/           ← 완료 (001~003, 007~010)
+└── _templates/        ← 계획 템플릿
+```
 
 ---
 
 ## 변경 이력 (CHANGELOG)
+
+### 2026-03-01 - 세션 17: 프로젝트 문서 정리 + 현황 검토
+- **.plans/ 폴더 재구성**: archive/ (완료), backlog/ (대기), _templates/ 분리
+- **STATUS.md 생성**: 전체 계획 현황 한눈에 보기
+- **CLAUDE.md 최신화**: 개발 현황, 로드맵, 변경이력 전면 갱신
+- **메모리 파일 정리**: 낡은 changelog.md, project-status.md 삭제
+
+### 2026-03-01 - 세션 16: 011 구현 (데이터 정리 + UX 단순화)
+- **HomePage 단순화**: 3진입점 → 단일 CTA("대본 작성으로 시작하기")
+- **IdeaPage 통합**: SCRIPT/STYLE 탭 분리 → 좌우 분할 단일 화면
+- **프리셋 해제 로직**: 수동 변경 시 프리셋 하이라이트 자동 해제
+- **seed-check 버그 수정**: checked:false → true, 빈 배열 방어
+- **빌드 검증**: TypeScript 0 에러
+
+### 2026-02-28 - 세션 15: 010 고객여정 검증 Round 1
+- **7개 버그 수정**: selectedPreset, TTS 크레딧, 제목 하드코딩, checked 필터링 등
+- **타로 QA 검증**: 17개 체크항목 전부 통과
+
+### 2026-02-28 - 세션 14: 008 나레이션 버그 수정
+- **PresetInfoModal**: 제작 방식 표시
+- **CreditShortageModal**: 크레딧 부족 알림
+- **상태 복원**: 페이지 재진입 시 phase/deck 복원
+
+### 2026-02-28 - 세션 10~13: 002 Phase 0~7 구현 + 003 조직 구성
+- **002 완료**: 9페이지 UI, 듀얼 모드, AI 모델 레지스트리, CastPage, Settings, Admin
+- **003 완료**: 8에이전트 + 4스킬 체계 구축 (커밋 `675e4e2`)
+- **004~009**: AI 연동, 나레이션 모드, 결제, UX 리뷰, 테스트 모드
 
 ### 2026-02-27 - 세션 5~6: UX 플로우 리서치 + 계획
 - **UX 플로우 심층 리서치**: 전체 코드베이스 분석, research.md 작성 (770줄)

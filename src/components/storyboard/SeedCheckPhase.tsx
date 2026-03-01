@@ -9,7 +9,8 @@ import type { AssetCard, Scene } from '../../store/projectStore';
 import type { UseDeckApi } from '../../hooks/useDeck';
 import { MAX_DECK_SIZE } from '../../hooks/useDeck';
 import type { UseGenerationApi } from '../../hooks/useGeneration';
-import { stylePromptPrefix, mockScenePrompts } from '../../data/mockData';
+import { mockScenePrompts } from '../../data/mockData';
+import { getArtStylePromptPrefix } from '../../data/artStyles';
 import { getUserSelectableModels } from '../../data/aiModels';
 import CastStrip from './CastStrip';
 import ManualAddModal from './ManualAddModal';
@@ -19,7 +20,7 @@ import SceneFilmstrip from './SceneFilmstrip';
 interface SeedCheckPhaseProps {
     scenes: Scene[];
     deck: AssetCard[];
-    selectedStyle: string;
+    artStyleId: string;
     selectedScene: string | null;
     setSelectedScene: (id: string | null) => void;
     genApi: UseGenerationApi;
@@ -45,7 +46,7 @@ interface SeedCheckPhaseProps {
 const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
     scenes,
     deck,
-    selectedStyle,
+    artStyleId,
     selectedScene,
     setSelectedScene,
     genApi,
@@ -177,7 +178,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                             isSelected={selectedScene === scene.id}
                             sceneSeeds={sceneSeeds[scene.id] || []}
                             deck={deck}
-                            promptPrefix={stylePromptPrefix[selectedStyle] || stylePromptPrefix['Cinematic']}
+                            promptPrefix={getArtStylePromptPrefix(artStyleId)}
                             prompts={mockScenePrompts[scene.id]}
                             gradientFallback={getSceneGradient(index)}
                             onSelect={() => setSelectedScene(selectedScene === scene.id ? null : scene.id)}

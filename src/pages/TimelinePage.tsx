@@ -19,7 +19,7 @@ import {
 import WorkflowSteps from '../components/WorkflowSteps';
 import { useProjectStore } from '../store/projectStore';
 import type { SentenceTiming, Scene } from '../store/projectStore';
-import { getPresetById } from '../data/stylePresets';
+import { getTemplateById } from '../data/templates';
 import { mockStoryboardScenes } from '../data/mockData';
 import { generateTTS } from '../services/ai-tts';
 import { useCredits, CREDIT_COSTS } from '../hooks/useCredits';
@@ -48,7 +48,7 @@ const TimelinePage: React.FC = () => {
     const {
         title, scenes: storeScenes, aiModelPreferences, setAiModelPreference,
         mode, sentenceTimings, setSentenceTimings, narrativeAudioUrl, setNarrativeAudioUrl, setScenes,
-        narrationStep, setNarrationStep, selectedPreset,
+        narrationStep, setNarrationStep, templateId,
     } = useProjectStore();
 
     // store 씬이 없으면 mockData 폴백
@@ -91,8 +91,13 @@ const TimelinePage: React.FC = () => {
             alert('대본이 없습니다. IdeaPage에서 먼저 대본을 작성해주세요.');
             return;
         }
+        // NOTE: 현재 데드 코드 (NarrationVoiceStep이 TTS 직접 처리). 방어적 크레딧 체크.
+        if (!canAfford('tts')) {
+            alert('크레딧이 부족합니다!');
+            return;
+        }
         setNarrativeTtsGenerating(true);
-        const narrativePreset = selectedPreset ? getPresetById(selectedPreset) : null;
+        const narrativePreset = templateId ? getTemplateById(templateId) : null;
         try {
             const result = await generateTTS({
                 text,
@@ -102,6 +107,7 @@ const TimelinePage: React.FC = () => {
                 speed: narrativePreset?.voice?.speed,
             });
             setNarrativeAudioUrl(result.audioUrl);
+            spend('tts');
 
             // 문장 단위 타이밍 추정 (한국어 4자/초)
             const sentences = text.match(/[^.!?。\n]+[.!?。]?/g) || [text];
@@ -124,7 +130,7 @@ const TimelinePage: React.FC = () => {
         } finally {
             setNarrativeTtsGenerating(false);
         }
-    }, [fullScript, aiModelPreferences.tts, selectedPreset, setNarrativeAudioUrl, setSentenceTimings]);
+    }, [fullScript, canAfford, spend, aiModelPreferences.tts, templateId, setNarrativeAudioUrl, setSentenceTimings]);
 
     // 나레이션 모드 — 씬 자동 분할 후 스토리보드로 이동
     const handleAutoSplit = useCallback(() => {
@@ -285,12 +291,12 @@ const TimelinePage: React.FC = () => {
         const clip = clips.find((c) => c.id === clipId);
         if (!clip || ttsGenerating[clipId]) return;
 
-        if (!canAfford('script', 1)) {
+        if (!canAfford('tts', 1)) {
             alert('크레딧이 부족합니다!');
             return;
         }
 
-        const activePreset = selectedPreset ? getPresetById(selectedPreset) : null;
+        const activePreset = templateId ? getTemplateById(templateId) : null;
 
         setTtsGenerating((prev) => ({ ...prev, [clipId]: true }));
         try {
@@ -302,7 +308,7 @@ const TimelinePage: React.FC = () => {
                 speed: activePreset?.voice?.speed,
             });
 
-            spend('script', 1); // TTS도 script 크레딧 1 사용
+            spend('tts', 1);
 
             setClips((prev) =>
                 prev.map((c) =>
@@ -315,14 +321,14 @@ const TimelinePage: React.FC = () => {
         } finally {
             setTtsGenerating((prev) => ({ ...prev, [clipId]: false }));
         }
-    }, [clips, ttsGenerating, canAfford, spend, aiModelPreferences.tts, selectedPreset]);
+    }, [clips, ttsGenerating, canAfford, spend, aiModelPreferences.tts, templateId]);
 
     // ── TTS 전체 일괄 생성 ──
     const handleGenerateAllTTS = useCallback(async () => {
         const pendingClips = clips.filter((c) => !c.audioUrl);
         if (pendingClips.length === 0) return;
 
-        const totalCost = pendingClips.length * CREDIT_COSTS.script;
+        const totalCost = pendingClips.length * CREDIT_COSTS.tts;
         if (credits < totalCost) {
             alert(`크레딧이 부족합니다! (필요: ${totalCost}, 보유: ${credits})`);
             return;
@@ -330,7 +336,7 @@ const TimelinePage: React.FC = () => {
 
         setTtsAllGenerating(true);
         let generated = 0;
-        const batchPreset = selectedPreset ? getPresetById(selectedPreset) : null;
+        const batchPreset = templateId ? getTemplateById(templateId) : null;
 
         for (const clip of pendingClips) {
             setTtsGenerating((prev) => ({ ...prev, [clip.id]: true }));
@@ -343,7 +349,7 @@ const TimelinePage: React.FC = () => {
                     speed: batchPreset?.voice?.speed,
                 });
 
-                spend('script', 1);
+                spend('tts', 1);
                 generated++;
 
                 setClips((prev) =>
@@ -360,7 +366,7 @@ const TimelinePage: React.FC = () => {
 
         setTtsAllGenerating(false);
         console.log(`[TTS] 전체 생성 완료: ${generated}/${pendingClips.length}`);
-    }, [clips, credits, spend, aiModelPreferences.tts, selectedPreset]);
+    }, [clips, credits, spend, aiModelPreferences.tts, templateId]);
 
     const ttsCount = clips.filter((c) => c.audioUrl).length;
     const ttsPendingCount = clips.length - ttsCount;
@@ -665,7 +671,7 @@ const TimelinePage: React.FC = () => {
                     className="tl-toolbar__btn tl-toolbar__btn--tts"
                     onClick={handleGenerateAllTTS}
                     disabled={ttsAllGenerating || ttsPendingCount === 0}
-                    title={`${ttsPendingCount}개 클립에 TTS 음성 생성 (각 ${CREDIT_COSTS.script} 크레딧)`}
+                    title={`${ttsPendingCount}개 클립에 TTS 음성 생성 (각 ${CREDIT_COSTS.tts} 크레딧)`}
                 >
                     {ttsAllGenerating ? <Loader size={13} className="spin" /> : <Mic size={13} />}
                     {ttsAllGenerating ? 'TTS 생성 중...' : `TTS 전체 생성 (${ttsPendingCount})`}

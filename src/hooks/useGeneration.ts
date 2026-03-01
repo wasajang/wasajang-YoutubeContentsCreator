@@ -17,14 +17,14 @@ type SceneGenStatus = 'idle' | 'generating' | 'done';
 interface UseGenerationParams {
     scenes: Scene[];
     deck: AssetCard[];
-    selectedStyle: string;
+    artStyleId: string;
     canAfford: (type: GenerationType, count?: number) => boolean;
     spend: (type: GenerationType) => boolean;
     creditsRemaining: number;
     CREDIT_COSTS: Record<GenerationType, number>;
     imageModel?: string;
     videoModel?: string;
-    presetId?: string;
+    templateId?: string;
     aspectRatio?: string;
     onCreditShortage?: (required: number, label: string) => void;
 }
@@ -32,14 +32,14 @@ interface UseGenerationParams {
 export function useGeneration({
     scenes,
     deck,
-    selectedStyle,
+    artStyleId,
     canAfford,
     spend,
     creditsRemaining,
     CREDIT_COSTS,
     imageModel,
     videoModel,
-    presetId,
+    templateId,
     aspectRatio,
     onCreditShortage,
 }: UseGenerationParams) {
@@ -92,18 +92,18 @@ export function useGeneration({
                 .filter((c): c is AssetCard => !!c);
 
             const prompt = buildImagePrompt({
-                style: selectedStyle,
+                artStyleId,
                 sceneText: scene.text,
                 seedCards,
                 customImagePrompt: mockScenePrompts[sceneId]?.imagePrompt,
                 cameraAngle: scene.cameraAngle,
                 location: scene.location,
-                presetId,
+                templateId,
             });
 
             // aspectRatio로 width/height 계산
             const { width, height } = aspectRatioToSize(aspectRatio || '16:9');
-            const negativePrompt = getNegativePrompt(presetId);
+            const negativePrompt = getNegativePrompt(templateId, artStyleId);
 
             const result = await generateImage({
                 prompt,
@@ -120,7 +120,7 @@ export function useGeneration({
             console.error(`[Scene ${sceneId}] 이미지 생성 실패:`, err);
             setSceneGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
         }
-    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS, presetId, aspectRatio, imageModel, onCreditShortage, updateSceneImage]);
+    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, aspectRatio, imageModel, onCreditShortage, updateSceneImage]);
 
     const generateAllScenes = useCallback(() => {
         const pending = scenes.filter((s) => sceneGenStatus[s.id] === 'idle');
@@ -156,11 +156,11 @@ export function useGeneration({
                 .filter((c): c is AssetCard => !!c);
 
             const prompt = buildVideoPrompt({
-                style: selectedStyle,
+                artStyleId,
                 sceneText: scene.text,
                 seedCards,
                 cameraAngle: scene.cameraAngle,
-                presetId,
+                templateId,
             });
             await generateVideo({
                 imageUrl: scene.imageUrl || '',
@@ -174,7 +174,7 @@ export function useGeneration({
             console.error(`[Video ${sceneId}] 영상 생성 실패:`, err);
             setVideoGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
         }
-    }, [scenes, sceneSeeds, deck, selectedStyle, canAfford, spend, creditsRemaining, CREDIT_COSTS, presetId, videoModel, onCreditShortage]);
+    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, videoModel, onCreditShortage]);
 
     const generateAllVideos = useCallback(() => {
         const pending = scenes.filter((s) => videoGenStatus[s.id] !== 'done');
@@ -196,9 +196,9 @@ export function useGeneration({
     }, [generateSingleVideo]);
 
     const doneSceneCount = Object.values(sceneGenStatus).filter((s) => s === 'done').length;
-    const allImagesDone = doneSceneCount === scenes.length;
+    const allImagesDone = scenes.length > 0 && doneSceneCount === scenes.length;
     const doneVideoCount = Object.values(videoGenStatus).filter((s) => s === 'done').length;
-    const allVideosDone = doneVideoCount === scenes.length;
+    const allVideosDone = scenes.length > 0 && doneVideoCount === scenes.length;
 
     return {
         sceneGenStatus,

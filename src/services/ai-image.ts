@@ -139,19 +139,14 @@ const geminiProvider: ImageProvider = {
         const startTime = Date.now();
 
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-0514:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: req.prompt }] }],
                     generationConfig: {
-                        responseModalities: ['IMAGE'],
-                        imageConfig: {
-                            aspectRatio: req.width && req.height
-                                ? (req.width > req.height ? '16:9' : req.width < req.height ? '9:16' : '1:1')
-                                : '16:9',
-                        },
+                        responseModalities: ['IMAGE', 'TEXT'],
                     },
                 }),
             }
@@ -164,13 +159,13 @@ const geminiProvider: ImageProvider = {
 
         const data = await response.json();
         const parts = data.candidates?.[0]?.content?.parts || [];
-        const imagePart = parts.find((p: { inline_data?: { data: string; mime_type: string } }) => p.inline_data);
-        if (!imagePart?.inline_data?.data) {
+        const imagePart = parts.find((p: { inlineData?: { data: string; mimeType: string } }) => p.inlineData);
+        if (!imagePart?.inlineData?.data) {
             throw new Error('Gemini 응답에 이미지 데이터가 없습니다.');
         }
 
-        const mimeType = imagePart.inline_data.mime_type || 'image/png';
-        const base64Data = imagePart.inline_data.data;
+        const mimeType = imagePart.inlineData.mimeType || 'image/png';
+        const base64Data = imagePart.inlineData.data;
         const imageUrl = `data:${mimeType};base64,${base64Data}`;
 
         return {

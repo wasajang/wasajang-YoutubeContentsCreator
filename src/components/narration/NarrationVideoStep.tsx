@@ -32,8 +32,8 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
   const setNarrationClips    = useProjectStore((s) => s.setNarrationClips);
   const aiModelPreferences   = useProjectStore((s) => s.aiModelPreferences);
   const setAiModelPreference = useProjectStore((s) => s.setAiModelPreference);
-  const selectedStyle        = useProjectStore((s) => s.selectedStyle);
-  const selectedPreset       = useProjectStore((s) => s.selectedPreset);
+  const artStyleId           = useProjectStore((s) => s.artStyleId);
+  const templateId           = useProjectStore((s) => s.templateId);
 
   const { canAfford, spend, getCost } = useCredits();
 
@@ -100,10 +100,10 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
         if (!spend('video')) break;
 
         const videoPrompt = buildVideoPrompt({
-          style: selectedStyle,
+          artStyleId: artStyleId ?? 'cinematic',
           sceneText: clip.text,
           seedCards: [],
-          presetId: selectedPreset ?? undefined,
+          templateId: templateId ?? undefined,
         });
 
         const result = await generateVideo({

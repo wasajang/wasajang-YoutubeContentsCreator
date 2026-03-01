@@ -29,13 +29,13 @@ export const AI_MODELS: AIModel[] = [
     // 🔓 대본 AI (사용자 선택)
     { id: 'gpt-4o-mini',    name: 'GPT-4o Mini',    provider: 'openai',    category: 'script', creditCost: 1, isDefault: true },
     { id: 'claude-haiku',   name: 'Claude 3 Haiku', provider: 'anthropic', category: 'script', creditCost: 1 },
-    { id: 'gemini-flash',   name: 'Gemini Flash',   provider: 'google',    category: 'script', creditCost: 1 },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'google', category: 'script', creditCost: 1 },
 
     // 🔓 이미지 AI (사용자 선택)
     { id: 'flux-schnell',   name: 'Flux Schnell',   provider: 'replicate', category: 'image', creditCost: 1, isDefault: true },
     { id: 'sdxl',           name: 'SDXL',           provider: 'replicate', category: 'image', creditCost: 2 },
     { id: 'dall-e-3',       name: 'DALL-E 3',       provider: 'openai',    category: 'image', creditCost: 2 },
-    { id: 'gemini-image',   name: 'Gemini Image',   provider: 'google',    category: 'image', creditCost: 1 },
+    { id: 'gemini-2.0-flash-exp-image-generation', name: 'Gemini Image', provider: 'google', category: 'image', creditCost: 1 },
 
     // 🔓 영상 AI (사용자 선택)
     { id: 'runway-gen3',    name: 'Runway Gen-3',   provider: 'runway',    category: 'video', creditCost: 3, isDefault: true },
