@@ -34,6 +34,8 @@ interface SceneRowProps {
     /** 영상 생성 대상 선택 */
     isSelectedForVideo?: boolean;
     onToggleVideoSelection?: () => void;
+    /** 씬별 서브이미지 배열 (videoCount만큼) */
+    sceneImages?: string[];
 }
 
 const SceneRow: React.FC<SceneRowProps> = ({
@@ -42,7 +44,7 @@ const SceneRow: React.FC<SceneRowProps> = ({
     imagePrompt, videoPrompt, onImagePromptChange, onVideoPromptChange,
     gradientFallback, onSelect, onGenerateImage, onRegenerateVideo, onToggleSeed,
     artStyleLabel, aspectRatio, seedSummary,
-    isSelectedForVideo, onToggleVideoSelection,
+    isSelectedForVideo, onToggleVideoSelection, sceneImages,
 }) => (
     <React.Fragment>
         {Array.from({ length: videoCount }, (_, subIdx) => (
@@ -51,25 +53,36 @@ const SceneRow: React.FC<SceneRowProps> = ({
                 className={`sc-row ${isSelected ? 'sc-row--selected' : ''} ${genStatus === 'done' ? 'sc-row--done' : ''} ${subIdx > 0 ? 'sc-row--sub-row' : ''}`}
                 onClick={onSelect}
             >
-                {/* Col 1: Image */}
+                {/* Col 1: Image — 서브인덱스별 이미지 표시 */}
                 <div className="sc-row__img-col">
-                    {genStatus === 'done' && scene.imageUrl ? (
-                        <div className="sc-row__img" style={{ backgroundImage: `url(${scene.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                            <button className="sc-row__regen-overlay-btn" onClick={(e) => { e.stopPropagation(); onGenerateImage(scene.id); }} title="이미지 재생성">
-                                <RefreshCw size={11} /> 재생성
-                            </button>
-                            <span className="sc-row__done-badge"><CheckCircle2 size={12} /></span>
-                        </div>
-                    ) : genStatus === 'generating' ? (
-                        <div className="sc-row__img sc-row__img--gen"><Loader size={20} className="animate-spin" /><span>생성 중...</span></div>
-                    ) : (
-                        <div className="sc-row__img sc-row__img--empty">
-                            <span className="sc-row__img-num">{String(index + 1).padStart(2, '0')}{videoCount > 1 ? `-${subIdx + 1}` : ''}</span>
-                            <button className="sc-row__gen-btn" onClick={(e) => { e.stopPropagation(); onGenerateImage(scene.id); }}>
-                                <Sparkles size={11} /> 개별 생성
-                            </button>
-                        </div>
-                    )}
+                    {(() => {
+                        const subImageUrl = sceneImages?.[subIdx] || (subIdx === 0 ? scene.imageUrl : undefined);
+                        const subDone = !!(subImageUrl && subImageUrl.length > 0);
+                        const isGenerating = genStatus === 'generating' && !subDone;
+                        if (subDone) {
+                            return (
+                                <div className="sc-row__img" style={{ backgroundImage: `url(${subImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                                    <button className="sc-row__regen-overlay-btn" onClick={(e) => { e.stopPropagation(); onGenerateImage(scene.id); }} title="이미지 재생성">
+                                        <RefreshCw size={11} /> 재생성
+                                    </button>
+                                    <span className="sc-row__done-badge"><CheckCircle2 size={12} /></span>
+                                </div>
+                            );
+                        } else if (isGenerating) {
+                            return (
+                                <div className="sc-row__img sc-row__img--gen"><Loader size={20} className="animate-spin" /><span>생성 중...</span></div>
+                            );
+                        } else {
+                            return (
+                                <div className="sc-row__img sc-row__img--empty">
+                                    <span className="sc-row__img-num">{String(index + 1).padStart(2, '0')}{videoCount > 1 ? `-${subIdx + 1}` : ''}</span>
+                                    <button className="sc-row__gen-btn" onClick={(e) => { e.stopPropagation(); onGenerateImage(scene.id); }}>
+                                        <Sparkles size={11} /> 개별 생성
+                                    </button>
+                                </div>
+                            );
+                        }
+                    })()}
                 </div>
 
                 {/* Col 2: Seed Cards */}

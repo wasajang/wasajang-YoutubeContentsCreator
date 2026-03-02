@@ -82,7 +82,9 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
         updatePrompt,
         selectedForVideo,
         toggleVideoSelection,
+        isSceneSelectedForVideo,
         generateSelectedVideos,
+        sceneImages,
     } = genApi;
 
     const {
@@ -197,8 +199,9 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 artStyleLabel={getArtStyleById(artStyleId)?.nameKo || artStyleId}
                                 aspectRatio={aspectRatio || '16:9'}
                                 seedSummary={seedSummaryText}
-                                isSelectedForVideo={selectedForVideo.has(scene.id)}
+                                isSelectedForVideo={isSceneSelectedForVideo(scene.id)}
                                 onToggleVideoSelection={() => toggleVideoSelection(scene.id)}
+                                sceneImages={sceneImages[scene.id]}
                             />
                         );
                     })}
@@ -214,33 +217,43 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                 getGradient={getSceneGradient}
                 onFrameClick={(id) => setSelectedScene(id)}
                 videoCountPerScene={videoCountPerScene}
+                sceneImages={sceneImages}
             />
 
-            {/* 영상 미리보기 (이미지 생성 완료 후 표시) */}
+            {/* 영상 미리보기 (이미지 생성 완료 후 표시) — 서브이미지 단위 */}
             {allImagesDone && (
                 <div className="sc-video-filmstrip">
                     <span className="sc-video-filmstrip__label">영상 미리보기</span>
                     <div className="sc-video-filmstrip__list">
-                        {scenes.map((scene) => (
-                            <div key={scene.id} className="sc-video-filmstrip__item">
-                                {scene.videoUrl ? (
-                                    <video
-                                        src={scene.videoUrl}
-                                        className="sc-video-filmstrip__video"
-                                        controls
-                                        muted
-                                    />
-                                ) : (
-                                    <div className="sc-video-filmstrip__placeholder">
-                                        {videoGenStatus[scene.id] === 'generating' ? (
-                                            <Loader size={14} className="spinning" />
+                        {scenes.flatMap((scene) => {
+                            const vc = videoCountPerScene[scene.id] || 1;
+                            return Array.from({ length: vc }, (_, sub) => {
+                                const key = `${scene.id}-${sub}`;
+                                const subImageUrl = sceneImages[scene.id]?.[sub] || scene.imageUrl;
+                                const label = vc > 1 ? `${scenes.indexOf(scene) + 1}-${sub + 1}` : String(scenes.indexOf(scene) + 1).padStart(2, '0');
+                                return (
+                                    <div key={key} className="sc-video-filmstrip__item">
+                                        {scene.videoUrl && sub === 0 ? (
+                                            <video
+                                                src={scene.videoUrl}
+                                                className="sc-video-filmstrip__video"
+                                                controls
+                                                muted
+                                            />
                                         ) : (
-                                            <Video size={14} style={{ opacity: 0.3 }} />
+                                            <div className="sc-video-filmstrip__placeholder" style={subImageUrl ? { backgroundImage: `url(${subImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+                                                <span className="sc-video-filmstrip__sub-label">{label}</span>
+                                                {videoGenStatus[scene.id] === 'generating' ? (
+                                                    <Loader size={14} className="spinning" />
+                                                ) : (
+                                                    <Video size={14} style={{ opacity: subImageUrl ? 0.8 : 0.3 }} />
+                                                )}
+                                            </div>
                                         )}
                                     </div>
-                                )}
-                            </div>
-                        ))}
+                                );
+                            });
+                        })}
                     </div>
                 </div>
             )}
@@ -313,7 +326,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 이미지 완료! 영상 생성할 씬 선택
                             </span>
                             <button className="btn-secondary sb-bottom-actions__btn" onClick={generateSelectedVideos}>
-                                <Video size={14} /> 선택한 {selectedForVideo.size}개 영상 생성
+                                <Video size={14} /> 선택한 {new Set(Array.from(selectedForVideo).map((k) => k.split('-').slice(0, -1).join('-'))).size}개 씬 영상 생성
                             </button>
                             <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllVideos}>
                                 <Video size={14} /> 전체 영상 생성

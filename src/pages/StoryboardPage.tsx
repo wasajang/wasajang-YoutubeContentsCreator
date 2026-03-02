@@ -75,10 +75,10 @@ const StoryboardPage: React.FC = () => {
             const defaultDeck = aiSuggestedCards.slice(0, totalSlots).map((c) => ({ ...c, source: 'ai' as const }));
             deckApi.setDeck(defaultDeck);
             defaultDeck.forEach((c) => addToCardLibrary(c));
+            // 씨드 배정은 여기서 하지 않음 — "AI 분석 및 프롬프트 작성" 단계에서 수행
             genApi.setSceneSeeds((prev) => {
                 const updated = { ...prev };
-                const allCardIds = defaultDeck.map((c) => c.id);
-                scenes.forEach((s) => { updated[s.id] = [...allCardIds]; });
+                scenes.forEach((s) => { updated[s.id] = []; });
                 return updated;
             });
             setShowAiAnalysisModal(false);
@@ -115,10 +115,10 @@ const StoryboardPage: React.FC = () => {
             finalDeck.forEach((c) => addToCardLibrary(c));
             deckApi.setDeck(finalDeck);
 
+            // 씨드 배정은 여기서 하지 않음 — "AI 분석 및 프롬프트 작성" 단계에서 수행
             genApi.setSceneSeeds((prev) => {
                 const updated = { ...prev };
-                const allCardIds = finalDeck.map((c) => c.id);
-                scenes.forEach((s) => { updated[s.id] = [...allCardIds]; });
+                scenes.forEach((s) => { updated[s.id] = []; });
                 return updated;
             });
             setIsAiAnalyzing(false);

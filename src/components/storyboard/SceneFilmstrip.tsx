@@ -12,10 +12,12 @@ interface SceneFilmstripProps {
     onFrameClick: (sceneId: string) => void;
     /** 씬별 영상 개수 (서브이미지 표시용) */
     videoCountPerScene?: Record<string, number>;
+    /** 씬별 서브이미지 배열 (videoCount만큼) */
+    sceneImages?: Record<string, string[]>;
 }
 
 const SceneFilmstrip: React.FC<SceneFilmstripProps> = ({
-    scenes, sceneGenStatus, selectedScene, doneCount, getGradient, onFrameClick, videoCountPerScene,
+    scenes, sceneGenStatus, selectedScene, doneCount, getGradient, onFrameClick, videoCountPerScene, sceneImages,
 }) => {
     if (doneCount === 0) return null;
 
@@ -24,7 +26,9 @@ const SceneFilmstrip: React.FC<SceneFilmstripProps> = ({
     scenes.forEach((scene, i) => {
         const vc = videoCountPerScene?.[scene.id] || 1;
         for (let sub = 0; sub < vc; sub++) {
-            frames.push({ sceneId: scene.id, sceneIndex: i, subIndex: sub, total: vc, imageUrl: scene.imageUrl });
+            // 서브인덱스별 이미지 사용 (없으면 scene.imageUrl 폴백)
+            const subImageUrl = sceneImages?.[scene.id]?.[sub] || scene.imageUrl;
+            frames.push({ sceneId: scene.id, sceneIndex: i, subIndex: sub, total: vc, imageUrl: subImageUrl });
         }
     });
 

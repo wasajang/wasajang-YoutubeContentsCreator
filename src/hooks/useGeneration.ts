@@ -52,6 +52,16 @@ export function useGeneration({
         return init;
     });
 
+    // 씬별 서브이미지 배열 (videoCount만큼 생성)
+    // key: sceneId, value: string[] (서브인덱스 순서대로 imageUrl)
+    const [sceneImages, setSceneImages] = useState<Record<string, string[]>>(() => {
+        const init: Record<string, string[]> = {};
+        scenes.forEach((s) => {
+            init[s.id] = s.imageUrl ? [s.imageUrl] : [];
+        });
+        return init;
+    });
+
     // scenes가 변경되면 sceneGenStatus에 새 씬 추가
     useEffect(() => {
         setSceneGenStatus((prev) => {
@@ -141,7 +151,8 @@ export function useGeneration({
         });
     };
 
-    const generateSingleScene = useCallback(async (sceneId: string) => {
+    // 씬의 특정 서브인덱스 이미지를 생성하는 내부 함수
+    const generateSubImage = useCallback(async (sceneId: string, subIndex: number) => {
         if (!canAfford('image')) {
             if (onCreditShortage) {
                 onCreditShortage(CREDIT_COSTS.image, '이미지 생성');
@@ -151,7 +162,12 @@ export function useGeneration({
             return;
         }
         if (!spend('image')) return;
-        setSceneGenStatus((p) => ({ ...p, [sceneId]: 'generating' }));
+
+        // 첫 번째 서브이미지 생성 시 씬 전체 상태를 generating으로 표시
+        if (subIndex === 0) {
+            setSceneGenStatus((p) => ({ ...p, [sceneId]: 'generating' }));
+        }
+
         try {
             const scene = scenes.find((s) => s.id === sceneId);
             if (!scene) return;
@@ -169,7 +185,6 @@ export function useGeneration({
                 templateId,
             });
 
-            // aspectRatio로 width/height 계산
             const { width, height } = aspectRatioToSize(aspectRatio || '16:9');
             const negativePrompt = getNegativePrompt(templateId, artStyleId);
 
@@ -181,29 +196,68 @@ export function useGeneration({
                 seed: seedCards[0]?.seed,
                 model: imageModel,
             });
-            console.log(`[Scene ${sceneId}] 이미지 생성 완료: ${result.imageUrl}`);
-            updateSceneImage(sceneId, result.imageUrl);
-            setSceneGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
+
+            console.log(`[Scene ${sceneId}][sub ${subIndex}] 이미지 생성 완료: ${result.imageUrl}`);
+
+            // sceneImages 배열에 서브인덱스 위치에 저장
+            setSceneImages((prev) => {
+                const arr = [...(prev[sceneId] || [])];
+                arr[subIndex] = result.imageUrl;
+                return { ...prev, [sceneId]: arr };
+            });
+
+            // subIndex === 0이면 기존 scene.imageUrl도 업데이트 (하위 호환)
+            if (subIndex === 0) {
+                updateSceneImage(sceneId, result.imageUrl);
+            }
         } catch (err) {
-            console.error(`[Scene ${sceneId}] 이미지 생성 실패:`, err);
-            setSceneGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
+            console.error(`[Scene ${sceneId}][sub ${subIndex}] 이미지 생성 실패:`, err);
         }
     }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, aspectRatio, imageModel, onCreditShortage, updateSceneImage, customPrompts]);
 
+    // 기존 generateSingleScene — 서브인덱스 0번만 생성 (단일 호출 및 재생성용)
+    const generateSingleScene = useCallback(async (sceneId: string) => {
+        setSceneGenStatus((p) => ({ ...p, [sceneId]: 'generating' }));
+        await generateSubImage(sceneId, 0);
+        // 단일 씬 재생성 완료 후 상태 업데이트
+        setSceneGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
+    }, [generateSubImage]);
+
     const generateAllScenes = useCallback(() => {
-        const pending = scenes.filter((s) => sceneGenStatus[s.id] !== 'done' && sceneGenStatus[s.id] !== 'generating');
-        if (!canAfford('image', pending.length)) {
+        // videoCount 포함해서 총 이미지 수 계산
+        let totalImages = 0;
+        const tasks: Array<{ sceneId: string; subIndex: number }> = [];
+
+        scenes.forEach((scene) => {
+            const vc = videoCountPerScene[scene.id] || 1;
+            // 이미 모든 서브이미지가 완료된 씬은 건너뜀
+            const existingImages = sceneImages[scene.id] || [];
+            const doneCount = existingImages.filter((url) => url && url.length > 0).length;
+            if (doneCount >= vc) return;
+
+            for (let sub = 0; sub < vc; sub++) {
+                if (!existingImages[sub] || existingImages[sub].length === 0) {
+                    tasks.push({ sceneId: scene.id, subIndex: sub });
+                    totalImages++;
+                }
+            }
+        });
+
+        if (totalImages === 0) return;
+
+        if (!canAfford('image', totalImages)) {
             if (onCreditShortage) {
-                onCreditShortage(pending.length * CREDIT_COSTS.image, `이미지 전체 생성 (${pending.length}장)`);
+                onCreditShortage(totalImages * CREDIT_COSTS.image, `이미지 전체 생성 (${totalImages}장)`);
             } else {
-                alert(`크레딧이 부족합니다! (${pending.length}장 × ${CREDIT_COSTS.image} = ${pending.length * CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+                alert(`크레딧이 부족합니다! (${totalImages}장 × ${CREDIT_COSTS.image} = ${totalImages * CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
             }
             return;
         }
-        pending.forEach((scene, i) => {
-            setTimeout(() => generateSingleScene(scene.id), i * 600);
+
+        tasks.forEach((task, i) => {
+            setTimeout(() => generateSubImage(task.sceneId, task.subIndex), i * 600);
         });
-    }, [scenes, sceneGenStatus, generateSingleScene, canAfford, creditsRemaining, CREDIT_COSTS, onCreditShortage]);
+    }, [scenes, videoCountPerScene, sceneImages, generateSubImage, canAfford, creditsRemaining, CREDIT_COSTS, onCreditShortage]);
 
     const generateSingleVideo = useCallback(async (sceneId: string) => {
         if (!canAfford('video')) {
@@ -266,37 +320,84 @@ export function useGeneration({
         generateSingleVideo(sceneId);
     }, [generateSingleVideo]);
 
-    const doneSceneCount = scenes.filter((s) => sceneGenStatus[s.id] === 'done').length;
+    // 씬별 done 판정: 해당 씬의 모든 서브이미지가 생성 완료된 경우
+    const isSceneDone = useCallback((sceneId: string) => {
+        const vc = videoCountPerScene[sceneId] || 1;
+        const images = sceneImages[sceneId] || [];
+        return images.filter((url) => url && url.length > 0).length >= vc;
+    }, [videoCountPerScene, sceneImages]);
+
+    // sceneGenStatus를 sceneImages 기반으로 동기화
+    useEffect(() => {
+        setSceneGenStatus((prev) => {
+            const updated = { ...prev };
+            let changed = false;
+            scenes.forEach((s) => {
+                const done = isSceneDone(s.id);
+                if (done && updated[s.id] !== 'done') {
+                    updated[s.id] = 'done';
+                    changed = true;
+                }
+            });
+            return changed ? updated : prev;
+        });
+    }, [sceneImages, scenes, isSceneDone]);
+
+    const doneSceneCount = scenes.filter((s) => isSceneDone(s.id)).length;
     const allImagesDone = scenes.length > 0 && doneSceneCount === scenes.length;
     const doneVideoCount = scenes.filter((s) => videoGenStatus[s.id] === 'done').length;
     const allVideosDone = scenes.length > 0 && doneVideoCount === scenes.length;
 
-    // 영상 생성 대상 선택 상태
+    // 영상 생성 대상 선택 상태 — 키: "sceneId-subIndex" 형태
     const [selectedForVideo, setSelectedForVideo] = useState<Set<string>>(new Set());
 
-    // 이미지 전부 완료 시 자동으로 전체 선택
+    // 이미지 전부 완료 시 자동으로 전체 선택 (sceneId-subIndex 키로)
     useEffect(() => {
         if (allImagesDone && selectedForVideo.size === 0) {
-            setSelectedForVideo(new Set(scenes.map((s) => s.id)));
+            const allKeys = new Set<string>();
+            scenes.forEach((s) => {
+                const vc = videoCountPerScene[s.id] || 1;
+                for (let i = 0; i < vc; i++) {
+                    allKeys.add(`${s.id}-${i}`);
+                }
+            });
+            setSelectedForVideo(allKeys);
         }
     }, [allImagesDone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // 씬 단위 선택 여부 판정 (SceneRow isSelectedForVideo 호환용)
+    const isSceneSelectedForVideo = useCallback((sceneId: string) => {
+        const vc = videoCountPerScene[sceneId] || 1;
+        for (let i = 0; i < vc; i++) {
+            if (selectedForVideo.has(`${sceneId}-${i}`)) return true;
+        }
+        return false;
+    }, [selectedForVideo, videoCountPerScene]);
 
     const toggleVideoSelection = useCallback((sceneId: string) => {
         setSelectedForVideo((prev) => {
             const next = new Set(prev);
-            if (next.has(sceneId)) next.delete(sceneId);
-            else next.add(sceneId);
+            const vc = videoCountPerScene[sceneId] || 1;
+            const allSelected = Array.from({ length: vc }, (_, i) => `${sceneId}-${i}`).every((k) => next.has(k));
+            for (let i = 0; i < vc; i++) {
+                const key = `${sceneId}-${i}`;
+                if (allSelected) next.delete(key);
+                else next.add(key);
+            }
             return next;
         });
-    }, []);
+    }, [videoCountPerScene]);
 
     const generateSelectedVideos = useCallback(() => {
-        const targets = scenes.filter(
-            (s) =>
-                selectedForVideo.has(s.id) &&
-                videoGenStatus[s.id] !== 'done' &&
-                videoGenStatus[s.id] !== 'generating',
-        );
+        // selectedForVideo 키에서 sceneId 추출 (중복 제거)
+        const targetSceneIds = new Set<string>();
+        selectedForVideo.forEach((key) => {
+            const sceneId = key.split('-').slice(0, -1).join('-');
+            if (videoGenStatus[sceneId] !== 'done' && videoGenStatus[sceneId] !== 'generating') {
+                targetSceneIds.add(sceneId);
+            }
+        });
+        const targets = scenes.filter((s) => targetSceneIds.has(s.id));
         if (!canAfford('video', targets.length)) {
             if (onCreditShortage) {
                 onCreditShortage(targets.length * CREDIT_COSTS.video, `선택 영상 생성 (${targets.length}편)`);
@@ -317,6 +418,7 @@ export function useGeneration({
         setSceneSeeds,
         toggleSceneSeed,
         generateSingleScene,
+        generateSubImage,
         generateAllScenes,
         generateSingleVideo,
         generateAllVideos,
@@ -330,7 +432,9 @@ export function useGeneration({
         updatePrompt,
         selectedForVideo,
         toggleVideoSelection,
+        isSceneSelectedForVideo,
         generateSelectedVideos,
+        sceneImages,
     };
 }
 

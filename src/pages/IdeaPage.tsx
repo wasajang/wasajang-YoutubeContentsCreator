@@ -19,37 +19,47 @@ type InputMode = 'script' | 'idea';
 // ── 텍스트를 N개 씬으로 균등 분할하는 함수 ──
 function splitScriptIntoScenes(text: string, count: number) {
     const source = text.trim() || mockScript.join('\n\n');
-    const paragraphs = source
-        .split(/\n{2,}/)
-        .map((p) => p.trim())
-        .filter(Boolean);
 
-    if (paragraphs.length === 0) return [];
+    // 다단계 분할: 빈 줄 → 줄바꿈 → 문장 → 글자 수
+    let chunks = source.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
 
-    const result: string[] = [];
-    const total = paragraphs.length;
-    const targetCount = Math.min(count, total);
-
-    if (total >= targetCount) {
-        const groupSize = total / targetCount;
-        for (let i = 0; i < targetCount; i++) {
-            const start = Math.round(i * groupSize);
-            const end = Math.round((i + 1) * groupSize);
-            result.push(paragraphs.slice(start, end).join(' '));
-        }
-    } else {
-        result.push(...paragraphs);
-        while (result.length < targetCount) {
-            const longest = result.reduce((a, b) => (a.length > b.length ? a : b));
-            const idx = result.indexOf(longest);
-            const sentences = longest.match(/[^.!?]+[.!?]*/g) ?? [longest];
-            if (sentences.length <= 1) break;
-            const mid = Math.ceil(sentences.length / 2);
-            result.splice(idx, 1, sentences.slice(0, mid).join(''), sentences.slice(mid).join(''));
-        }
+    // 빈 줄 기준으로 충분하지 않으면 줄바꿈 기준 추가 분할
+    if (chunks.length < count) {
+        chunks = source.split(/\n+/).map((p) => p.trim()).filter(Boolean);
     }
 
-    return result.slice(0, targetCount).map((text, i) => ({
+    // 줄바꿈으로도 부족하면 문장 기준 분할 (. ! ? 。)
+    if (chunks.length < count) {
+        const sentences = source.match(/[^.!?。\n]+[.!?。]?/g)?.map((s) => s.trim()).filter(Boolean) ?? [source];
+        chunks = sentences;
+    }
+
+    if (chunks.length === 0) return [];
+
+    // 목표 씬 수로 균등 그룹화
+    const result: string[] = [];
+    const targetCount = Math.min(count, Math.max(chunks.length, 1));
+    const groupSize = chunks.length / targetCount;
+
+    for (let i = 0; i < targetCount; i++) {
+        const start = Math.round(i * groupSize);
+        const end = Math.round((i + 1) * groupSize);
+        result.push(chunks.slice(start, end).join(' '));
+    }
+
+    // 문장 분할로도 부족하면 가장 긴 것을 반복 분할
+    while (result.length < count) {
+        const longest = result.reduce((a, b) => (a.length > b.length ? a : b));
+        const idx = result.indexOf(longest);
+        if (longest.length < 20) break; // 너무 짧으면 더 이상 분할 안 함
+        const mid = Math.ceil(longest.length / 2);
+        // 공백 기준으로 가장 가까운 위치에서 분할
+        let splitPos = longest.lastIndexOf(' ', mid);
+        if (splitPos <= 0) splitPos = mid;
+        result.splice(idx, 1, longest.slice(0, splitPos).trim(), longest.slice(splitPos).trim());
+    }
+
+    return result.slice(0, count).filter((t) => t.length > 0).map((text, i) => ({
         id: `scene-${i + 1}`,
         text: text.trim(),
         location: '',
