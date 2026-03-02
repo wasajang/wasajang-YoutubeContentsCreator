@@ -251,7 +251,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                 <button className="btn-secondary" onClick={onPrevPhase}>
                     <ChevronLeft size={14} /> 이전
                 </button>
-                {/* nextLabel이 있으면 (나레이션 모드): 이미지 생성 완료 후 바로 다음 단계로 */}
+                {/* 나레이션/시네마틱 공통: 3단계 순차 */}
                 {nextLabel ? (
                     allImagesDone ? (
                         <>
@@ -263,7 +263,16 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 {nextLabel} <ArrowRight size={14} />
                             </button>
                         </>
+                    ) : Object.keys(customPrompts).length === 0 ? (
+                        /* Step 1: 프롬프트 미작성 → AI 분석 버튼 */
+                        <>
+                            <span className="sb-bottom-actions__info">프롬프트를 먼저 작성해주세요</span>
+                            <button className="btn-primary sb-bottom-actions__btn" onClick={initPrompts}>
+                                <Sparkles size={14} /> AI 분석 및 프롬프트 작성
+                            </button>
+                        </>
                     ) : (
+                        /* Step 2: 일괄 이미지 생성 */
                         <>
                             <span className="sb-bottom-actions__info">{doneSceneCount}/{scenes.length} 이미지</span>
                             <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllScenes}>

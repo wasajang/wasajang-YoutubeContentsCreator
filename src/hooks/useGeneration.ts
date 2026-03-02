@@ -176,7 +176,7 @@ export function useGeneration({
     }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, aspectRatio, imageModel, onCreditShortage, updateSceneImage, customPrompts]);
 
     const generateAllScenes = useCallback(() => {
-        const pending = scenes.filter((s) => sceneGenStatus[s.id] === 'idle');
+        const pending = scenes.filter((s) => sceneGenStatus[s.id] !== 'done' && sceneGenStatus[s.id] !== 'generating');
         if (!canAfford('image', pending.length)) {
             if (onCreditShortage) {
                 onCreditShortage(pending.length * CREDIT_COSTS.image, `이미지 전체 생성 (${pending.length}장)`);
@@ -251,9 +251,9 @@ export function useGeneration({
         generateSingleVideo(sceneId);
     }, [generateSingleVideo]);
 
-    const doneSceneCount = Object.values(sceneGenStatus).filter((s) => s === 'done').length;
+    const doneSceneCount = scenes.filter((s) => sceneGenStatus[s.id] === 'done').length;
     const allImagesDone = scenes.length > 0 && doneSceneCount === scenes.length;
-    const doneVideoCount = Object.values(videoGenStatus).filter((s) => s === 'done').length;
+    const doneVideoCount = scenes.filter((s) => videoGenStatus[s.id] === 'done').length;
     const allVideosDone = scenes.length > 0 && doneVideoCount === scenes.length;
 
     return {
