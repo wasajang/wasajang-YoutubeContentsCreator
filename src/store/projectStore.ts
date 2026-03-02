@@ -23,6 +23,7 @@ export interface Scene {
   location: string;
   cameraAngle: string;
   imageUrl: string;
+  videoUrl?: string;
   characters: string[];
   status: 'pending' | 'generating' | 'done' | 'failed';
   checked: boolean;
@@ -97,6 +98,7 @@ export interface ProjectState {
   scenes: Scene[];
   setScenes: (scenes: Scene[]) => void;
   updateSceneImage: (sceneId: string, imageUrl: string) => void;
+  updateSceneVideo: (sceneId: string, videoUrl: string) => void;
   toggleSceneCheck: (id: string) => void;
 
   // Style
@@ -175,6 +177,12 @@ export const useProjectStore = create<ProjectState>()(
         set((state) => ({
           scenes: state.scenes.map((s) =>
             s.id === sceneId ? { ...s, imageUrl } : s
+          ),
+        })),
+      updateSceneVideo: (sceneId, videoUrl) =>
+        set((state) => ({
+          scenes: state.scenes.map((s) =>
+            s.id === sceneId ? { ...s, videoUrl } : s
           ),
         })),
       toggleSceneCheck: (id) =>

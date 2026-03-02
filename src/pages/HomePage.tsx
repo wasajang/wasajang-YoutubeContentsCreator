@@ -18,7 +18,7 @@ const HomePage: React.FC = () => {
 
     const {
         startNewProject, setEntryPoint, setTemplateId,
-        setArtStyleId, setAspectRatio,
+        setArtStyleId, setAspectRatio, setAiModelPreference,
         setProjectId, setTitle, setScenes, setCurrentPhase,
         cardLibrary, addToCardLibrary,
     } = useProjectStore();
@@ -112,6 +112,11 @@ const HomePage: React.FC = () => {
         setTemplateId(template.id);
         setArtStyleId(template.artStyleId);
         setAspectRatio(template.aspectRatio);
+        if (template.defaultModels) {
+            Object.entries(template.defaultModels).forEach(([category, modelId]) => {
+                setAiModelPreference(category as 'script' | 'image' | 'video' | 'tts', modelId);
+            });
+        }
         navigate('/project/idea');
     };
 

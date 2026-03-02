@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import {
-    Zap, Video, CheckCircle2, ChevronLeft, ArrowRight,
+    Zap, Video, CheckCircle2, ChevronLeft, ArrowRight, Sparkles, Loader,
 } from 'lucide-react';
 import type { AssetCard, Scene } from '../../store/projectStore';
 import type { UseDeckApi } from '../../hooks/useDeck';
@@ -74,6 +74,9 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
         allImagesDone,
         doneVideoCount,
         allVideosDone,
+        customPrompts,
+        initPrompts,
+        updatePrompt,
     } = genApi;
 
     const {
@@ -164,6 +167,43 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                 />
             )}
 
+            {/* 프롬프트 확인/편집 */}
+            <div className="sc-prompt-section">
+                <div className="sc-prompt-section__header">
+                    <span className="sc-prompt-section__title">프롬프트 확인/편집</span>
+                    <button
+                        className="btn-secondary"
+                        style={{ fontSize: '0.7rem', padding: '4px 10px' }}
+                        onClick={initPrompts}
+                    >
+                        <Sparkles size={12} /> 자동 생성
+                    </button>
+                </div>
+                {Object.keys(customPrompts).length > 0 && (
+                    <div className="sc-prompt-list">
+                        {scenes.map((scene, index) => (
+                            <div key={scene.id} className="sc-prompt-row">
+                                <span className="sc-prompt-row__label">씬 {index + 1}</span>
+                                <textarea
+                                    className="sc-prompt-row__input"
+                                    value={customPrompts[scene.id]?.image || ''}
+                                    onChange={(e) => updatePrompt(scene.id, 'image', e.target.value)}
+                                    placeholder="이미지 프롬프트..."
+                                    rows={2}
+                                />
+                                <textarea
+                                    className="sc-prompt-row__input"
+                                    value={customPrompts[scene.id]?.video || ''}
+                                    onChange={(e) => updatePrompt(scene.id, 'video', e.target.value)}
+                                    placeholder="영상 프롬프트..."
+                                    rows={2}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
             {/* 씬 목록 */}
             <div className="sc-layout">
                 <div className="sc-list">
@@ -199,6 +239,35 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                 getGradient={getSceneGradient}
                 onFrameClick={(id) => setSelectedScene(id)}
             />
+
+            {/* 영상 미리보기 (이미지 생성 완료 후 표시) */}
+            {allImagesDone && (
+                <div className="sc-video-filmstrip">
+                    <span className="sc-video-filmstrip__label">영상 미리보기</span>
+                    <div className="sc-video-filmstrip__list">
+                        {scenes.map((scene) => (
+                            <div key={scene.id} className="sc-video-filmstrip__item">
+                                {scene.videoUrl ? (
+                                    <video
+                                        src={scene.videoUrl}
+                                        className="sc-video-filmstrip__video"
+                                        controls
+                                        muted
+                                    />
+                                ) : (
+                                    <div className="sc-video-filmstrip__placeholder">
+                                        {videoGenStatus[scene.id] === 'generating' ? (
+                                            <Loader size={14} className="spinning" />
+                                        ) : (
+                                            <Video size={14} style={{ opacity: 0.3 }} />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="sb-bottom-actions">
                 <button className="btn-secondary" onClick={onPrevPhase}>

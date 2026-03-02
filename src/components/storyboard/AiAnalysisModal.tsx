@@ -39,7 +39,7 @@ const AiAnalysisModal: React.FC<AiAnalysisModalProps> = ({
                             '{templateName}' 템플릿 카드 추천
                         </h3>
                         <p className="ai-analysis-modal__desc">
-                            선택한 템플릿에 저장된 캐릭터/배경/아이템을 자동 추천합니다.
+                            캐릭터 {castPreset!.characters.length}명, 배경 {castPreset!.backgrounds.length}개, 아이템 {castPreset!.items.length}개를 자동 추출/추천합니다.
                         </p>
                         <div className="ai-analysis-cast-preview">
                             {castPreset!.characters.length > 0 && (

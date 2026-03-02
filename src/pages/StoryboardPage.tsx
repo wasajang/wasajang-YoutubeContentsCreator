@@ -222,6 +222,9 @@ const StoryboardPage: React.FC = () => {
                         showAiAnalysisModal={showAiAnalysisModal}
                         isAiAnalyzing={isAiAnalyzing}
                         onAiAnalysis={handleAiAnalysis}
+                        templateId={templateId}
+                        templateName={templateId ? getTemplateById(templateId)?.name : undefined}
+                        castPreset={templateId ? getTemplateById(templateId)?.castPreset : undefined}
                         onNextPhase={() => {
                             // 나레이션 모드: CutSplit 스킵 → 바로 시드 매칭
                             setPhase('seed-check');
@@ -297,6 +300,9 @@ const StoryboardPage: React.FC = () => {
                     showAiAnalysisModal={showAiAnalysisModal}
                     isAiAnalyzing={isAiAnalyzing}
                     onAiAnalysis={handleAiAnalysis}
+                    templateId={templateId}
+                    templateName={templateId ? getTemplateById(templateId)?.name : undefined}
+                    castPreset={templateId ? getTemplateById(templateId)?.castPreset : undefined}
                     onNextPhase={() => {
                         // 시네마틱 모드: script-review → seed-check 순서
                         setPhase('script-review');

@@ -44,6 +44,7 @@ export function useGeneration({
     onCreditShortage,
 }: UseGenerationParams) {
     const updateSceneImage = useProjectStore((s) => s.updateSceneImage);
+    const updateSceneVideo = useProjectStore((s) => s.updateSceneVideo);
 
     const [sceneGenStatus, setSceneGenStatus] = useState<Record<string, SceneGenStatus>>(() => {
         const init: Record<string, SceneGenStatus> = {};
@@ -64,6 +65,29 @@ export function useGeneration({
         scenes.forEach((scene) => { init[scene.id] = []; });
         return init;
     });
+
+    // 프롬프트 편집 상태
+    const [customPrompts, setCustomPrompts] = useState<Record<string, { image: string; video: string }>>({});
+
+    const initPrompts = useCallback(() => {
+        const prompts: Record<string, { image: string; video: string }> = {};
+        scenes.forEach((scene) => {
+            const seeds = sceneSeeds[scene.id] || [];
+            const seedCards = seeds.map((id) => deck.find((c) => c.id === id)).filter((c): c is AssetCard => !!c);
+            prompts[scene.id] = {
+                image: buildImagePrompt({ artStyleId, sceneText: scene.text, seedCards, cameraAngle: scene.cameraAngle, location: scene.location, templateId }),
+                video: buildVideoPrompt({ artStyleId, sceneText: scene.text, seedCards, cameraAngle: scene.cameraAngle, templateId }),
+            };
+        });
+        setCustomPrompts(prompts);
+    }, [scenes, sceneSeeds, deck, artStyleId, templateId]);
+
+    const updatePrompt = useCallback((sceneId: string, type: 'image' | 'video', value: string) => {
+        setCustomPrompts((prev) => ({
+            ...prev,
+            [sceneId]: { ...prev[sceneId], [type]: value },
+        }));
+    }, []);
 
     const toggleSceneSeed = (sceneId: string, cardId: string) => {
         setSceneSeeds((prev) => {
@@ -91,7 +115,7 @@ export function useGeneration({
                 .map((cardId) => deck.find((c) => c.id === cardId))
                 .filter((c): c is AssetCard => !!c);
 
-            const prompt = buildImagePrompt({
+            const prompt = customPrompts[sceneId]?.image || buildImagePrompt({
                 artStyleId,
                 sceneText: scene.text,
                 seedCards,
@@ -120,7 +144,7 @@ export function useGeneration({
             console.error(`[Scene ${sceneId}] 이미지 생성 실패:`, err);
             setSceneGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
         }
-    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, aspectRatio, imageModel, onCreditShortage, updateSceneImage]);
+    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, aspectRatio, imageModel, onCreditShortage, updateSceneImage, customPrompts]);
 
     const generateAllScenes = useCallback(() => {
         const pending = scenes.filter((s) => sceneGenStatus[s.id] === 'idle');
@@ -155,26 +179,29 @@ export function useGeneration({
                 .map((cardId) => deck.find((c) => c.id === cardId))
                 .filter((c): c is AssetCard => !!c);
 
-            const prompt = buildVideoPrompt({
+            const prompt = customPrompts[sceneId]?.video || buildVideoPrompt({
                 artStyleId,
                 sceneText: scene.text,
                 seedCards,
                 cameraAngle: scene.cameraAngle,
                 templateId,
             });
-            await generateVideo({
+            const videoResult = await generateVideo({
                 imageUrl: scene.imageUrl || '',
                 prompt,
                 duration: 5,
                 sceneId,
                 model: videoModel,
             });
+            if (videoResult?.videoUrl) {
+                updateSceneVideo(sceneId, videoResult.videoUrl);
+            }
             setVideoGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
         } catch (err) {
             console.error(`[Video ${sceneId}] 영상 생성 실패:`, err);
             setVideoGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
         }
-    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, videoModel, onCreditShortage]);
+    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, videoModel, onCreditShortage, customPrompts]);
 
     const generateAllVideos = useCallback(() => {
         const pending = scenes.filter((s) => videoGenStatus[s.id] !== 'done');
@@ -217,6 +244,9 @@ export function useGeneration({
         allImagesDone,
         doneVideoCount,
         allVideosDone,
+        customPrompts,
+        initPrompts,
+        updatePrompt,
     };
 }
 

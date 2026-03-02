@@ -10299,3 +10299,95 @@ button.export-btn:disabled {
   font-weight: 500;
   color: var(--text-muted);
 }
+
+/* ========== PROMPT EDIT SECTION ========== */
+.sc-prompt-section {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sc-prompt-section__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.sc-prompt-section__title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.sc-prompt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.sc-prompt-row {
+  display: grid;
+  grid-template-columns: 50px 1fr 1fr;
+  gap: 6px;
+  align-items: start;
+}
+.sc-prompt-row__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding-top: 6px;
+}
+.sc-prompt-row__input {
+  font-size: 0.7rem;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 36px;
+  font-family: inherit;
+}
+.sc-prompt-row__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* ========== VIDEO FILMSTRIP ========== */
+.sc-video-filmstrip {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.sc-video-filmstrip__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  display: block;
+}
+.sc-video-filmstrip__list {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.sc-video-filmstrip__item {
+  flex-shrink: 0;
+  width: 120px;
+  aspect-ratio: 16/9;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sc-video-filmstrip__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sc-video-filmstrip__placeholder {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

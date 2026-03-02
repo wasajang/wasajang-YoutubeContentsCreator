@@ -88,7 +88,13 @@ const IdeaPage: React.FC = () => {
     const [inputMode, setInputMode] = useState<InputMode>('script');
     const [rawScript, setRawScript] = useState('');
     const [ideaText, setIdeaText] = useState('');
-    const [sceneCount, setSceneCount] = useState(10);
+    const [sceneCount, setSceneCount] = useState(() => {
+        if (templateId) {
+            const tmpl = getTemplateById(templateId);
+            return tmpl?.promptRules?.sceneSplitRules?.defaultSceneCount ?? 10;
+        }
+        return 10;
+    });
     const [isGenerated, setIsGenerated] = useState(scenes.length > 0);
     const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState('');

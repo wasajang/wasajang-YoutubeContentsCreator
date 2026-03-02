@@ -25,6 +25,10 @@ interface CastSetupPhaseProps {
     onPrevPhase?: () => void;
     /** 다음 버튼 레이블 (기본값: "다음: 컷 분할") */
     nextLabel?: string;
+    /** 템플릿 분기용 */
+    templateId?: string | null;
+    templateName?: string;
+    castPreset?: { characters: Array<{ name: string; description?: string }>; backgrounds: Array<{ name: string; description?: string }>; items: Array<{ name: string; description?: string }> } | null;
 }
 
 const CastSetupPhase: React.FC<CastSetupPhaseProps> = ({
@@ -35,6 +39,9 @@ const CastSetupPhase: React.FC<CastSetupPhaseProps> = ({
     onNextPhase,
     onPrevPhase,
     nextLabel,
+    templateId,
+    templateName,
+    castPreset,
 }) => {
     const {
         deck, deckChars, deckBgs, deckItems,
@@ -53,7 +60,13 @@ const CastSetupPhase: React.FC<CastSetupPhaseProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
             {/* AI 분석 팝업 모달 */}
             {showAiAnalysisModal && (
-                <AiAnalysisModal isAnalyzing={isAiAnalyzing} onAnalyze={onAiAnalysis} />
+                <AiAnalysisModal
+                    isAnalyzing={isAiAnalyzing}
+                    onAnalyze={onAiAnalysis}
+                    templateId={templateId}
+                    templateName={templateName}
+                    castPreset={castPreset}
+                />
             )}
 
             <div className="sb-phase-title">
