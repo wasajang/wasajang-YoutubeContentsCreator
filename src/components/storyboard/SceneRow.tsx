@@ -122,7 +122,33 @@ const SceneRow: React.FC<SceneRowProps> = ({
                             </div>
                         </>
                     ) : (
-                        <div className="sc-row__sub-label"><span>파트 {subIdx + 1}/{videoCount}</span></div>
+                        <div className="sc-row__sub-label">
+                            <span>파트 {subIdx + 1}/{videoCount}</span>
+                            {seeds.length > 0 && (
+                                <div className="sc-row__seed-stack sc-row__seed-stack--overlap" style={{ marginTop: 4 }}>
+                                    {seeds.slice(0, 3).map((cardId, seedIdx) => {
+                                        const card = deck.find(c => c.id === cardId);
+                                        if (!card) return null;
+                                        return (
+                                            <div
+                                                key={cardId}
+                                                className={`sc-row__seed-card sc-row__seed-card--${card.type} sc-row__seed-card--img-only`}
+                                                style={{ zIndex: 10 - seedIdx, marginLeft: seedIdx > 0 ? '-12px' : '0', width: 24, height: 24 }}
+                                                title={card.name}
+                                            >
+                                                {card.imageUrl ? (
+                                                    <img src={card.imageUrl} className="sc-row__seed-card__img" alt={card.name} />
+                                                ) : (
+                                                    <div className="sc-row__seed-card__img sc-row__seed-card__img--empty">
+                                                        {card.type === 'character' ? <User size={8} /> : card.type === 'background' ? <MapPin size={8} /> : <Sword size={8} />}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
 

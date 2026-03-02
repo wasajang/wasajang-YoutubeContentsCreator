@@ -211,8 +211,8 @@ export const useProjectStore = create<ProjectState>()(
       timelineClips: [],
       setTimelineClips: (timelineClips) => set({ timelineClips }),
 
-      // Credits
-      credits: 100,
+      // Credits (테스트용 500 — 대규모 생성 테스트 가능)
+      credits: 500,
       spendCredits: (amount) => {
         let success = false;
         set((state) => {
@@ -225,7 +225,7 @@ export const useProjectStore = create<ProjectState>()(
         return success;
       },
       addCredits: (amount) => set((state) => ({ credits: state.credits + amount })),
-      resetCredits: () => set({ credits: 100 }),
+      resetCredits: () => set({ credits: 500 }),
 
       hasActiveProject: false,
       startNewProject: (title, mode = 'cinematic', options) =>

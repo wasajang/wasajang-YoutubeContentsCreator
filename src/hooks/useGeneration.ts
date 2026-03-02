@@ -19,7 +19,7 @@ interface UseGenerationParams {
     deck: AssetCard[];
     artStyleId: string;
     canAfford: (type: GenerationType, count?: number) => boolean;
-    spend: (type: GenerationType) => boolean;
+    spend: (type: GenerationType, count?: number) => boolean;
     creditsRemaining: number;
     CREDIT_COSTS: Record<GenerationType, number>;
     imageModel?: string;
@@ -152,16 +152,8 @@ export function useGeneration({
     };
 
     // 씬의 특정 서브인덱스 이미지를 생성하는 내부 함수
+    // 크레딧 차감은 generateAllScenes에서 일괄 처리 — 여기서는 차감하지 않음
     const generateSubImage = useCallback(async (sceneId: string, subIndex: number) => {
-        if (!canAfford('image')) {
-            if (onCreditShortage) {
-                onCreditShortage(CREDIT_COSTS.image, '이미지 생성');
-            } else {
-                alert(`크레딧이 부족합니다! (이미지 생성 ${CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
-            }
-            return;
-        }
-        if (!spend('image')) return;
 
         // 첫 번째 서브이미지 생성 시 씬 전체 상태를 generating으로 표시
         if (subIndex === 0) {
@@ -217,11 +209,15 @@ export function useGeneration({
 
     // 기존 generateSingleScene — 서브인덱스 0번만 생성 (단일 호출 및 재생성용)
     const generateSingleScene = useCallback(async (sceneId: string) => {
+        if (!canAfford('image')) {
+            if (onCreditShortage) onCreditShortage(CREDIT_COSTS.image, '이미지 생성');
+            return;
+        }
+        if (!spend('image')) return;
         setSceneGenStatus((p) => ({ ...p, [sceneId]: 'generating' }));
         await generateSubImage(sceneId, 0);
-        // 단일 씬 재생성 완료 후 상태 업데이트
         setSceneGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
-    }, [generateSubImage]);
+    }, [generateSubImage, canAfford, spend, CREDIT_COSTS, onCreditShortage]);
 
     const generateAllScenes = useCallback(() => {
         // videoCount 포함해서 총 이미지 수 계산
@@ -254,8 +250,17 @@ export function useGeneration({
             return;
         }
 
+        // 크레딧 일괄 차감
+        if (!spend('image', totalImages)) return;
+
+        // 동시 요청 제한: 최대 4개씩 순차 배치 (실제 API 대비)
+        const BATCH_SIZE = 4;
+        const BATCH_DELAY = 2500;
         tasks.forEach((task, i) => {
-            setTimeout(() => generateSubImage(task.sceneId, task.subIndex), i * 600);
+            const batchIndex = Math.floor(i / BATCH_SIZE);
+            const withinBatch = i % BATCH_SIZE;
+            const delay = batchIndex * BATCH_DELAY + withinBatch * 400;
+            setTimeout(() => generateSubImage(task.sceneId, task.subIndex), delay);
         });
     }, [scenes, videoCountPerScene, sceneImages, generateSubImage, canAfford, creditsRemaining, CREDIT_COSTS, onCreditShortage]);
 
