@@ -250,7 +250,9 @@ const IdeaPage: React.FC = () => {
     ];
 
     // ── 다음 버튼 활성화 조건 ──
-    const canProceed = isGenerated && scenes.length > 0 && artStyleId !== '';
+    const canProceed = mode === 'narration'
+        ? (isGenerated && scenes.length > 0 && artStyleId !== '') || rawScript.trim().length > 0
+        : isGenerated && scenes.length > 0 && artStyleId !== '';
 
     // ── 현재 선택된 템플릿 ──
     const currentTemplate = templateId ? getTemplateById(templateId) : null;
@@ -531,6 +533,16 @@ const IdeaPage: React.FC = () => {
                                         className="btn-primary"
                                         style={{ width: '100%' }}
                                         onClick={() => {
+                                            // 대본 전체를 1개 씬으로 store에 저장 (나레이션은 TTS 후 분할)
+                                            setScenes([{
+                                                id: 'scene-1',
+                                                text: rawScript.trim(),
+                                                location: '', cameraAngle: '', imageUrl: '',
+                                                characters: [] as string[],
+                                                status: 'pending' as const,
+                                                checked: true,
+                                            }]);
+                                            setIsGenerated(true);
                                             setNarrationStep(2);
                                             navigate('/project/timeline');
                                         }}
@@ -641,6 +653,17 @@ const IdeaPage: React.FC = () => {
                     disabled={!canProceed}
                     onClick={() => {
                         if (mode === 'narration') {
+                            // 대본이 store에 없으면 rawScript를 1개 씬으로 저장
+                            if (scenes.length === 0 && rawScript.trim()) {
+                                setScenes([{
+                                    id: 'scene-1',
+                                    text: rawScript.trim(),
+                                    location: '', cameraAngle: '', imageUrl: '',
+                                    characters: [] as string[],
+                                    status: 'pending' as const,
+                                    checked: true,
+                                }]);
+                            }
                             setNarrationStep(2);
                             navigate('/project/timeline');
                         } else {
