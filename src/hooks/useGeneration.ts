@@ -70,9 +70,38 @@ export function useGeneration({
     const [customPrompts, setCustomPrompts] = useState<Record<string, { image: string; video: string }>>({});
 
     const initPrompts = useCallback(() => {
+        // Step 1: 씨드카드가 비어있는 씬에 덱에서 랜덤 배정
+        const updatedSeeds = { ...sceneSeeds };
+        const chars = deck.filter((c) => c.type === 'character');
+        const bgs = deck.filter((c) => c.type === 'background');
+        const items = deck.filter((c) => c.type === 'item');
+
+        scenes.forEach((scene) => {
+            if (!updatedSeeds[scene.id] || updatedSeeds[scene.id].length === 0) {
+                const assigned: string[] = [];
+                // 캐릭터 1~2명 랜덤
+                const charCount = Math.min(chars.length, 1 + Math.floor(Math.random() * 2));
+                const shuffledChars = [...chars].sort(() => Math.random() - 0.5);
+                shuffledChars.slice(0, charCount).forEach((c) => assigned.push(c.id));
+                // 배경 1개
+                if (bgs.length > 0) {
+                    const bg = bgs[Math.floor(Math.random() * bgs.length)];
+                    assigned.push(bg.id);
+                }
+                // 아이템 0~1개
+                if (items.length > 0 && Math.random() > 0.4) {
+                    const item = items[Math.floor(Math.random() * items.length)];
+                    assigned.push(item.id);
+                }
+                updatedSeeds[scene.id] = assigned;
+            }
+        });
+        setSceneSeeds(updatedSeeds);
+
+        // Step 2: 배정된 씨드카드 기반으로 프롬프트 생성
         const prompts: Record<string, { image: string; video: string }> = {};
         scenes.forEach((scene) => {
-            const seeds = sceneSeeds[scene.id] || [];
+            const seeds = updatedSeeds[scene.id] || [];
             const seedCards = seeds.map((id) => deck.find((c) => c.id === id)).filter((c): c is AssetCard => !!c);
             prompts[scene.id] = {
                 image: buildImagePrompt({ artStyleId, sceneText: scene.text, seedCards, cameraAngle: scene.cameraAngle, location: scene.location, templateId }),

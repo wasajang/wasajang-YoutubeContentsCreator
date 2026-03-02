@@ -272,7 +272,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                         </>
                     )
                 ) : (
-                    /* 시네마틱 모드: 기존 로직 유지 */
+                    /* 시네마틱 모드: 3단계 순차 */
                     allVideosDone ? (
                         <>
                             <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
@@ -283,21 +283,31 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 타임라인으로 이동 <ArrowRight size={14} />
                             </button>
                         </>
-                    ) : allImagesDone ? (
+                    ) : Object.keys(customPrompts).length === 0 ? (
+                        /* Step 1: 프롬프트 미작성 → AI 분석 버튼 */
                         <>
-                            <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
-                                <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                                모든 이미지 생성 완료! ({doneVideoCount}/{scenes.length} 영상)
-                            </span>
-                            <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllVideos}>
-                                <Video size={14} /> 5초 영상 일괄 생성
+                            <span className="sb-bottom-actions__info">프롬프트를 먼저 작성해주세요</span>
+                            <button className="btn-primary sb-bottom-actions__btn" onClick={initPrompts}>
+                                <Sparkles size={14} /> AI 분석 및 프롬프트 작성
                             </button>
                         </>
-                    ) : (
+                    ) : !allImagesDone ? (
+                        /* Step 2: 프롬프트 작성됨 → 일괄 이미지 생성 */
                         <>
                             <span className="sb-bottom-actions__info">{doneSceneCount}/{scenes.length} 이미지</span>
                             <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllScenes}>
                                 <Zap size={14} /> 일괄 이미지 생성
+                            </button>
+                        </>
+                    ) : (
+                        /* Step 3: 이미지 완료 → 영상 생성 */
+                        <>
+                            <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
+                                <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                                이미지 완료! ({doneVideoCount}/{scenes.length} 영상)
+                            </span>
+                            <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllVideos}>
+                                <Video size={14} /> 영상 일괄 생성
                             </button>
                         </>
                     )
