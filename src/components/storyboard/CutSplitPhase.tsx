@@ -107,12 +107,12 @@ const CutSplitPhase: React.FC<CutSplitPhaseProps> = ({
                                             ))}
                                         </div>
                                     </div>
-                                    {/* 이미지 박스 시각화 */}
-                                    <div className="cut-image-boxes">
+                                    {/* 이미지 박스 시각화 (세로 배치) */}
+                                    <div className="cut-image-boxes cut-image-boxes--vertical">
                                         {Array.from({ length: vc }, (_, i) => (
                                             <div key={i} className="cut-image-box">
                                                 <span className="cut-image-box__label">
-                                                    {vc > 1 ? `${vc}-${i + 1}` : 'IMG'}
+                                                    {vc > 1 ? `${index + 1}-${i + 1}` : `${index + 1}`}
                                                 </span>
                                             </div>
                                         ))}

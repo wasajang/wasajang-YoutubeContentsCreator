@@ -363,22 +363,11 @@ const IdeaPage: React.FC = () => {
                         )}
                     </div>
 
-                    {/* 씬 개수 + 이미지 시각화 + Generate */}
+                    {/* 씬 이미지 시각화 (씬 개수/분할 버튼은 2열로 이동) */}
                     <div className="idea-col-footer">
-                        <div className="scene-count-picker">
-                            <button className="scene-count-btn" onClick={() => setSceneCount((n) => Math.max(1, n - 1))}>
-                                <Minus size={12} />
-                            </button>
-                            <span className="scene-count-value">{sceneCount} scenes</span>
-                            <button className="scene-count-btn" onClick={() => setSceneCount((n) => Math.min(30, n + 1))}>
-                                <Plus size={12} />
-                            </button>
-                        </div>
-
-                        {/* 씬 = 이미지 시각화 */}
                         <div className="scene-image-preview">
                             <div className="scene-image-preview__title">
-                                씬 {sceneCount}개 = 시작 이미지 {sceneCount}장
+                                씬 {sceneCount}개 = 시작 이미지 {sceneCount}장 (약 {sceneCount * 5}초)
                             </div>
                             <div className="scene-image-preview__boxes">
                                 {Array.from({ length: Math.min(sceneCount, 12) }, (_, i) => (
@@ -390,9 +379,6 @@ const IdeaPage: React.FC = () => {
                                     <span className="scene-image-preview__more">+{sceneCount - 12}</span>
                                 )}
                             </div>
-                            <p className="scene-image-preview__desc">
-                                각 씬마다 1장의 시작 이미지가 생성됩니다
-                            </p>
                         </div>
 
                         {inputMode === 'idea' && (
@@ -408,24 +394,6 @@ const IdeaPage: React.FC = () => {
                                     ))}
                                 </select>
                             </div>
-                        )}
-
-                        {inputMode === 'script' ? (
-                            <button className="btn-primary script-generate-btn" onClick={handleGenerateScript}>
-                                씬 분할하기 <ArrowRight size={14} />
-                            </button>
-                        ) : (
-                            <button
-                                className="btn-primary script-generate-btn"
-                                onClick={handleIdeaGenerate}
-                                disabled={!ideaText.trim() || isIdeaGenerating}
-                            >
-                                {isIdeaGenerating ? (
-                                    <><Loader size={14} className="animate-spin" /> 생성 중...</>
-                                ) : (
-                                    <><Wand2 size={14} /> AI로 대본 생성</>
-                                )}
-                            </button>
                         )}
                     </div>
                 </div>
@@ -513,6 +481,45 @@ const IdeaPage: React.FC = () => {
                                     </button>
                                 ))}
                             </div>
+                        </div>
+
+                        {/* 씬 개수 선택 + 예상 시간 */}
+                        <div className="idea-settings-section">
+                            <div className="idea-settings-label">씬 개수</div>
+                            <div className="scene-count-picker" style={{ justifyContent: 'flex-start' }}>
+                                <button className="scene-count-btn" onClick={() => setSceneCount((n) => Math.max(1, n - 1))}>
+                                    <Minus size={12} />
+                                </button>
+                                <span className="scene-count-value">{sceneCount} scenes</span>
+                                <button className="scene-count-btn" onClick={() => setSceneCount((n) => Math.min(30, n + 1))}>
+                                    <Plus size={12} />
+                                </button>
+                            </div>
+                            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                                예상 영상 길이: 약 {sceneCount * 5}초 ({Math.floor(sceneCount * 5 / 60)}분 {(sceneCount * 5) % 60}초)
+                            </p>
+                        </div>
+
+                        {/* 씬 분할 / AI 생성 버튼 */}
+                        <div className="idea-settings-section">
+                            {inputMode === 'script' ? (
+                                <button className="btn-primary" style={{ width: '100%' }} onClick={handleGenerateScript}>
+                                    씬 분할하기 <ArrowRight size={14} />
+                                </button>
+                            ) : (
+                                <button
+                                    className="btn-primary"
+                                    style={{ width: '100%' }}
+                                    onClick={handleIdeaGenerate}
+                                    disabled={!ideaText.trim() || isIdeaGenerating}
+                                >
+                                    {isIdeaGenerating ? (
+                                        <><Loader size={14} className="animate-spin" /> 생성 중...</>
+                                    ) : (
+                                        <><Wand2 size={14} /> AI로 대본 생성</>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

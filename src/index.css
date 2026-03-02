@@ -10294,6 +10294,10 @@ button.export-btn:disabled {
   flex-shrink: 0;
   transition: border-color var(--transition-fast);
 }
+.cut-image-boxes--vertical {
+  flex-direction: column;
+  align-items: flex-start;
+}
 .cut-image-box__label {
   font-size: 0.6rem;
   font-weight: 500;
@@ -10349,6 +10353,39 @@ button.export-btn:disabled {
 .sc-prompt-row__input:focus {
   outline: none;
   border-color: var(--color-primary);
+}
+.sc-prompt-row--header {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 4px;
+}
+.sc-prompt-row__col-title {
+  font-size: 0.65rem;
+}
+.sc-prompt-row__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sc-prompt-row__seeds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.sc-prompt-seed-tag {
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  color: var(--color-primary);
+}
+.sc-prompt-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
 }
 
 /* ========== VIDEO FILMSTRIP ========== */
