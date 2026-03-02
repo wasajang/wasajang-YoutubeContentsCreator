@@ -10354,6 +10354,28 @@ button.export-btn:disabled {
   outline: none;
   border-color: var(--color-primary);
 }
+/* SceneRow 내부 프롬프트 textarea */
+.sc-row__prompt-textarea {
+  width: 100%;
+  font-size: 0.7rem;
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 50px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.sc-row__prompt-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+.sc-row__prompt-textarea::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
 .sc-prompt-row--header {
   font-size: 0.65rem;
   font-weight: 600;

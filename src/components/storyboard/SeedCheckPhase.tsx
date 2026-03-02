@@ -9,7 +9,7 @@ import type { AssetCard, Scene } from '../../store/projectStore';
 import type { UseDeckApi } from '../../hooks/useDeck';
 import { MAX_DECK_SIZE } from '../../hooks/useDeck';
 import type { UseGenerationApi } from '../../hooks/useGeneration';
-import { mockScenePrompts } from '../../data/mockData';
+// mockScenePrompts는 이제 사용하지 않음 (customPrompts로 대체)
 import { getArtStylePromptPrefix } from '../../data/artStyles';
 import { getUserSelectableModels } from '../../data/aiModels';
 import CastStrip from './CastStrip';
@@ -120,29 +120,40 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                         </select>
                     </div>
                 </div>
-                {!allImagesDone && (
+                {/* 3단계 순차 버튼 */}
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {/* Step 1: AI 분석 및 프롬프트 작성 */}
+                    <button
+                        className={Object.keys(customPrompts).length > 0 ? 'btn-secondary' : 'btn-primary'}
+                        style={{ fontSize: '0.75rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 5 }}
+                        onClick={initPrompts}
+                    >
+                        <Sparkles size={13} /> {Object.keys(customPrompts).length > 0 ? '프롬프트 재생성' : 'AI 분석 및 프롬프트 작성'}
+                    </button>
+                    {/* Step 2: 일괄 이미지 생성 */}
                     <button
                         className="btn-primary"
-                        style={{ marginLeft: 'auto', fontSize: '0.75rem', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
+                        style={{ fontSize: '0.75rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 5 }}
                         onClick={generateAllScenes}
+                        disabled={Object.keys(customPrompts).length === 0 || allImagesDone}
                     >
                         <Zap size={13} /> 일괄 이미지 생성
                     </button>
-                )}
-                {allImagesDone && !allVideosDone && (
+                    {/* Step 3: 영상 일괄 생성 */}
                     <button
                         className="btn-primary"
-                        style={{ marginLeft: 'auto', fontSize: '0.75rem', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
+                        style={{ fontSize: '0.75rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 5 }}
                         onClick={generateAllVideos}
+                        disabled={!allImagesDone || allVideosDone}
                     >
-                        <Video size={13} /> 5초 영상 일괄 생성
+                        <Video size={13} /> 영상 일괄 생성
                     </button>
-                )}
-                {allVideosDone && (
-                    <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <CheckCircle2 size={13} /> 모든 이미지 및 영상 생성 완료!
-                    </span>
-                )}
+                    {allVideosDone && (
+                        <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <CheckCircle2 size={13} /> 완료!
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* 캐스트 스트립 */}
@@ -167,79 +178,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                 />
             )}
 
-            {/* 프롬프트 확인/편집 — 처음에 빈 상태, AI 분석 버튼으로 채움 */}
-            <div className="sc-prompt-section">
-                <div className="sc-prompt-section__header">
-                    <span className="sc-prompt-section__title">씬별 프롬프트</span>
-                    {Object.keys(customPrompts).length === 0 ? (
-                        <button
-                            className="btn-primary"
-                            style={{ fontSize: '0.7rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}
-                            onClick={initPrompts}
-                        >
-                            <Sparkles size={12} /> AI 분석 및 프롬프트 작성
-                        </button>
-                    ) : (
-                        <button
-                            className="btn-secondary"
-                            style={{ fontSize: '0.7rem', padding: '4px 10px' }}
-                            onClick={initPrompts}
-                        >
-                            <Sparkles size={12} /> 다시 생성
-                        </button>
-                    )}
-                </div>
-                {Object.keys(customPrompts).length > 0 ? (
-                    <div className="sc-prompt-list">
-                        <div className="sc-prompt-row sc-prompt-row--header">
-                            <span className="sc-prompt-row__label"></span>
-                            <span className="sc-prompt-row__col-title">참고 씨드카드 + 이미지 프롬프트</span>
-                            <span className="sc-prompt-row__col-title">영상 프롬프트</span>
-                        </div>
-                        {scenes.map((scene, index) => {
-                            const seeds = genApi.sceneSeeds[scene.id] || [];
-                            const seedCards = seeds.map((id: string) => deck.find((c) => c.id === id)).filter(Boolean);
-                            return (
-                                <div key={scene.id} className="sc-prompt-row">
-                                    <span className="sc-prompt-row__label">씬 {index + 1}</span>
-                                    <div className="sc-prompt-row__cell">
-                                        {seedCards.length > 0 && (
-                                            <div className="sc-prompt-row__seeds">
-                                                {seedCards.map((c: any) => (
-                                                    <span key={c.id} className="sc-prompt-seed-tag">[{c.type === 'character' ? '캐릭터' : c.type === 'background' ? '배경' : '아이템'}: {c.name}]</span>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <textarea
-                                            className="sc-prompt-row__input"
-                                            value={customPrompts[scene.id]?.image || ''}
-                                            onChange={(e) => updatePrompt(scene.id, 'image', e.target.value)}
-                                            placeholder="이미지 프롬프트..."
-                                            rows={2}
-                                        />
-                                    </div>
-                                    <textarea
-                                        className="sc-prompt-row__input"
-                                        value={customPrompts[scene.id]?.video || ''}
-                                        onChange={(e) => updatePrompt(scene.id, 'video', e.target.value)}
-                                        placeholder="영상 프롬프트..."
-                                        rows={2}
-                                    />
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="sc-prompt-empty">
-                        <p>아직 프롬프트가 작성되지 않았습니다.</p>
-                        <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                            "AI 분석 및 프롬프트 작성" 버튼을 클릭하면 대본 내용 + [씨드카드] + [아트스타일]을 기반으로 자동 생성됩니다.
-                        </p>
-                    </div>
-                )}
-            </div>
-
-            {/* 씬 목록 */}
+            {/* 씬 목록 — 프롬프트는 각 SceneRow 내부 박스에서 직접 편집 */}
             <div className="sc-layout">
                 <div className="sc-list">
                     {scenes.map((scene, index) => (
@@ -254,7 +193,10 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                             sceneSeeds={sceneSeeds[scene.id] || []}
                             deck={deck}
                             promptPrefix={getArtStylePromptPrefix(artStyleId)}
-                            prompts={mockScenePrompts[scene.id]}
+                            imagePrompt={customPrompts[scene.id]?.image || ''}
+                            videoPrompt={customPrompts[scene.id]?.video || ''}
+                            onImagePromptChange={(val) => updatePrompt(scene.id, 'image', val)}
+                            onVideoPromptChange={(val) => updatePrompt(scene.id, 'video', val)}
                             gradientFallback={getSceneGradient(index)}
                             onSelect={() => setSelectedScene(selectedScene === scene.id ? null : scene.id)}
                             onGenerateImage={generateSingleScene}

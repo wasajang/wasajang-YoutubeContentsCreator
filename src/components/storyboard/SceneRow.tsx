@@ -8,7 +8,7 @@ import type { AssetCard } from '../../store/projectStore';
 type SceneGenStatus = 'idle' | 'generating' | 'done';
 
 interface SceneRowProps {
-    scene: { id: string; text: string; location: string; cameraAngle: string; imageUrl: string; };
+    scene: { id: string; text: string; location: string; cameraAngle: string; imageUrl: string; videoUrl?: string };
     index: number;
     videoCount: number;
     genStatus: SceneGenStatus;
@@ -17,7 +17,11 @@ interface SceneRowProps {
     sceneSeeds: string[];
     deck: AssetCard[];
     promptPrefix: string;
-    prompts?: { imagePrompt: string; videoPrompt: string };
+    /** 편집 가능한 프롬프트 (customPrompts에서 전달) */
+    imagePrompt?: string;
+    videoPrompt?: string;
+    onImagePromptChange?: (value: string) => void;
+    onVideoPromptChange?: (value: string) => void;
     gradientFallback: string;
     onSelect: () => void;
     onGenerateImage: (sceneId: string) => void;
@@ -27,7 +31,8 @@ interface SceneRowProps {
 
 const SceneRow: React.FC<SceneRowProps> = ({
     scene, index, videoCount, genStatus, videoGenStatus: vidStatus,
-    isSelected, sceneSeeds: seeds, deck, promptPrefix, prompts,
+    isSelected, sceneSeeds: seeds, deck, promptPrefix,
+    imagePrompt, videoPrompt, onImagePromptChange, onVideoPromptChange,
     gradientFallback, onSelect, onGenerateImage, onRegenerateVideo, onToggleSeed,
 }) => (
     <React.Fragment>
@@ -113,19 +118,41 @@ const SceneRow: React.FC<SceneRowProps> = ({
                     )}
                 </div>
 
-                {/* Col 4: Prompts */}
+                {/* Col 4: Prompts (편집 가능) */}
                 <div className="sc-row__prompt-col">
                     <div className="sc-row__prompt-section">
                         <div className="sc-row__prompt-label">🖼 이미지 생성 프롬프트</div>
-                        <p className="sc-row__prompt-text">
-                            <span className="sc-row__prompt-prefix">{promptPrefix}</span>{' '}
-                            {prompts?.imagePrompt ?? '—'}
-                        </p>
+                        {onImagePromptChange ? (
+                            <textarea
+                                className="sc-row__prompt-textarea"
+                                value={imagePrompt || ''}
+                                onChange={(e) => { e.stopPropagation(); onImagePromptChange(e.target.value); }}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="AI 분석 후 자동 채워집니다..."
+                                rows={3}
+                            />
+                        ) : (
+                            <p className="sc-row__prompt-text">
+                                <span className="sc-row__prompt-prefix">{promptPrefix}</span>{' '}
+                                {imagePrompt ?? '—'}
+                            </p>
+                        )}
                     </div>
                     <div className="sc-row__prompt-divider" />
                     <div className="sc-row__prompt-section">
                         <div className="sc-row__prompt-label">🎬 영상 생성 프롬프트</div>
-                        <p className="sc-row__prompt-text">{prompts?.videoPrompt ?? '—'}</p>
+                        {onVideoPromptChange ? (
+                            <textarea
+                                className="sc-row__prompt-textarea"
+                                value={videoPrompt || ''}
+                                onChange={(e) => { e.stopPropagation(); onVideoPromptChange(e.target.value); }}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="AI 분석 후 자동 채워집니다..."
+                                rows={3}
+                            />
+                        ) : (
+                            <p className="sc-row__prompt-text">{videoPrompt ?? '—'}</p>
+                        )}
                     </div>
                 </div>
 
