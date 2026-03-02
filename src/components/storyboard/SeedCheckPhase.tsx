@@ -10,7 +10,7 @@ import type { UseDeckApi } from '../../hooks/useDeck';
 import { MAX_DECK_SIZE } from '../../hooks/useDeck';
 import type { UseGenerationApi } from '../../hooks/useGeneration';
 // mockScenePrompts는 이제 사용하지 않음 (customPrompts로 대체)
-import { getArtStylePromptPrefix } from '../../data/artStyles';
+import { getArtStylePromptPrefix, getArtStyleById } from '../../data/artStyles';
 import { getUserSelectableModels } from '../../data/aiModels';
 import CastStrip from './CastStrip';
 import ManualAddModal from './ManualAddModal';
@@ -41,6 +41,8 @@ interface SeedCheckPhaseProps {
     onVideoModelChange?: (modelId: string) => void;
     /** 타임라인 이동 버튼 레이블 커스터마이즈 (기본값: "타임라인으로 이동") */
     nextLabel?: string;
+    /** 영상 비율 (예: "16:9") */
+    aspectRatio?: string;
 }
 
 const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
@@ -59,6 +61,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
     onImageModelChange,
     onVideoModelChange,
     nextLabel,
+    aspectRatio,
 }) => {
     const {
         sceneGenStatus,
@@ -77,6 +80,9 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
         customPrompts,
         initPrompts,
         updatePrompt,
+        selectedForVideo,
+        toggleVideoSelection,
+        generateSelectedVideos,
     } = genApi;
 
     const {
@@ -120,39 +126,19 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                         </select>
                     </div>
                 </div>
-                {/* 3단계 순차 버튼 */}
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {/* Step 1: AI 분석 및 프롬프트 작성 */}
-                    <button
-                        className={Object.keys(customPrompts).length > 0 ? 'btn-secondary' : 'btn-primary'}
-                        style={{ fontSize: '0.75rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 5 }}
-                        onClick={initPrompts}
-                    >
-                        <Sparkles size={13} /> {Object.keys(customPrompts).length > 0 ? '프롬프트 재생성' : 'AI 분석 및 프롬프트 작성'}
-                    </button>
-                    {/* Step 2: 일괄 이미지 생성 */}
-                    <button
-                        className="btn-primary"
-                        style={{ fontSize: '0.75rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 5 }}
-                        onClick={generateAllScenes}
-                        disabled={Object.keys(customPrompts).length === 0 || allImagesDone}
-                    >
-                        <Zap size={13} /> 일괄 이미지 생성
-                    </button>
-                    {/* Step 3: 영상 일괄 생성 */}
-                    <button
-                        className="btn-primary"
-                        style={{ fontSize: '0.75rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 5 }}
-                        onClick={generateAllVideos}
-                        disabled={!allImagesDone || allVideosDone}
-                    >
-                        <Video size={13} /> 영상 일괄 생성
-                    </button>
-                    {allVideosDone && (
-                        <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <CheckCircle2 size={13} /> 완료!
-                        </span>
-                    )}
+                {/* 진행 인디케이터 */}
+                <div className="sc-progress-indicator">
+                    <div className={`sc-progress-step ${Object.keys(customPrompts).length > 0 ? 'sc-progress-step--done' : 'sc-progress-step--active'}`}>
+                        ① AI 분석 {Object.keys(customPrompts).length > 0 ? '✓' : ''}
+                    </div>
+                    <span className="sc-progress-arrow">→</span>
+                    <div className={`sc-progress-step ${allImagesDone ? 'sc-progress-step--done' : doneSceneCount > 0 ? 'sc-progress-step--active' : ''}`}>
+                        ② 이미지 {doneSceneCount}/{scenes.length}
+                    </div>
+                    <span className="sc-progress-arrow">→</span>
+                    <div className={`sc-progress-step ${allVideosDone ? 'sc-progress-step--done' : allImagesDone ? 'sc-progress-step--active' : ''}`}>
+                        ③ 영상 {doneVideoCount}/{scenes.length}
+                    </div>
                 </div>
             </div>
 
@@ -181,29 +167,41 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
             {/* 씬 목록 — 프롬프트는 각 SceneRow 내부 박스에서 직접 편집 */}
             <div className="sc-layout">
                 <div className="sc-list">
-                    {scenes.map((scene, index) => (
-                        <SceneRow
-                            key={scene.id}
-                            scene={scene}
-                            index={index}
-                            videoCount={videoCountPerScene[scene.id] || 1}
-                            genStatus={sceneGenStatus[scene.id]}
-                            videoGenStatus={videoGenStatus[scene.id] || 'idle'}
-                            isSelected={selectedScene === scene.id}
-                            sceneSeeds={sceneSeeds[scene.id] || []}
-                            deck={deck}
-                            promptPrefix={getArtStylePromptPrefix(artStyleId)}
-                            imagePrompt={customPrompts[scene.id]?.image || ''}
-                            videoPrompt={customPrompts[scene.id]?.video || ''}
-                            onImagePromptChange={(val) => updatePrompt(scene.id, 'image', val)}
-                            onVideoPromptChange={(val) => updatePrompt(scene.id, 'video', val)}
-                            gradientFallback={getSceneGradient(index)}
-                            onSelect={() => setSelectedScene(selectedScene === scene.id ? null : scene.id)}
-                            onGenerateImage={generateSingleScene}
-                            onRegenerateVideo={regenerateSingleVideo}
-                            onToggleSeed={toggleSceneSeed}
-                        />
-                    ))}
+                    {scenes.map((scene, index) => {
+                        const seeds = sceneSeeds[scene.id] || [];
+                        const chars = seeds.filter((id) => deck.find((c) => c.id === id)?.type === 'character').length;
+                        const bgs = seeds.filter((id) => deck.find((c) => c.id === id)?.type === 'background').length;
+                        const items = seeds.filter((id) => deck.find((c) => c.id === id)?.type === 'item').length;
+                        const seedSummaryText = seeds.length > 0 ? `캐릭터${chars} + 배경${bgs} + 아이템${items}` : '';
+                        return (
+                            <SceneRow
+                                key={scene.id}
+                                scene={scene}
+                                index={index}
+                                videoCount={videoCountPerScene[scene.id] || 1}
+                                genStatus={sceneGenStatus[scene.id]}
+                                videoGenStatus={videoGenStatus[scene.id] || 'idle'}
+                                isSelected={selectedScene === scene.id}
+                                sceneSeeds={seeds}
+                                deck={deck}
+                                promptPrefix={getArtStylePromptPrefix(artStyleId)}
+                                imagePrompt={customPrompts[scene.id]?.image || ''}
+                                videoPrompt={customPrompts[scene.id]?.video || ''}
+                                onImagePromptChange={(val) => updatePrompt(scene.id, 'image', val)}
+                                onVideoPromptChange={(val) => updatePrompt(scene.id, 'video', val)}
+                                gradientFallback={getSceneGradient(index)}
+                                onSelect={() => setSelectedScene(selectedScene === scene.id ? null : scene.id)}
+                                onGenerateImage={generateSingleScene}
+                                onRegenerateVideo={regenerateSingleVideo}
+                                onToggleSeed={toggleSceneSeed}
+                                artStyleLabel={getArtStyleById(artStyleId)?.nameKo || artStyleId}
+                                aspectRatio={aspectRatio || '16:9'}
+                                seedSummary={seedSummaryText}
+                                isSelectedForVideo={selectedForVideo.has(scene.id)}
+                                onToggleVideoSelection={() => toggleVideoSelection(scene.id)}
+                            />
+                        );
+                    })}
                 </div>
             </div>
 
@@ -309,14 +307,16 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                             </button>
                         </>
                     ) : (
-                        /* Step 3: 이미지 완료 → 영상 생성 */
+                        /* Step 3: 이미지 완료 → 영상 생성 (선택/전체) */
                         <>
                             <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
-                                <CheckCircle2 size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                                이미지 완료! ({doneVideoCount}/{scenes.length} 영상)
+                                이미지 완료! 영상 생성할 씬 선택
                             </span>
+                            <button className="btn-secondary sb-bottom-actions__btn" onClick={generateSelectedVideos}>
+                                <Video size={14} /> 선택한 {selectedForVideo.size}개 영상 생성
+                            </button>
                             <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllVideos}>
-                                <Video size={14} /> 영상 일괄 생성
+                                <Video size={14} /> 전체 영상 생성
                             </button>
                         </>
                     )

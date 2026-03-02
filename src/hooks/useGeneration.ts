@@ -3,7 +3,7 @@
  *
  * StoryboardPage의 seed-check 단계에서 사용하는 생성 관련 상태와 액션을 담당합니다.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { AssetCard, Scene } from '../store/projectStore';
 import { useProjectStore } from '../store/projectStore';
 import { mockScenePrompts } from '../data/mockData';
@@ -51,6 +51,21 @@ export function useGeneration({
         scenes.forEach((s) => { init[s.id] = s.imageUrl ? 'done' : 'idle'; });
         return init;
     });
+
+    // scenes가 변경되면 sceneGenStatus에 새 씬 추가
+    useEffect(() => {
+        setSceneGenStatus((prev) => {
+            const updated = { ...prev };
+            let changed = false;
+            scenes.forEach((s) => {
+                if (!(s.id in updated)) {
+                    updated[s.id] = s.imageUrl ? 'done' : 'idle';
+                    changed = true;
+                }
+            });
+            return changed ? updated : prev;
+        });
+    }, [scenes]);
 
     const [videoGenStatus, setVideoGenStatus] = useState<Record<string, SceneGenStatus>>({});
 
@@ -256,6 +271,43 @@ export function useGeneration({
     const doneVideoCount = scenes.filter((s) => videoGenStatus[s.id] === 'done').length;
     const allVideosDone = scenes.length > 0 && doneVideoCount === scenes.length;
 
+    // 영상 생성 대상 선택 상태
+    const [selectedForVideo, setSelectedForVideo] = useState<Set<string>>(new Set());
+
+    // 이미지 전부 완료 시 자동으로 전체 선택
+    useEffect(() => {
+        if (allImagesDone && selectedForVideo.size === 0) {
+            setSelectedForVideo(new Set(scenes.map((s) => s.id)));
+        }
+    }, [allImagesDone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const toggleVideoSelection = useCallback((sceneId: string) => {
+        setSelectedForVideo((prev) => {
+            const next = new Set(prev);
+            if (next.has(sceneId)) next.delete(sceneId);
+            else next.add(sceneId);
+            return next;
+        });
+    }, []);
+
+    const generateSelectedVideos = useCallback(() => {
+        const targets = scenes.filter(
+            (s) =>
+                selectedForVideo.has(s.id) &&
+                videoGenStatus[s.id] !== 'done' &&
+                videoGenStatus[s.id] !== 'generating',
+        );
+        if (!canAfford('video', targets.length)) {
+            if (onCreditShortage) {
+                onCreditShortage(targets.length * CREDIT_COSTS.video, `선택 영상 생성 (${targets.length}편)`);
+            }
+            return;
+        }
+        targets.forEach((scene, i) => {
+            setTimeout(() => generateSingleVideo(scene.id), i * 800);
+        });
+    }, [selectedForVideo, scenes, videoGenStatus, canAfford, CREDIT_COSTS, onCreditShortage, generateSingleVideo]);
+
     return {
         sceneGenStatus,
         videoGenStatus,
@@ -276,6 +328,9 @@ export function useGeneration({
         customPrompts,
         initPrompts,
         updatePrompt,
+        selectedForVideo,
+        toggleVideoSelection,
+        generateSelectedVideos,
     };
 }
 

@@ -27,6 +27,13 @@ interface SceneRowProps {
     onGenerateImage: (sceneId: string) => void;
     onRegenerateVideo: (sceneId: string) => void;
     onToggleSeed: (sceneId: string, cardId: string) => void;
+    /** 프롬프트 요약 태그 */
+    artStyleLabel?: string;
+    aspectRatio?: string;
+    seedSummary?: string;
+    /** 영상 생성 대상 선택 */
+    isSelectedForVideo?: boolean;
+    onToggleVideoSelection?: () => void;
 }
 
 const SceneRow: React.FC<SceneRowProps> = ({
@@ -34,6 +41,8 @@ const SceneRow: React.FC<SceneRowProps> = ({
     isSelected, sceneSeeds: seeds, deck, promptPrefix,
     imagePrompt, videoPrompt, onImagePromptChange, onVideoPromptChange,
     gradientFallback, onSelect, onGenerateImage, onRegenerateVideo, onToggleSeed,
+    artStyleLabel, aspectRatio, seedSummary,
+    isSelectedForVideo, onToggleVideoSelection,
 }) => (
     <React.Fragment>
         {Array.from({ length: videoCount }, (_, subIdx) => (
@@ -120,6 +129,13 @@ const SceneRow: React.FC<SceneRowProps> = ({
 
                 {/* Col 4: Prompts (편집 가능) */}
                 <div className="sc-row__prompt-col">
+                    {(artStyleLabel || aspectRatio || seedSummary) && (
+                        <div className="sc-row__prompt-tags">
+                            {artStyleLabel && <span className="sc-row__prompt-tag">{artStyleLabel}</span>}
+                            {aspectRatio && <span className="sc-row__prompt-tag">{aspectRatio}</span>}
+                            {seedSummary && <span className="sc-row__prompt-tag">{seedSummary}</span>}
+                        </div>
+                    )}
                     <div className="sc-row__prompt-section">
                         <div className="sc-row__prompt-label">🖼 이미지 생성 프롬프트</div>
                         {onImagePromptChange ? (
@@ -169,6 +185,19 @@ const SceneRow: React.FC<SceneRowProps> = ({
                     ) : vidStatus === 'generating' ? (
                         <div className="sc-row__video-clip sc-row__video-clip--gen">
                             <Loader size={22} className="animate-spin" /><span>영상 생성 중...</span>
+                        </div>
+                    ) : genStatus === 'done' ? (
+                        <div
+                            className="sc-row__video-clip sc-row__video-clip--selectable"
+                            onClick={(e) => { e.stopPropagation(); onToggleVideoSelection?.(); }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={!!isSelectedForVideo}
+                                readOnly
+                                className="sc-row__video-checkbox"
+                            />
+                            <span>{isSelectedForVideo ? '영상 생성 대상' : '영상 생성 제외'}</span>
                         </div>
                     ) : (
                         <div className="sc-row__video-clip sc-row__video-clip--empty">

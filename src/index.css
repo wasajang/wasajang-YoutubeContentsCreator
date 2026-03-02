@@ -5347,6 +5347,78 @@ img {
   border-color: var(--accent-primary);
 }
 
+/* ========== PROGRESS INDICATOR ========== */
+.sc-progress-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+}
+
+.sc-progress-step {
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.sc-progress-step--active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.sc-progress-step--done {
+  background: #10b981;
+  color: white;
+}
+
+.sc-progress-arrow {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ========== PROMPT SUMMARY TAGS ========== */
+.sc-row__prompt-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.sc-row__prompt-tag {
+  font-size: 0.6rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+/* ========== VIDEO SELECTION CHECKBOX ========== */
+.sc-row__video-clip--selectable {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+}
+
+.sc-row__video-clip--selectable:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.sc-row__video-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
 /* ========== HORIZONTAL CAST SEED STRIP (TOP BAR) ========== */
 .sc-cast-strip {
   display: flex;

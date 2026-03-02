@@ -42,7 +42,8 @@ const StoryboardPage: React.FC = () => {
 
     // ScriptPage에서 씬을 생성했으면 그것을 사용, 없으면 목업 폴백
     const allScenes = (storeScenes.length > 0 ? storeScenes : mockStoryboardScenes) as Scene[];
-    const scenes = allScenes.filter(s => s.checked !== false);
+    // 나레이션 모드: 모든 씬 포함 (TimelinePage에서 checked:false로 생성되므로)
+    const scenes = mode === 'narration' ? allScenes : allScenes.filter(s => s.checked !== false);
     const scriptCuts = storeScenes.length > 0
         ? storeScenes.map((s) => s.text)
         : mockScript;
@@ -260,6 +261,7 @@ const StoryboardPage: React.FC = () => {
                         onImageModelChange={(id) => setAiModelPreference('image', id)}
                         onVideoModelChange={(id) => setAiModelPreference('video', id)}
                         nextLabel="다음: 영상화"
+                        aspectRatio={aspectRatio}
                     />
                 )}
 
@@ -340,6 +342,7 @@ const StoryboardPage: React.FC = () => {
                     videoModel={aiModelPreferences.video}
                     onImageModelChange={(id) => setAiModelPreference('image', id)}
                     onVideoModelChange={(id) => setAiModelPreference('video', id)}
+                    aspectRatio={aspectRatio}
                 />
             )}
 
