@@ -51,12 +51,14 @@ const NarrationPreview: React.FC<NarrationPreviewProps> = ({
             autoPlay={_isPlaying}
           />
         ) : clip.imageUrl ? (
-          <img
-            className={`narration-preview__image ${effectClass}`}
-            style={{ animationDuration: `${clip.duration}s` }}
-            src={clip.imageUrl}
-            alt={`씬 ${clip.sceneId} 미리보기`}
-          />
+          <div className="narration-preview__image-wrap">
+            <img
+              className={`narration-preview__image${effectClass ? ` ${effectClass}` : ''}`}
+              style={{ animationDuration: `${clip.duration}s` }}
+              src={clip.imageUrl}
+              alt={`씬 ${clip.sceneId} 미리보기`}
+            />
+          </div>
         ) : (
           <div className="narration-preview__placeholder">
             <span>이미지 없음</span>

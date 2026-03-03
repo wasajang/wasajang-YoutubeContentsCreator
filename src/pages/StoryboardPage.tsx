@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HelpCircle } from 'lucide-react';
-import WorkflowSteps from '../components/WorkflowSteps';
+import WorkflowSteps, { narrationStepToGroup, narrationStepToSubKey } from '../components/WorkflowSteps';
 import CreditShortageModal from '../components/CreditShortageModal';
 import { CastSetupPhase, CutSplitPhase, SeedCheckPhase } from '../components/storyboard';
 import { useProjectStore } from '../store/projectStore';
 import type { Scene } from '../store/projectStore';
-import { mockStoryboardScenes, mockScript, aiSuggestedCards } from '../data/mockData';
+import { aiSuggestedCards } from '../data/mockData';
 import { getTemplateById } from '../data/templates';
 import { useCredits } from '../hooks/useCredits';
 import { useDeck } from '../hooks/useDeck';
@@ -40,13 +40,11 @@ const StoryboardPage: React.FC = () => {
         open: false, required: 0, label: '',
     });
 
-    // ScriptPage에서 씬을 생성했으면 그것을 사용, 없으면 목업 폴백
-    const allScenes = (storeScenes.length > 0 ? storeScenes : mockStoryboardScenes) as Scene[];
+    // 씬이 없으면 안내 화면 표시 (목업 폴백 제거)
+    const allScenes = storeScenes as Scene[];
     // 나레이션 모드: 모든 씬 포함 (TimelinePage에서 checked:false로 생성되므로)
     const scenes = mode === 'narration' ? allScenes : allScenes.filter(s => s.checked !== false);
-    const scriptCuts = storeScenes.length > 0
-        ? storeScenes.map((s) => s.text)
-        : mockScript;
+    const scriptCuts = storeScenes.map((s) => s.text);
 
     // ── 훅 ──
     const deckApi = useDeck({ cardLibrary, addToCardLibrary, canAfford, spend, creditsRemaining, CREDIT_COSTS });
@@ -139,47 +137,60 @@ const StoryboardPage: React.FC = () => {
         return g[i % g.length];
     };
 
-    // ── WorkflowSteps 매핑 (시네마틱) ──
-    const workflowStep = (phase === 'seed-check' || phase === 'generating-video' || phase === 'complete') ? 3 : 2;
+    // ── WorkflowSteps 매핑 (시네마틱) — StoryboardPage = 항상 2단계 ──
     const phaseToSub: Record<StoryboardPhase, string> = {
         'cast-setup': 'cast-setup',
         'script-review': 'cut-split',
-        'seed-check': 'seed-match',
-        'generating-video': 'video-gen',
-        'complete': 'video-gen',
+        'seed-check': 'cast-setup',
+        'generating-video': 'cast-setup',
+        'complete': 'cast-setup',
     };
 
     // 시네마틱 모드 메인 스텝 클릭
     const handleMainClick = (step: number) => {
         switch (step) {
             case 1: navigate('/project/idea'); break;
-            case 2: if (workflowStep !== 2) setPhase('cast-setup'); break;
-            case 3: if (workflowStep !== 3) setPhase('seed-check'); break;
+            case 2: break; // 현재 페이지
+            case 3: navigate('/project/generate'); break;
             case 4: navigate('/project/timeline'); break;
         }
     };
 
-    // 나레이션 모드 메인 스텝 클릭
-    const handleNarrationMainClick = (step: number) => {
-        setNarrationStep(step);
-        const routes: Record<number, string> = {
+    // 나레이션 모드 그룹 클릭 (4그룹 체계)
+    const handleNarrationMainClick = (group: number) => {
+        const groupFirstStep: Record<number, number> = { 1: 1, 2: 4, 3: 6, 4: 8 };
+        const groupRoute: Record<number, string> = {
             1: '/project/idea',
-            2: '/project/timeline',
+            2: '/project/storyboard',
             3: '/project/timeline',
-            4: '/project/storyboard',
-            5: '/project/storyboard',
-            6: '/project/timeline',
-            7: '/project/timeline',
-            8: '/project/timeline',
+            4: '/project/timeline',
         };
-        const target = routes[step];
-        if (target && target !== '/project/storyboard') {
-            navigate(target);
-        } else if (step === 4) {
+        const step = groupFirstStep[group] || 1;
+        setNarrationStep(step);
+        const route = groupRoute[group];
+        if (route && route !== '/project/storyboard') {
+            navigate(route);
+        } else {
+            // 그룹 2 = 스토리보드 — 첫 서브스텝(cast-setup)으로
             setPhase('cast-setup');
-        } else if (step === 5) {
-            setPhase('seed-check');
         }
+    };
+
+    // 나레이션 모드 서브스텝 클릭
+    const handleNarrationSubClick = (subKey: string) => {
+        const subKeyToStep: Record<string, number> = {
+            'script': 1, 'voice': 2, 'split': 3,
+            'cast-setup': 4, 'image-gen': 5,
+            'video': 6, 'edit': 7, 'export': 8,
+        };
+        const step = subKeyToStep[subKey];
+        if (!step) return;
+        setNarrationStep(step);
+        if (step <= 1) { navigate('/project/idea'); return; }
+        if (step <= 3 || step >= 6) { navigate('/project/timeline'); return; }
+        // step 4-5: stay on storyboard
+        if (step === 4) setPhase('cast-setup');
+        if (step === 5) setPhase('seed-check');
     };
 
     // 나레이션 Step 5(seed-check) 완료 후 Step 6으로 이동
@@ -195,9 +206,6 @@ const StoryboardPage: React.FC = () => {
 
     // ── 나레이션 모드 분기 ──
     if (mode === 'narration') {
-        // narrationStep에 따라 currentMain 결정 (4 또는 5)
-        const narrationMain = narrationStep === 5 ? 5 : 4;
-
         return (
             <div className="page-container" style={{ minHeight: 0, height: 'calc(100vh - 56px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 {/* 헤더 */}
@@ -205,9 +213,10 @@ const StoryboardPage: React.FC = () => {
                     <h2 className="storyboard-header__title">{title || 'Untitled Project'}</h2>
                     <div className="storyboard-header__center">
                         <WorkflowSteps
-                            currentMain={narrationMain}
-                            currentSub={phaseToSub[phase]}
+                            currentMain={narrationStepToGroup(narrationStep)}
+                            currentSub={narrationStepToSubKey(narrationStep)}
                             onMainClick={handleNarrationMainClick}
+                            onSubClick={handleNarrationSubClick}
                         />
                     </div>
                     <div className="storyboard-header__right">
@@ -284,7 +293,7 @@ const StoryboardPage: React.FC = () => {
                 <h2 className="storyboard-header__title">{title || 'Untitled Project'}</h2>
                 <div className="storyboard-header__center">
                     <WorkflowSteps
-                        currentMain={workflowStep}
+                        currentMain={2}
                         currentSub={phaseToSub[phase]}
                         onMainClick={handleMainClick}
                     />
@@ -295,8 +304,18 @@ const StoryboardPage: React.FC = () => {
                 </div>
             </div>
 
+            {/* 씬이 없는 경우 안내 */}
+            {scenes.length === 0 && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: 'var(--text-muted)' }}>
+                    <p style={{ fontSize: '1rem' }}>아직 대본이 없습니다. 아이디어 페이지에서 대본을 먼저 작성해주세요.</p>
+                    <button className="btn-primary" onClick={() => navigate('/project/idea')}>
+                        아이디어 페이지로 이동
+                    </button>
+                </div>
+            )}
+
             {/* ── Phase: 카드 선택 ── */}
-            {phase === 'cast-setup' && (
+            {scenes.length > 0 && phase === 'cast-setup' && (
                 <CastSetupPhase
                     deckApi={deckApi}
                     showAiAnalysisModal={showAiAnalysisModal}
@@ -313,7 +332,7 @@ const StoryboardPage: React.FC = () => {
             )}
 
             {/* ── Phase: 컷 분할 ── */}
-            {phase === 'script-review' && (
+            {scenes.length > 0 && phase === 'script-review' && (
                 <CutSplitPhase
                     scriptCuts={scriptCuts}
                     scenes={scenes}
@@ -321,28 +340,7 @@ const StoryboardPage: React.FC = () => {
                     setVideoCountPerScene={genApi.setVideoCountPerScene}
                     deckApi={deckApi}
                     onPrevPhase={() => setPhase('cast-setup')}
-                    onNextPhase={() => setPhase('seed-check')}
-                />
-            )}
-
-            {/* ── Phase: 시드 매칭 & 생성 ── */}
-            {phase === 'seed-check' && (
-                <SeedCheckPhase
-                    scenes={scenes}
-                    deck={deckApi.deck}
-                    artStyleId={artStyleId}
-                    selectedScene={selectedScene}
-                    setSelectedScene={setSelectedScene}
-                    genApi={genApi}
-                    deckApi={deckApi}
-                    getSceneGradient={getSceneGradient}
-                    onPrevPhase={() => setPhase('script-review')}
-                    onNavigateToTimeline={() => navigate('/project/timeline')}
-                    imageModel={aiModelPreferences.image}
-                    videoModel={aiModelPreferences.video}
-                    onImageModelChange={(id) => setAiModelPreference('image', id)}
-                    onVideoModelChange={(id) => setAiModelPreference('video', id)}
-                    aspectRatio={aspectRatio}
+                    onNextPhase={() => navigate('/project/generate')}
                 />
             )}
 

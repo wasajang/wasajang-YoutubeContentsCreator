@@ -2,9 +2,10 @@
  * CutSplitPhase — 스토리보드: 대본 컷 분할 확인 단계 UI
  * 좌측: 카드 덱 사이드바, 우측: 컷 리스트 + 일괄 설정 + 이미지 박스
  */
-import React from 'react';
-import { Film, ChevronLeft, ArrowRight, Pencil, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Film, ChevronLeft, ArrowRight, Pencil, Trash2, Check, X } from 'lucide-react';
 import type { Scene, AssetCard } from '../../store/projectStore';
+import { useProjectStore } from '../../store/projectStore';
 import type { UseDeckApi } from '../../hooks/useDeck';
 
 interface CutSplitPhaseProps {
@@ -26,6 +27,14 @@ const CutSplitPhase: React.FC<CutSplitPhaseProps> = ({
     onPrevPhase,
     onNextPhase,
 }) => {
+    // scriptCuts is kept in props for backward compat but we use scenes directly
+    void scriptCuts;
+    const setScenes = useProjectStore((s) => s.setScenes);
+
+    // 편집 상태: 현재 편집 중인 씬 ID와 텍스트
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editText, setEditText] = useState('');
+
     // 일괄 영상 개수 설정
     const handleBatchVideoCount = (count: number) => {
         const updated: Record<string, number> = {};
@@ -33,11 +42,41 @@ const CutSplitPhase: React.FC<CutSplitPhaseProps> = ({
         setVideoCountPerScene(updated);
     };
 
+    // 편집 시작
+    const handleEditStart = (scene: Scene) => {
+        setEditingId(scene.id);
+        setEditText(scene.text);
+    };
+
+    // 편집 저장
+    const handleEditSave = () => {
+        if (!editingId) return;
+        const updated = scenes.map((s) =>
+            s.id === editingId ? { ...s, text: editText.trim() || s.text } : s
+        );
+        setScenes(updated);
+        setEditingId(null);
+        setEditText('');
+    };
+
+    // 편집 취소
+    const handleEditCancel = () => {
+        setEditingId(null);
+        setEditText('');
+    };
+
+    // 씬 삭제 (최소 1개 유지)
+    const handleDelete = (sceneId: string) => {
+        if (scenes.length <= 1) return;
+        const updated = scenes.filter((s) => s.id !== sceneId);
+        setScenes(updated);
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
             <div className="sb-phase-title">
                 <span>1단계: 대본 컷 분할 확인</span>
-                <span className="sb-phase-title__progress">{scriptCuts.length}개 컷</span>
+                <span className="sb-phase-title__progress">{scenes.length}개 컷</span>
             </div>
 
             {/* 일괄 설정 바 */}
@@ -76,19 +115,33 @@ const CutSplitPhase: React.FC<CutSplitPhaseProps> = ({
                 {/* 우: 컷 분할 메인 */}
                 <div className="cut-split-main">
                     <div className="sb-cut-list">
-                        {scriptCuts.map((cut, index) => {
-                            const sceneId = scenes[index]?.id || `scene-${index + 1}`;
-                            const vc = videoCountPerScene[sceneId] || 1;
+                        {scenes.map((scene, index) => {
+                            const vc = videoCountPerScene[scene.id] || 1;
+                            const isEditing = editingId === scene.id;
                             return (
-                                <div key={index} className="sb-cut-card">
+                                <div key={scene.id} className="sb-cut-card">
                                     <div className="sb-cut-card__num">
                                         <span>{String(index + 1).padStart(2, '0')}</span>
                                     </div>
                                     <div className="sb-cut-card__body">
-                                        <p className="sb-cut-card__text">{cut}</p>
+                                        {isEditing ? (
+                                            <textarea
+                                                className="sb-cut-card__edit-textarea"
+                                                value={editText}
+                                                onChange={(e) => setEditText(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && e.ctrlKey) handleEditSave();
+                                                    if (e.key === 'Escape') handleEditCancel();
+                                                }}
+                                                autoFocus
+                                                rows={3}
+                                            />
+                                        ) : (
+                                            <p className="sb-cut-card__text">{scene.text}</p>
+                                        )}
                                         <div className="sb-cut-card__meta">
-                                            <span>{scenes[index]?.location || 'Unknown'}</span>
-                                            <span>{scenes[index]?.cameraAngle || 'Wide Angle'}</span>
+                                            <span>{scene.location || 'Unknown'}</span>
+                                            <span>{scene.cameraAngle || 'Wide Angle'}</span>
                                         </div>
                                     </div>
                                     <div className="sb-cut-card__video-count">
@@ -100,7 +153,7 @@ const CutSplitPhase: React.FC<CutSplitPhaseProps> = ({
                                                 <button
                                                     key={n}
                                                     className={`sb-cut-card__vc-btn ${vc === n ? 'sb-cut-card__vc-btn--active' : ''}`}
-                                                    onClick={() => setVideoCountPerScene((prev) => ({ ...prev, [sceneId]: n }))}
+                                                    onClick={() => setVideoCountPerScene((prev) => ({ ...prev, [scene.id]: n }))}
                                                 >
                                                     {n}
                                                 </button>
@@ -118,8 +171,31 @@ const CutSplitPhase: React.FC<CutSplitPhaseProps> = ({
                                         ))}
                                     </div>
                                     <div className="sb-cut-card__actions">
-                                        <button className="sb-cut-card__action"><Pencil size={12} /></button>
-                                        <button className="sb-cut-card__action"><Trash2 size={12} /></button>
+                                        {isEditing ? (
+                                            <>
+                                                <button className="sb-cut-card__action sb-cut-card__action--save" onClick={handleEditSave} title="저장 (Ctrl+Enter)">
+                                                    <Check size={12} />
+                                                </button>
+                                                <button className="sb-cut-card__action" onClick={handleEditCancel} title="취소 (Esc)">
+                                                    <X size={12} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button className="sb-cut-card__action" onClick={() => handleEditStart(scene)} title="텍스트 편집">
+                                                    <Pencil size={12} />
+                                                </button>
+                                                <button
+                                                    className="sb-cut-card__action"
+                                                    onClick={() => handleDelete(scene.id)}
+                                                    title={scenes.length <= 1 ? '마지막 씬은 삭제할 수 없습니다' : '씬 삭제'}
+                                                    disabled={scenes.length <= 1}
+                                                    style={{ opacity: scenes.length <= 1 ? 0.3 : 1 }}
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -132,7 +208,7 @@ const CutSplitPhase: React.FC<CutSplitPhaseProps> = ({
                 <button className="btn-secondary" onClick={onPrevPhase}>
                     <ChevronLeft size={14} /> 이전: 카드 선택
                 </button>
-                <span className="sb-bottom-actions__info">{scriptCuts.length}개 컷이 분할되었습니다</span>
+                <span className="sb-bottom-actions__info">{scenes.length}개 컷이 분할되었습니다</span>
                 <button className="btn-primary sb-bottom-actions__btn" onClick={onNextPhase}>
                     다음: 시드 매칭 & 생성 <ArrowRight size={14} />
                 </button>

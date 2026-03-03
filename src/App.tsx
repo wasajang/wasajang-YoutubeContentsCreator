@@ -5,6 +5,7 @@ import NavBar from './components/NavBar';
 import HomePage from './pages/HomePage';
 import IdeaPage from './pages/IdeaPage';
 import StoryboardPage from './pages/StoryboardPage';
+import GeneratePage from './pages/GeneratePage';
 import TimelinePage from './pages/TimelinePage';
 import CastPage from './pages/CastPage';
 import SettingsPage from './pages/SettingsPage';
@@ -33,6 +34,7 @@ const App: React.FC = () => {
             <Route path="/cast" element={<CastPage />} />
             <Route path="/project/idea" element={<IdeaPage />} />
             <Route path="/project/storyboard" element={<StoryboardPage />} />
+            <Route path="/project/generate" element={<GeneratePage />} />
             <Route path="/project/timeline" element={<TimelinePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/admin" element={<AdminPage />} />

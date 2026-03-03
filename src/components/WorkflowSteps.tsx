@@ -30,7 +30,7 @@ const CINEMATIC_WORKFLOW: MainStep[] = [
     ],
   },
   {
-    num: 3, label: 'Generate', route: '/project/storyboard',
+    num: 3, label: 'Generate', route: '/project/generate',
     subSteps: [
       { key: 'seed-match', label: '시드 매칭' },
       { key: 'image-gen', label: '이미지 생성' },
@@ -47,16 +47,63 @@ const CINEMATIC_WORKFLOW: MainStep[] = [
   },
 ];
 
+/**
+ * 나레이션 워크플로우 — 8단계를 4그룹으로 압축
+ *
+ * Group 1 (대본 & 음성): narrationStep 1,2,3
+ * Group 2 (시각화):       narrationStep 4,5
+ * Group 3 (영상 & 편집):  narrationStep 6,7
+ * Group 4 (내보내기):     narrationStep 8
+ */
 const NARRATION_WORKFLOW: MainStep[] = [
-  { num: 1, label: 'Script', route: '/project/idea', subSteps: [{ key: 'script', label: '대본' }, { key: 'style', label: '스타일' }] },
-  { num: 2, label: 'Voice', route: '/project/timeline', subSteps: [{ key: 'tts', label: 'TTS 생성' }] },
-  { num: 3, label: 'Split', route: '/project/timeline', subSteps: [{ key: 'split', label: '씬 분할' }] },
-  { num: 4, label: 'Direct', route: '/project/storyboard', subSteps: [{ key: 'cast-setup', label: '캐스트' }] },
-  { num: 5, label: 'Image', route: '/project/storyboard', subSteps: [{ key: 'image-gen', label: '이미지' }] },
-  { num: 6, label: 'Video', route: '/project/timeline', subSteps: [{ key: 'video', label: '영상화' }] },
-  { num: 7, label: 'Edit', route: '/project/timeline', subSteps: [{ key: 'edit', label: '편집' }] },
-  { num: 8, label: 'Export', route: '/project/timeline', subSteps: [{ key: 'export', label: '내보내기' }] },
+  {
+    num: 1, label: '대본 & 음성', route: '/project/idea',
+    subSteps: [
+      { key: 'script', label: '대본' },
+      { key: 'voice', label: '음성 생성' },
+      { key: 'split', label: '씬 분할' },
+    ],
+  },
+  {
+    num: 2, label: '시각화', route: '/project/storyboard',
+    subSteps: [
+      { key: 'cast-setup', label: '카드 선택' },
+      { key: 'image-gen', label: '이미지 생성' },
+    ],
+  },
+  {
+    num: 3, label: '영상 & 편집', route: '/project/timeline',
+    subSteps: [
+      { key: 'video', label: '영상화' },
+      { key: 'edit', label: '편집' },
+    ],
+  },
+  {
+    num: 4, label: '내보내기', route: '/project/timeline',
+    subSteps: [
+      { key: 'export', label: '내보내기' },
+    ],
+  },
 ];
+
+/** narrationStep(1~8) → 그룹 번호(1~4) 매핑 */
+export function narrationStepToGroup(step: number): number {
+  if (step <= 3) return 1;
+  if (step <= 5) return 2;
+  if (step <= 7) return 3;
+  return 4;
+}
+
+/** narrationStep(1~8) → 그룹 내 서브스텝 key 매핑 */
+export function narrationStepToSubKey(step: number): string {
+  const map: Record<number, string> = {
+    1: 'script', 2: 'voice', 3: 'split',
+    4: 'cast-setup', 5: 'image-gen',
+    6: 'video', 7: 'edit',
+    8: 'export',
+  };
+  return map[step] || 'script';
+}
 
 interface Props {
   currentMain: number;       // 1~4

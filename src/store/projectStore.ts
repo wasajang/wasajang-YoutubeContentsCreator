@@ -142,6 +142,11 @@ export interface ProjectState {
   aiModelPreferences: AiModelPreferences;
   setAiModelPreference: (category: keyof AiModelPreferences, modelId: string) => void;
 
+  // ── v10 신규: 서브이미지 영구 저장 ──
+  sceneImages: Record<string, string[]>;
+  setSceneImages: (images: Record<string, string[]>) => void;
+  updateSceneImageAtSub: (sceneId: string, subIndex: number, imageUrl: string) => void;
+
   // ── v5 신규: 듀얼 모드 ──
   mode: ProjectMode;
   setMode: (mode: ProjectMode) => void;
@@ -235,6 +240,7 @@ export const useProjectStore = create<ProjectState>()(
           hasActiveProject: true,
           currentPhase: 1,
           scenes: [],
+          sceneImages: {},
           artStyleId: 'cinematic',
           aspectRatio: '16:9',
           timelineClips: [],
@@ -249,6 +255,16 @@ export const useProjectStore = create<ProjectState>()(
           narrationStep: 1,
           // cardLibrary는 리셋하지 않음 — 카드 에셋은 프로젝트 간 유지
         })),
+
+      // ── v10 신규: 서브이미지 영구 저장 ──
+      sceneImages: {},
+      setSceneImages: (sceneImages) => set({ sceneImages }),
+      updateSceneImageAtSub: (sceneId, subIndex, imageUrl) =>
+        set((state) => {
+          const arr = [...(state.sceneImages[sceneId] || [])];
+          arr[subIndex] = imageUrl;
+          return { sceneImages: { ...state.sceneImages, [sceneId]: arr } };
+        }),
 
       // ── v4 신규 필드 초기값 & 액션 ──
       entryPoint: null,
@@ -282,7 +298,7 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'antigravity-project',
-      version: 9,
+      version: 10,
       migrate: (persistedState: unknown, version: number) => {
         let state = persistedState as Record<string, unknown>;
         if (version < 2) {
@@ -369,12 +385,17 @@ export const useProjectStore = create<ProjectState>()(
             artStyleId: oldStyle.toLowerCase() === 'cinematic' ? 'cinematic' : oldStyle.toLowerCase(),
           };
         }
+        if (version < 10) {
+          // v9→v10: sceneImages 필드 추가 (서브이미지 영구 저장)
+          state = { ...state, sceneImages: {} };
+        }
         return state;
       },
       partialize: (state) => ({
         projectId: state.projectId,
         title: state.title,
         scenes: state.scenes,
+        sceneImages: state.sceneImages,
         artStyleId: state.artStyleId,
         cardLibrary: state.cardLibrary,
         credits: state.credits,

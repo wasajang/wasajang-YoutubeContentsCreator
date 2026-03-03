@@ -4,7 +4,7 @@ import {
     Pencil, Wand2, Check, Minus, Plus, ArrowRight, RotateCcw, Loader,
     FileText,
 } from 'lucide-react';
-import WorkflowSteps from '../components/WorkflowSteps';
+import WorkflowSteps, { narrationStepToGroup, narrationStepToSubKey } from '../components/WorkflowSteps';
 import { useProjectStore } from '../store/projectStore';
 import { mockScript, mockCardLibrary } from '../data/mockData';
 import { artStyles } from '../data/artStyles';
@@ -81,7 +81,7 @@ const IdeaPage: React.FC = () => {
         hasActiveProject, startNewProject,
         templateId, setTemplateId,
         aiModelPreferences, setAiModelPreference,
-        mode, setNarrationStep,
+        mode, narrationStep, setNarrationStep,
     } = useProjectStore();
     const { canAfford, spend, remaining: creditsRemaining, CREDIT_COSTS } = useCredits();
 
@@ -245,11 +245,23 @@ const IdeaPage: React.FC = () => {
 
     // ── 워크플로우 클릭 ──
     const handleMainClick = (step: number) => {
-        switch (step) {
-            case 1: break;
-            case 2: navigate('/project/storyboard'); break;
-            case 3: navigate('/project/storyboard'); break;
-            case 4: navigate('/project/timeline'); break;
+        if (mode === 'narration') {
+            // 나레이션 그룹 클릭
+            const groupFirstStep: Record<number, number> = { 1: 1, 2: 4, 3: 6, 4: 8 };
+            const groupRoute: Record<number, string> = {
+                1: '/project/idea', 2: '/project/storyboard',
+                3: '/project/timeline', 4: '/project/timeline',
+            };
+            setNarrationStep(groupFirstStep[step] || 1);
+            const route = groupRoute[step];
+            if (route && route !== '/project/idea') navigate(route);
+        } else {
+            switch (step) {
+                case 1: break;
+                case 2: navigate('/project/storyboard'); break;
+                case 3: navigate('/project/generate'); break;
+                case 4: navigate('/project/timeline'); break;
+            }
         }
     };
 
@@ -306,10 +318,9 @@ const IdeaPage: React.FC = () => {
                         )}
                     </div>
                     <WorkflowSteps
-                        currentMain={1}
-                        currentSub={''}
+                        currentMain={mode === 'narration' ? narrationStepToGroup(narrationStep) : 1}
+                        currentSub={mode === 'narration' ? narrationStepToSubKey(narrationStep) : ''}
                         onMainClick={handleMainClick}
-                        onSubClick={() => {}}
                     />
                 </div>
 

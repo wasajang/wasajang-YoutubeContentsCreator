@@ -45,6 +45,9 @@ export function useGeneration({
 }: UseGenerationParams) {
     const updateSceneImage = useProjectStore((s) => s.updateSceneImage);
     const updateSceneVideo = useProjectStore((s) => s.updateSceneVideo);
+    const storeSceneImages = useProjectStore((s) => s.sceneImages);
+    const setStoreSceneImages = useProjectStore((s) => s.setSceneImages);
+    const updateSceneImageAtSub = useProjectStore((s) => s.updateSceneImageAtSub);
 
     const [sceneGenStatus, setSceneGenStatus] = useState<Record<string, SceneGenStatus>>(() => {
         const init: Record<string, SceneGenStatus> = {};
@@ -52,15 +55,22 @@ export function useGeneration({
         return init;
     });
 
-    // 씬별 서브이미지 배열 (videoCount만큼 생성)
+    // 씬별 서브이미지 배열 (store에 영구 저장)
     // key: sceneId, value: string[] (서브인덱스 순서대로 imageUrl)
-    const [sceneImages, setSceneImages] = useState<Record<string, string[]>>(() => {
-        const init: Record<string, string[]> = {};
+    const sceneImages = storeSceneImages;
+
+    // 새 씬이 추가되면 store에 초기값 세팅
+    useEffect(() => {
+        let changed = false;
+        const updated = { ...storeSceneImages };
         scenes.forEach((s) => {
-            init[s.id] = s.imageUrl ? [s.imageUrl] : [];
+            if (!(s.id in updated)) {
+                updated[s.id] = s.imageUrl ? [s.imageUrl] : [];
+                changed = true;
+            }
         });
-        return init;
-    });
+        if (changed) setStoreSceneImages(updated);
+    }, [scenes]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // scenes가 변경되면 sceneGenStatus에 새 씬 추가
     useEffect(() => {
@@ -191,12 +201,8 @@ export function useGeneration({
 
             console.log(`[Scene ${sceneId}][sub ${subIndex}] 이미지 생성 완료: ${result.imageUrl}`);
 
-            // sceneImages 배열에 서브인덱스 위치에 저장
-            setSceneImages((prev) => {
-                const arr = [...(prev[sceneId] || [])];
-                arr[subIndex] = result.imageUrl;
-                return { ...prev, [sceneId]: arr };
-            });
+            // sceneImages 배열에 서브인덱스 위치에 저장 (store 영구 저장)
+            updateSceneImageAtSub(sceneId, subIndex, result.imageUrl);
 
             // subIndex === 0이면 기존 scene.imageUrl도 업데이트 (하위 호환)
             if (subIndex === 0) {
@@ -205,7 +211,7 @@ export function useGeneration({
         } catch (err) {
             console.error(`[Scene ${sceneId}][sub ${subIndex}] 이미지 생성 실패:`, err);
         }
-    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, aspectRatio, imageModel, onCreditShortage, updateSceneImage, customPrompts]);
+    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, aspectRatio, imageModel, onCreditShortage, updateSceneImage, updateSceneImageAtSub, customPrompts]);
 
     // 기존 generateSingleScene — 서브인덱스 0번만 생성 (단일 호출 및 재생성용)
     const generateSingleScene = useCallback(async (sceneId: string) => {

@@ -16,11 +16,11 @@ import {
     Maximize2, Clock, Film, Scissors, Merge, ArrowUp, ArrowDown,
     Trash2, Volume2, Plus, Mic, Loader,
 } from 'lucide-react';
-import WorkflowSteps from '../components/WorkflowSteps';
+import WorkflowSteps, { narrationStepToGroup, narrationStepToSubKey } from '../components/WorkflowSteps';
 import { useProjectStore } from '../store/projectStore';
 import type { SentenceTiming, Scene } from '../store/projectStore';
 import { getTemplateById } from '../data/templates';
-import { mockStoryboardScenes } from '../data/mockData';
+// mockStoryboardScenes 폴백 제거 — 빈 상태에서 안내 표시
 import { generateTTS } from '../services/ai-tts';
 import { useCredits, CREDIT_COSTS } from '../hooks/useCredits';
 import { getUserSelectableModels } from '../data/aiModels';
@@ -51,8 +51,8 @@ const TimelinePage: React.FC = () => {
         narrationStep, setNarrationStep, templateId,
     } = useProjectStore();
 
-    // store 씬이 없으면 mockData 폴백
-    const sourceScenes = storeScenes.length > 0 ? storeScenes : mockStoryboardScenes;
+    // 목업 폴백 제거 — store 씬 직접 사용
+    const sourceScenes = storeScenes;
 
     // ── 클립 목록 상태 (편집 가능) ──
     const [clips, setClips] = useState<TimelineClip[]>(() =>
@@ -371,23 +371,39 @@ const TimelinePage: React.FC = () => {
     const ttsCount = clips.filter((c) => c.audioUrl).length;
     const ttsPendingCount = clips.length - ttsCount;
 
-    // ── 나레이션 모드 — 스텝 클릭 시 라우팅 ──
-    const handleNarrationMainClick = useCallback((step: number) => {
-        const routes: Record<number, string> = {
+    // ── 나레이션 모드 — 그룹 클릭 시 라우팅 (4그룹 체계) ──
+    const handleNarrationMainClick = useCallback((group: number) => {
+        const groupFirstStep: Record<number, number> = { 1: 1, 2: 4, 3: 6, 4: 8 };
+        const groupRoute: Record<number, string> = {
             1: '/project/idea',
-            2: '/project/timeline',
+            2: '/project/storyboard',
             3: '/project/timeline',
-            4: '/project/storyboard',
-            5: '/project/storyboard',
-            6: '/project/timeline',
-            7: '/project/timeline',
-            8: '/project/timeline',
+            4: '/project/timeline',
         };
+        const step = groupFirstStep[group] || 1;
         setNarrationStep(step);
-        const route = routes[step];
+        const route = groupRoute[group];
         if (route && route !== '/project/timeline') {
             navigate(route);
         }
+    }, [setNarrationStep, navigate]);
+
+    // ── 나레이션 모드 — 서브스텝 클릭 시 라우팅 ──
+    const handleNarrationSubClick = useCallback((subKey: string) => {
+        const subKeyToStep: Record<string, number> = {
+            'script': 1, 'voice': 2, 'split': 3,
+            'cast-setup': 4, 'image-gen': 5,
+            'video': 6, 'edit': 7, 'export': 8,
+        };
+        const step = subKeyToStep[subKey];
+        if (!step) return;
+        setNarrationStep(step);
+        const routeMap: Record<string, string> = {
+            'script': '/project/idea',
+            'cast-setup': '/project/storyboard', 'image-gen': '/project/storyboard',
+        };
+        const route = routeMap[subKey];
+        if (route) navigate(route);
     }, [setNarrationStep, navigate]);
 
     // ── 나레이션 모드 분기 ──
@@ -396,7 +412,7 @@ const TimelinePage: React.FC = () => {
         if (narrationStep <= 2) {
             return (
                 <div className="page-container">
-                    <WorkflowSteps currentMain={2} onMainClick={handleNarrationMainClick} />
+                    <WorkflowSteps currentMain={narrationStepToGroup(narrationStep)} currentSub={narrationStepToSubKey(narrationStep)} onMainClick={handleNarrationMainClick} onSubClick={handleNarrationSubClick} />
                     <NarrationVoiceStep
                         onNext={() => setNarrationStep(3)}
                         onPrev={() => {
@@ -411,7 +427,7 @@ const TimelinePage: React.FC = () => {
         if (narrationStep === 3) {
             return (
                 <div className="page-container">
-                    <WorkflowSteps currentMain={3} onMainClick={handleNarrationMainClick} />
+                    <WorkflowSteps currentMain={narrationStepToGroup(narrationStep)} currentSub={narrationStepToSubKey(narrationStep)} onMainClick={handleNarrationMainClick} onSubClick={handleNarrationSubClick} />
                     <NarrationSplitStep
                         onNext={() => {
                             setNarrationStep(4);
@@ -426,7 +442,7 @@ const TimelinePage: React.FC = () => {
         if (narrationStep === 6) {
             return (
                 <div className="page-container">
-                    <WorkflowSteps currentMain={6} onMainClick={handleNarrationMainClick} />
+                    <WorkflowSteps currentMain={narrationStepToGroup(narrationStep)} currentSub={narrationStepToSubKey(narrationStep)} onMainClick={handleNarrationMainClick} onSubClick={handleNarrationSubClick} />
                     <NarrationVideoStep
                         onNext={() => setNarrationStep(7)}
                         onPrev={() => {
@@ -441,7 +457,7 @@ const TimelinePage: React.FC = () => {
         if (narrationStep === 7) {
             return (
                 <div className="page-container">
-                    <WorkflowSteps currentMain={7} onMainClick={handleNarrationMainClick} />
+                    <WorkflowSteps currentMain={narrationStepToGroup(narrationStep)} currentSub={narrationStepToSubKey(narrationStep)} onMainClick={handleNarrationMainClick} onSubClick={handleNarrationSubClick} />
                     <NarrationEditView
                         onNext={() => setNarrationStep(8)}
                         onPrev={() => setNarrationStep(6)}
@@ -453,7 +469,7 @@ const TimelinePage: React.FC = () => {
         if (narrationStep >= 8) {
             return (
                 <div className="page-container">
-                    <WorkflowSteps currentMain={8} onMainClick={handleNarrationMainClick} />
+                    <WorkflowSteps currentMain={narrationStepToGroup(narrationStep)} currentSub={narrationStepToSubKey(narrationStep)} onMainClick={handleNarrationMainClick} onSubClick={handleNarrationSubClick} />
                     <div className="narration-placeholder">
                         <p>Step 8: 내보내기 (구현 예정)</p>
                     </div>
@@ -475,7 +491,7 @@ const TimelinePage: React.FC = () => {
                             switch (step) {
                                 case 1: navigate('/project/idea'); break;
                                 case 2: navigate('/project/storyboard'); break;
-                                case 3: navigate('/project/storyboard'); break;
+                                case 3: navigate('/project/generate'); break;
                                 case 4: break;
                             }
                         }}
@@ -485,6 +501,16 @@ const TimelinePage: React.FC = () => {
                     <button className="export-btn" disabled title="추후 지원 예정 — 현재 TTS 오디오 생성까지 이용 가능"><Download size={14} /> Export</button>
                 </div>
             </div>
+
+            {/* 씬이 없는 경우 안내 */}
+            {storeScenes.length === 0 && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: 'var(--text-muted)' }}>
+                    <p style={{ fontSize: '1rem' }}>아직 대본이 없습니다. 아이디어 페이지에서 대본을 먼저 작성해주세요.</p>
+                    <button className="btn-primary" onClick={() => navigate('/project/idea')}>
+                        아이디어 페이지로 이동
+                    </button>
+                </div>
+            )}
 
             {/* 나레이션 모드 — TTS 생성 섹션 */}
             {mode === 'narration' && (
