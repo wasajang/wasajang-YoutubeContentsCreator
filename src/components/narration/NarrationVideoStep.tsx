@@ -6,13 +6,15 @@
  * - 미체크 클립: Ken Burns 효과 드롭다운 선택
  * - 영상 AI 모델 선택 (getUserSelectableModels('video'))
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import type { NarrationClip } from '../../store/projectStore';
 import { generateVideo } from '../../services/ai-video';
 import { buildVideoPrompt } from '../../services/prompt-builder';
 import { useCredits } from '../../hooks/useCredits';
 import { getUserSelectableModels } from '../../data/aiModels';
+import { useToast } from '../../hooks/useToast';
+import { syncScenesImageToClips } from '../../utils/narration-sync';
 
 interface NarrationVideoStepProps {
   onNext: () => void;
@@ -30,20 +32,51 @@ const KEN_BURNS_OPTIONS: { value: NarrationClip['effect']; label: string }[] = [
 export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) {
   const narrationClips       = useProjectStore((s) => s.narrationClips);
   const setNarrationClips    = useProjectStore((s) => s.setNarrationClips);
+  const scenes               = useProjectStore((s) => s.scenes);
   const aiModelPreferences   = useProjectStore((s) => s.aiModelPreferences);
   const setAiModelPreference = useProjectStore((s) => s.setAiModelPreference);
   const artStyleId           = useProjectStore((s) => s.artStyleId);
   const templateId           = useProjectStore((s) => s.templateId);
 
   const { canAfford, spend, getCost } = useCredits();
+  const { showToast } = useToast();
 
   const [checkedIds,    setCheckedIds]    = useState<Set<string>>(new Set());
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+  const syncedRef = useRef(false);
 
   const videoModels = getUserSelectableModels('video');
 
+  // 마운트 시 scenes → narrationClips 이미지 자동 동기화
+  useEffect(() => {
+    if (syncedRef.current) return;
+    if (narrationClips.length === 0 || scenes.length === 0) return;
+
+    const synced = syncScenesImageToClips(
+      scenes.map((s) => ({ id: s.id, imageUrl: s.imageUrl || '' })),
+      narrationClips,
+    );
+
+    // 실제 변경이 있는 경우에만 업데이트
+    const hasChange = synced.some((c, i) => c.imageUrl !== narrationClips[i]?.imageUrl);
+    if (hasChange) {
+      setNarrationClips(synced);
+    }
+    syncedRef.current = true;
+  }, [scenes, narrationClips, setNarrationClips]);
+
   // imageUrl이 있는 클립만 표시
   const visibleClips = narrationClips.filter((c) => c.imageUrl);
+
+  // 최초 visibleClips가 채워지면 전체 선택 (한 번만)
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (initializedRef.current) return;
+    if (visibleClips.length > 0) {
+      setCheckedIds(new Set(visibleClips.map((c) => c.id)));
+      initializedRef.current = true;
+    }
+  }, [visibleClips]);
 
   const checkedCount   = [...checkedIds].filter((id) => visibleClips.some((c) => c.id === id)).length;
   const kenBurnsCount  = visibleClips.length - checkedCount;
@@ -90,7 +123,7 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
 
     for (const clip of toGenerate) {
       if (!canAfford('video')) {
-        alert('크레딧이 부족합니다! 영상 생성을 중단합니다.');
+        showToast('크레딧이 부족합니다! 영상 생성을 중단합니다.', 'warning');
         break;
       }
 

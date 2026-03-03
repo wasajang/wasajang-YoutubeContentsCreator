@@ -13,6 +13,7 @@ import type { Template } from '../data/templates';
 import { generateScript } from '../services/ai-llm';
 import { useCredits } from '../hooks/useCredits';
 import { getUserSelectableModels } from '../data/aiModels';
+import { useToast } from '../hooks/useToast';
 
 type InputMode = 'script' | 'idea';
 
@@ -83,7 +84,8 @@ const IdeaPage: React.FC = () => {
         aiModelPreferences, setAiModelPreference,
         mode, narrationStep, setNarrationStep,
     } = useProjectStore();
-    const { canAfford, spend, remaining: creditsRemaining, CREDIT_COSTS } = useCredits();
+    const { canAfford, spend } = useCredits();
+    const { showToast } = useToast();
 
     // NavBar "New Project" 링크로 진입 시 hasActiveProject가 false일 수 있음
     useEffect(() => {
@@ -140,7 +142,7 @@ const IdeaPage: React.FC = () => {
         if (!ideaText.trim()) return;
 
         if (!canAfford('script')) {
-            alert(`크레딧이 부족합니다! (대본 생성 ${CREDIT_COSTS.script} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            showToast('크레딧이 부족합니다! 대본 생성에 크레딧이 필요합니다.', 'warning');
             return;
         }
         if (!spend('script')) return;
@@ -169,7 +171,7 @@ const IdeaPage: React.FC = () => {
             setIsGenerated(true);
         } catch (err) {
             console.error('[IdeaPage] 대본 생성 실패:', err);
-            alert('대본 생성에 실패했습니다. 다시 시도해주세요.');
+            showToast('대본 생성에 실패했습니다. 다시 시도해주세요.', 'error');
         } finally {
             setIsIdeaGenerating(false);
         }

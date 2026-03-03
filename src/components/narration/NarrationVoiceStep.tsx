@@ -15,6 +15,7 @@ import { generateTTS } from '../../services/ai-tts';
 import { getTemplateById } from '../../data/templates';
 import { useCredits } from '../../hooks/useCredits';
 import { getUserSelectableModels } from '../../data/aiModels';
+import { useToast } from '../../hooks/useToast';
 
 interface Props {
     onNext: () => void;
@@ -32,6 +33,7 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
     const templateId = useProjectStore((s) => s.templateId);
 
     const { canAfford, spend } = useCredits();
+    const { showToast } = useToast();
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -44,11 +46,11 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
     const handleGenerateTTS = useCallback(async () => {
         const text = fullScript.trim();
         if (!text) {
-            alert('대본이 없습니다. Script 단계에서 먼저 대본을 작성해주세요.');
+            showToast('대본이 없습니다. Script 단계에서 먼저 대본을 작성해주세요.', 'warning');
             return;
         }
         if (!canAfford('tts')) {
-            alert('크레딧이 부족합니다! TTS 생성에는 크레딧이 필요합니다.');
+            showToast('크레딧이 부족합니다!', 'warning');
             return;
         }
         if (!spend('tts')) return;
@@ -84,7 +86,7 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
             setSentenceTimings(timings);
         } catch (err) {
             console.error('[NarrationVoiceStep] TTS 생성 실패:', err);
-            alert(`TTS 생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`);
+            showToast(`TTS 생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`, 'error');
         } finally {
             setIsGenerating(false);
         }

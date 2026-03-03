@@ -12,6 +12,7 @@ import { useCredits } from '../hooks/useCredits';
 import { useDeck } from '../hooks/useDeck';
 import { useGeneration } from '../hooks/useGeneration';
 import { syncScenesImageToClips } from '../utils/narration-sync';
+import { getSceneGradient } from '../utils/scene-gradient';
 
 type StoryboardPhase = 'script-review' | 'cast-setup' | 'seed-check' | 'generating-video' | 'complete';
 
@@ -124,18 +125,8 @@ const StoryboardPage: React.FC = () => {
         }, 2500);
     };
 
-    // ── 씬 그라디언트 ──
-    const getSceneGradient = (i: number) => {
-        const g = [
-            'linear-gradient(135deg,#1a0533,#2d1b3d,#0f2027)',
-            'linear-gradient(135deg,#0f2027,#1a1a2e,#2d1b3d)',
-            'linear-gradient(135deg,#3a2518,#1a0f0a,#2d1b3d)',
-            'linear-gradient(135deg,#1e2a3a,#0a1520,#1a0533)',
-            'linear-gradient(135deg,#2d1b3d,#3a2518,#0f2027)',
-            'linear-gradient(135deg,#1a1a2e,#0f2027,#3a2518)',
-        ];
-        return g[i % g.length];
-    };
+    // ── 씬 그라디언트 (공통 유틸) ──
+    // getSceneGradient → src/utils/scene-gradient.ts 로 분리됨
 
     // ── WorkflowSteps 매핑 (시네마틱) — StoryboardPage = 항상 2단계 ──
     const phaseToSub: Record<StoryboardPhase, string> = {

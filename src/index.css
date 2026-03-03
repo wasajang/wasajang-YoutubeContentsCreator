@@ -5413,6 +5413,16 @@ img {
   border: 1px solid var(--border-subtle);
 }
 
+.sc-row__variation-label {
+  font-size: 0.65rem;
+  color: var(--accent-primary);
+  padding: 2px 8px;
+  margin-bottom: 4px;
+  background: rgba(168, 85, 247, 0.1);
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+
 /* ========== VIDEO SELECTION CHECKBOX ========== */
 .sc-row__video-clip--selectable {
   cursor: pointer;
@@ -8370,8 +8380,37 @@ button.export-btn:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* 미리듣기 버튼 */
+.narration-split-step__preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.narration-split-step__preview-btn:hover {
+  border-color: #10b981;
+  color: #10b981;
+}
+.narration-split-step__preview-btn--playing {
+  border-color: #10b981;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+/* 재생 중인 씬 하이라이트 */
+.narration-split-step__scene--playing {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+}
+
 .narration-split-step__scene-split-btn {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -8385,14 +8424,9 @@ button.export-btn:disabled {
   transition: all var(--transition-fast);
 }
 
-.narration-split-step__scene-split-btn:hover:not(:disabled) {
+.narration-split-step__scene-split-btn:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
-}
-
-.narration-split-step__scene-split-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .narration-split-step__scene-text {

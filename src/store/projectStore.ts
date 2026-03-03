@@ -160,6 +160,11 @@ export interface ProjectState {
   setNarrationClips: (clips: NarrationClip[]) => void;
   narrationStep: number;
   setNarrationStep: (step: number) => void;
+
+  // ── v11 신규: 서브씬 수 영속화 ──
+  videoCountPerScene: Record<string, number>;
+  setVideoCountPerScene: (sceneId: string, count: number) => void;
+  setVideoCountPerSceneBulk: (data: Record<string, number>) => void;
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -253,6 +258,7 @@ export const useProjectStore = create<ProjectState>()(
           sentenceTimings: [],
           narrationClips: [],
           narrationStep: 1,
+          videoCountPerScene: {},
           // cardLibrary는 리셋하지 않음 — 카드 에셋은 프로젝트 간 유지
         })),
 
@@ -295,10 +301,18 @@ export const useProjectStore = create<ProjectState>()(
       setNarrationClips: (narrationClips) => set({ narrationClips }),
       narrationStep: 1,
       setNarrationStep: (narrationStep) => set({ narrationStep }),
+
+      // ── v11 신규: 서브씬 수 영속화 ──
+      videoCountPerScene: {},
+      setVideoCountPerScene: (sceneId, count) =>
+        set((state) => ({
+          videoCountPerScene: { ...state.videoCountPerScene, [sceneId]: count },
+        })),
+      setVideoCountPerSceneBulk: (data) => set({ videoCountPerScene: data }),
     }),
     {
       name: 'antigravity-project',
-      version: 10,
+      version: 11,
       migrate: (persistedState: unknown, version: number) => {
         let state = persistedState as Record<string, unknown>;
         if (version < 2) {
@@ -389,6 +403,10 @@ export const useProjectStore = create<ProjectState>()(
           // v9→v10: sceneImages 필드 추가 (서브이미지 영구 저장)
           state = { ...state, sceneImages: {} };
         }
+        if (version < 11) {
+          // v10→v11: videoCountPerScene 필드 추가 (서브씬 수 영속화)
+          state = { ...state, videoCountPerScene: {} };
+        }
         return state;
       },
       partialize: (state) => ({
@@ -411,6 +429,7 @@ export const useProjectStore = create<ProjectState>()(
         sentenceTimings: state.sentenceTimings,
         narrationClips: state.narrationClips,
         narrationStep: state.narrationStep,
+        videoCountPerScene: state.videoCountPerScene,
       }),
     }
   )

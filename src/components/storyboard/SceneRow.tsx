@@ -4,6 +4,7 @@ import {
     Play, Video, ChevronRight,
 } from 'lucide-react';
 import type { AssetCard } from '../../store/projectStore';
+import { getSubSceneLabel } from '../../services/prompt-builder';
 
 type SceneGenStatus = 'idle' | 'generating' | 'done';
 
@@ -36,6 +37,10 @@ interface SceneRowProps {
     onToggleVideoSelection?: () => void;
     /** 씬별 서브이미지 배열 (videoCount만큼) */
     sceneImages?: string[];
+    /** 전체 프롬프트 맵 (서브씬별 키 "sceneId-subIdx" 지원) */
+    allPrompts?: Record<string, { image: string; video: string }>;
+    /** 서브씬별 프롬프트 업데이트 함수 */
+    onSubPromptChange?: (key: string, type: 'image' | 'video', value: string) => void;
 }
 
 const SceneRow: React.FC<SceneRowProps> = ({
@@ -45,6 +50,7 @@ const SceneRow: React.FC<SceneRowProps> = ({
     gradientFallback, onSelect, onGenerateImage, onRegenerateVideo, onToggleSeed,
     artStyleLabel, aspectRatio, seedSummary,
     isSelectedForVideo, onToggleVideoSelection, sceneImages,
+    allPrompts, onSubPromptChange,
 }) => (
     <React.Fragment>
         {Array.from({ length: videoCount }, (_, subIdx) => (
@@ -166,7 +172,7 @@ const SceneRow: React.FC<SceneRowProps> = ({
                     )}
                 </div>
 
-                {/* Col 4: Prompts (편집 가능) */}
+                {/* Col 4: Prompts (편집 가능, 서브씬별 변형 지원) */}
                 <div className="sc-row__prompt-col">
                     {(artStyleLabel || aspectRatio || seedSummary) && (
                         <div className="sc-row__prompt-tags">
@@ -175,40 +181,65 @@ const SceneRow: React.FC<SceneRowProps> = ({
                             {seedSummary && <span className="sc-row__prompt-tag">{seedSummary}</span>}
                         </div>
                     )}
-                    <div className="sc-row__prompt-section">
-                        <div className="sc-row__prompt-label">🖼 이미지 생성 프롬프트</div>
-                        {onImagePromptChange ? (
-                            <textarea
-                                className="sc-row__prompt-textarea"
-                                value={imagePrompt || ''}
-                                onChange={(e) => { e.stopPropagation(); onImagePromptChange(e.target.value); }}
-                                onClick={(e) => e.stopPropagation()}
-                                placeholder="AI 분석 후 자동 채워집니다..."
-                                rows={3}
-                            />
-                        ) : (
-                            <p className="sc-row__prompt-text">
-                                <span className="sc-row__prompt-prefix">{promptPrefix}</span>{' '}
-                                {imagePrompt ?? '—'}
-                            </p>
-                        )}
-                    </div>
-                    <div className="sc-row__prompt-divider" />
-                    <div className="sc-row__prompt-section">
-                        <div className="sc-row__prompt-label">🎬 영상 생성 프롬프트</div>
-                        {onVideoPromptChange ? (
-                            <textarea
-                                className="sc-row__prompt-textarea"
-                                value={videoPrompt || ''}
-                                onChange={(e) => { e.stopPropagation(); onVideoPromptChange(e.target.value); }}
-                                onClick={(e) => e.stopPropagation()}
-                                placeholder="AI 분석 후 자동 채워집니다..."
-                                rows={3}
-                            />
-                        ) : (
-                            <p className="sc-row__prompt-text">{videoPrompt ?? '—'}</p>
-                        )}
-                    </div>
+                    {/* 서브씬 변형 라벨 */}
+                    {videoCount > 1 && (
+                        <div className="sc-row__variation-label">
+                            자동 변형: {getSubSceneLabel(subIdx, videoCount) || `파트 ${subIdx + 1}`}
+                        </div>
+                    )}
+                    {(() => {
+                        // 서브씬별 프롬프트 키: "sceneId-subIdx" (서브씬 있을 때) 또는 "sceneId"
+                        const subKey = videoCount > 1 ? `${scene.id}-${subIdx}` : scene.id;
+                        const subImagePrompt = allPrompts?.[subKey]?.image || imagePrompt || '';
+                        const subVideoPrompt = allPrompts?.[subKey]?.video || videoPrompt || '';
+                        const canEdit = !!onSubPromptChange || !!onImagePromptChange;
+                        return (
+                            <>
+                                <div className="sc-row__prompt-section">
+                                    <div className="sc-row__prompt-label">🖼 이미지 생성 프롬프트</div>
+                                    {canEdit ? (
+                                        <textarea
+                                            className="sc-row__prompt-textarea"
+                                            value={subImagePrompt}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                if (onSubPromptChange) onSubPromptChange(subKey, 'image', e.target.value);
+                                                else if (onImagePromptChange) onImagePromptChange(e.target.value);
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            placeholder="AI 분석 후 자동 채워집니다..."
+                                            rows={3}
+                                        />
+                                    ) : (
+                                        <p className="sc-row__prompt-text">
+                                            <span className="sc-row__prompt-prefix">{promptPrefix}</span>{' '}
+                                            {subImagePrompt || '—'}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="sc-row__prompt-divider" />
+                                <div className="sc-row__prompt-section">
+                                    <div className="sc-row__prompt-label">🎬 영상 생성 프롬프트</div>
+                                    {canEdit ? (
+                                        <textarea
+                                            className="sc-row__prompt-textarea"
+                                            value={subVideoPrompt}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                if (onSubPromptChange) onSubPromptChange(subKey, 'video', e.target.value);
+                                                else if (onVideoPromptChange) onVideoPromptChange(e.target.value);
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            placeholder="AI 분석 후 자동 채워집니다..."
+                                            rows={3}
+                                        />
+                                    ) : (
+                                        <p className="sc-row__prompt-text">{subVideoPrompt || '—'}</p>
+                                    )}
+                                </div>
+                            </>
+                        );
+                    })()}
                 </div>
 
                 {/* Col 5: Video */}

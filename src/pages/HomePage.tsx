@@ -30,6 +30,7 @@ const HomePage: React.FC = () => {
     const [myProjects, setMyProjects] = useState<DbProject[]>([]);
     const [projectsLoading, setProjectsLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
     // 선택된 템플릿 (모드 선택 오버레이에서 제목 반영용)
     const [pendingTemplate, setPendingTemplate] = useState<Template | null>(null);
@@ -86,9 +87,16 @@ const HomePage: React.FC = () => {
         }
     };
 
-    // 프로젝트 삭제
-    const handleDeleteProject = async (projectId: string) => {
-        if (!confirm('이 프로젝트를 삭제하시겠습니까?')) return;
+    // 프로젝트 삭제 — confirm 모달 표시
+    const handleDeleteProject = (projectId: string) => {
+        setDeleteConfirmId(projectId);
+    };
+
+    // 삭제 확인 후 실제 삭제 실행
+    const handleDeleteConfirm = async () => {
+        if (!deleteConfirmId) return;
+        const projectId = deleteConfirmId;
+        setDeleteConfirmId(null);
         setDeletingId(projectId);
         try {
             await deleteProject(projectId);
@@ -124,6 +132,7 @@ const HomePage: React.FC = () => {
     const castPreview = cardLibrary.slice(0, 4);
 
     return (
+        <>
         <div className="page-container">
             <div className="page-content">
                 {/* Hero */}
@@ -282,6 +291,40 @@ const HomePage: React.FC = () => {
                 </div>
             </div>
         </div>
+
+        {/* 프로젝트 삭제 확인 모달 */}
+        {deleteConfirmId && (
+            <div
+                className="preset-confirm-overlay"
+                onClick={() => setDeleteConfirmId(null)}
+            >
+                <div
+                    className="preset-confirm-modal"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <h3 className="preset-confirm-modal__title">프로젝트 삭제</h3>
+                    <p className="preset-confirm-modal__desc">
+                        이 프로젝트를 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다.
+                    </p>
+                    <div className="preset-confirm-modal__actions">
+                        <button
+                            className="btn-secondary"
+                            onClick={() => setDeleteConfirmId(null)}
+                        >
+                            취소
+                        </button>
+                        <button
+                            className="btn-primary"
+                            style={{ background: 'var(--color-danger, #ef4444)' }}
+                            onClick={handleDeleteConfirm}
+                        >
+                            <Trash2 size={14} /> 삭제
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 };
 

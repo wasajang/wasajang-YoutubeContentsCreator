@@ -9,6 +9,7 @@ import { useProjectStore } from '../store/projectStore';
 import { aiSuggestedCards, favoritesPool } from '../data/mockData';
 import { generateImage } from '../services/ai-image';
 import type { GenerationType } from './useCredits';
+import { useToastStore } from './useToast';
 
 // ── 덱 제한 상수 (다른 파일에서도 참조) ──
 export const MAX_AI_SLOTS = 5;
@@ -29,8 +30,8 @@ export function useDeck({
     addToCardLibrary,
     canAfford,
     spend,
-    creditsRemaining,
-    CREDIT_COSTS,
+    creditsRemaining: _creditsRemaining,
+    CREDIT_COSTS: _CREDIT_COSTS,
 }: UseDeckParams) {
     const storeSelectedDeck = useProjectStore((s) => s.selectedDeck);
     const setSelectedDeck = useProjectStore((s) => s.setSelectedDeck);
@@ -104,7 +105,7 @@ export function useDeck({
     // ── 덱 카드 AI 이미지 생성 ──
     const handleGenerateAsset = async (id: string) => {
         if (!canAfford('image')) {
-            alert(`크레딧이 부족합니다! (이미지 생성 ${CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+            useToastStore.getState().addToast('크레딧이 부족합니다!', 'warning');
             return;
         }
         if (!spend('image')) return;

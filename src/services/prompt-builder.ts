@@ -24,6 +24,45 @@ export interface PromptContext {
     location?: string;
     /** 선택된 템플릿 ID (있으면 템플릿 prompts 우선 적용) */
     templateId?: string;
+    /** 서브씬 인덱스 (0, 1, 2) — 자동 변형용 */
+    subIndex?: number;
+    /** 해당 씬의 총 서브씬 수 (1, 2, 3) — 자동 변형용 */
+    totalSubScenes?: number;
+}
+
+// ── 서브씬 자동 변형 (구도/앵글) ──
+
+/** 서브씬 수에 따른 구도 변형 매핑 */
+const SUB_SCENE_VARIATIONS: Record<number, string[]> = {
+    2: [
+        'close-up shot, detailed facial expression, intimate framing',
+        'wide establishing shot, full scene environment, cinematic composition',
+    ],
+    3: [
+        'close-up shot, detailed facial expression, intimate framing',
+        'medium shot, character interaction, balanced composition',
+        'wide establishing shot, full environment, dramatic perspective',
+    ],
+};
+
+/**
+ * 서브씬 인덱스에 따른 구도 변형 텍스트 반환
+ */
+function getSubSceneVariation(subIndex: number, total: number): string {
+    const variations = SUB_SCENE_VARIATIONS[total];
+    if (!variations) return '';
+    return variations[subIndex] || '';
+}
+
+/**
+ * 서브씬 라벨 반환 (UI 표시용)
+ */
+export function getSubSceneLabel(subIndex: number, total: number): string {
+    const labels: Record<number, string[]> = {
+        2: ['클로즈업', '와이드샷'],
+        3: ['클로즈업', '미디엄샷', '와이드샷'],
+    };
+    return labels[total]?.[subIndex] || '';
 }
 
 // ── 헬퍼 함수 ──
@@ -92,10 +131,16 @@ export function buildImagePrompt(ctx: PromptContext): string {
     const sceneDesc = ctx.customImagePrompt || ctx.sceneText;
     if (sceneDesc) parts.push(sceneDesc);
 
-    // 3. 카메라/로케이션
-    if (ctx.cameraAngle && ctx.cameraAngle !== 'Wide Angle') {
+    // 3. 서브씬 자동 변형 (subIndex가 있고 totalSubScenes > 1일 때)
+    if (ctx.subIndex !== undefined && ctx.totalSubScenes && ctx.totalSubScenes > 1) {
+        const variation = getSubSceneVariation(ctx.subIndex, ctx.totalSubScenes);
+        if (variation) parts.push(variation);
+    } else if (ctx.cameraAngle && ctx.cameraAngle !== 'Wide Angle') {
+        // 서브씬 없으면 기존 카메라 앵글 적용
         parts.push(`${ctx.cameraAngle} shot`);
     }
+
+    // 로케이션
     if (ctx.location) {
         parts.push(`location: ${ctx.location}`);
     }
@@ -161,8 +206,11 @@ export function buildVideoPrompt(ctx: PromptContext): string {
     const sceneDesc = ctx.sceneText;
     if (sceneDesc) parts.push(sceneDesc);
 
-    // 카메라 무브먼트 힌트
-    if (ctx.cameraAngle) {
+    // 카메라 무브먼트 힌트 (서브씬 자동 변형 포함)
+    if (ctx.subIndex !== undefined && ctx.totalSubScenes && ctx.totalSubScenes > 1) {
+        const variation = getSubSceneVariation(ctx.subIndex, ctx.totalSubScenes);
+        if (variation) parts.push(`Camera: ${variation}, slow cinematic movement`);
+    } else if (ctx.cameraAngle) {
         parts.push(`Camera: ${ctx.cameraAngle}, slow cinematic movement`);
     }
 

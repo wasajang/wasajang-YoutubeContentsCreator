@@ -202,6 +202,8 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 isSelectedForVideo={isSceneSelectedForVideo(scene.id)}
                                 onToggleVideoSelection={() => toggleVideoSelection(scene.id)}
                                 sceneImages={sceneImages[scene.id]}
+                                allPrompts={customPrompts}
+                                onSubPromptChange={updatePrompt}
                             />
                         );
                     })}

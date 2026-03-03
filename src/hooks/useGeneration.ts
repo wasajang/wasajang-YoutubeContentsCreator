@@ -3,7 +3,7 @@
  *
  * StoryboardPage의 seed-check 단계에서 사용하는 생성 관련 상태와 액션을 담당합니다.
  */
-import { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import type { AssetCard, Scene } from '../store/projectStore';
 import { useProjectStore } from '../store/projectStore';
 import { mockScenePrompts } from '../data/mockData';
@@ -11,6 +11,7 @@ import { generateImage } from '../services/ai-image';
 import { generateVideo } from '../services/ai-video';
 import { buildImagePrompt, buildVideoPrompt, getNegativePrompt, aspectRatioToSize } from '../services/prompt-builder';
 import type { GenerationType } from './useCredits';
+import { useToastStore } from './useToast';
 
 type SceneGenStatus = 'idle' | 'generating' | 'done';
 
@@ -89,11 +90,25 @@ export function useGeneration({
 
     const [videoGenStatus, setVideoGenStatus] = useState<Record<string, SceneGenStatus>>({});
 
-    const [videoCountPerScene, setVideoCountPerScene] = useState<Record<string, number>>(() => {
+    const storeVideoCount = useProjectStore((s) => s.videoCountPerScene);
+    const setStoreVideoCount = useProjectStore((s) => s.setVideoCountPerScene);
+    const setStoreVideoCountBulk = useProjectStore((s) => s.setVideoCountPerSceneBulk);
+
+    const [videoCountPerScene, _setVideoCountPerScene] = useState<Record<string, number>>(() => {
         const init: Record<string, number> = {};
-        scenes.forEach((s) => { init[s.id] = 1; });
+        scenes.forEach((s) => { init[s.id] = storeVideoCount[s.id] || 1; });
         return init;
     });
+
+    // store 동기화 래퍼
+    const setVideoCountPerScene: React.Dispatch<React.SetStateAction<Record<string, number>>> = useCallback((action) => {
+        _setVideoCountPerScene((prev) => {
+            const next = typeof action === 'function' ? action(prev) : action;
+            // store에도 동기화
+            setStoreVideoCountBulk(next);
+            return next;
+        });
+    }, [setStoreVideoCountBulk]);
 
     const [sceneSeeds, setSceneSeeds] = useState<Record<string, string[]>>(() => {
         const init: Record<string, string[]> = {};
@@ -133,18 +148,42 @@ export function useGeneration({
         });
         setSceneSeeds(updatedSeeds);
 
-        // Step 2: 배정된 씨드카드 기반으로 프롬프트 생성
+        // Step 2: 배정된 씨드카드 기반으로 프롬프트 생성 (서브씬별 자동 변형 포함)
         const prompts: Record<string, { image: string; video: string }> = {};
         scenes.forEach((scene) => {
             const seeds = updatedSeeds[scene.id] || [];
             const seedCards = seeds.map((id) => deck.find((c) => c.id === id)).filter((c): c is AssetCard => !!c);
-            prompts[scene.id] = {
-                image: buildImagePrompt({ artStyleId, sceneText: scene.text, seedCards, cameraAngle: scene.cameraAngle, location: scene.location, templateId }),
-                video: buildVideoPrompt({ artStyleId, sceneText: scene.text, seedCards, cameraAngle: scene.cameraAngle, templateId }),
-            };
+            const vc = videoCountPerScene[scene.id] || 1;
+
+            if (vc <= 1) {
+                // 서브씬 없음 — 기존 방식
+                prompts[scene.id] = {
+                    image: buildImagePrompt({ artStyleId, sceneText: scene.text, seedCards, cameraAngle: scene.cameraAngle, location: scene.location, templateId }),
+                    video: buildVideoPrompt({ artStyleId, sceneText: scene.text, seedCards, cameraAngle: scene.cameraAngle, templateId }),
+                };
+            } else {
+                // 서브씬 자동 변형 — 각 서브인덱스별 다른 프롬프트
+                for (let sub = 0; sub < vc; sub++) {
+                    const key = `${scene.id}-${sub}`;
+                    prompts[key] = {
+                        image: buildImagePrompt({
+                            artStyleId, sceneText: scene.text, seedCards,
+                            cameraAngle: scene.cameraAngle, location: scene.location, templateId,
+                            subIndex: sub, totalSubScenes: vc,
+                        }),
+                        video: buildVideoPrompt({
+                            artStyleId, sceneText: scene.text, seedCards,
+                            cameraAngle: scene.cameraAngle, templateId,
+                            subIndex: sub, totalSubScenes: vc,
+                        }),
+                    };
+                }
+                // 기본 키도 첫 번째 서브씬과 동일하게 세팅 (하위 호환)
+                prompts[scene.id] = prompts[`${scene.id}-0`];
+            }
         });
         setCustomPrompts(prompts);
-    }, [scenes, sceneSeeds, deck, artStyleId, templateId]);
+    }, [scenes, sceneSeeds, deck, artStyleId, templateId, videoCountPerScene]);
 
     const updatePrompt = useCallback((sceneId: string, type: 'image' | 'video', value: string) => {
         setCustomPrompts((prev) => ({
@@ -177,7 +216,9 @@ export function useGeneration({
                 .map((cardId) => deck.find((c) => c.id === cardId))
                 .filter((c): c is AssetCard => !!c);
 
-            const prompt = customPrompts[sceneId]?.image || buildImagePrompt({
+            // 서브씬별 프롬프트 키: "sceneId-subIndex" 또는 "sceneId"
+            const subKey = `${sceneId}-${subIndex}`;
+            const prompt = customPrompts[subKey]?.image || customPrompts[sceneId]?.image || buildImagePrompt({
                 artStyleId,
                 sceneText: scene.text,
                 seedCards,
@@ -185,6 +226,8 @@ export function useGeneration({
                 cameraAngle: scene.cameraAngle,
                 location: scene.location,
                 templateId,
+                subIndex,
+                totalSubScenes: videoCountPerScene[sceneId] || 1,
             });
 
             const { width, height } = aspectRatioToSize(aspectRatio || '16:9');
@@ -251,7 +294,7 @@ export function useGeneration({
             if (onCreditShortage) {
                 onCreditShortage(totalImages * CREDIT_COSTS.image, `이미지 전체 생성 (${totalImages}장)`);
             } else {
-                alert(`크레딧이 부족합니다! (${totalImages}장 × ${CREDIT_COSTS.image} = ${totalImages * CREDIT_COSTS.image} 크레딧 필요, 잔여: ${creditsRemaining})`);
+                useToastStore.getState().addToast('크레딧이 부족합니다!', 'warning');
             }
             return;
         }
@@ -275,7 +318,7 @@ export function useGeneration({
             if (onCreditShortage) {
                 onCreditShortage(CREDIT_COSTS.video, '영상 생성');
             } else {
-                alert(`크레딧이 부족합니다! (영상 생성 ${CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
+                useToastStore.getState().addToast('크레딧이 부족합니다!', 'warning');
             }
             return;
         }
@@ -318,7 +361,7 @@ export function useGeneration({
             if (onCreditShortage) {
                 onCreditShortage(pending.length * CREDIT_COSTS.video, `영상 전체 생성 (${pending.length}편)`);
             } else {
-                alert(`크레딧이 부족합니다! (${pending.length}편 × ${CREDIT_COSTS.video} = ${pending.length * CREDIT_COSTS.video} 크레딧 필요, 잔여: ${creditsRemaining})`);
+                useToastStore.getState().addToast('크레딧이 부족합니다!', 'warning');
             }
             return;
         }

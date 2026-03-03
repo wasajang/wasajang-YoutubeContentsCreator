@@ -17,6 +17,7 @@ import {
     Trash2, Volume2, Plus, Mic, Loader,
 } from 'lucide-react';
 import WorkflowSteps, { narrationStepToGroup, narrationStepToSubKey } from '../components/WorkflowSteps';
+import { getSceneGradient } from '../utils/scene-gradient';
 import { useProjectStore } from '../store/projectStore';
 import type { SentenceTiming, Scene } from '../store/projectStore';
 import { getTemplateById } from '../data/templates';
@@ -24,6 +25,7 @@ import { getTemplateById } from '../data/templates';
 import { generateTTS } from '../services/ai-tts';
 import { useCredits, CREDIT_COSTS } from '../hooks/useCredits';
 import { getUserSelectableModels } from '../data/aiModels';
+import { useToast } from '../hooks/useToast';
 import NarrationVoiceStep from '../components/narration/NarrationVoiceStep';
 import NarrationSplitStep from '../components/narration/NarrationSplitStep';
 import NarrationVideoStep from '../components/narration/NarrationVideoStep';
@@ -77,6 +79,7 @@ const TimelinePage: React.FC = () => {
     const [ttsGenerating, setTtsGenerating] = useState<Record<string, boolean>>({}); // clipId → loading
     const [ttsAllGenerating, setTtsAllGenerating] = useState(false);
     const { remaining: credits, canAfford, spend } = useCredits();
+    const { showToast } = useToast();
 
     // 나레이션 모드 — 전체 TTS 생성 상태
     const [narrativeTtsGenerating, setNarrativeTtsGenerating] = useState(false);
@@ -88,12 +91,12 @@ const TimelinePage: React.FC = () => {
     const handleNarrativeTTS = useCallback(async () => {
         const text = fullScript.trim();
         if (!text) {
-            alert('대본이 없습니다. IdeaPage에서 먼저 대본을 작성해주세요.');
+            showToast('대본이 없습니다. 먼저 대본을 작성해주세요.', 'warning');
             return;
         }
         // NOTE: 현재 데드 코드 (NarrationVoiceStep이 TTS 직접 처리). 방어적 크레딧 체크.
         if (!canAfford('tts')) {
-            alert('크레딧이 부족합니다!');
+            showToast('크레딧이 부족합니다!', 'warning');
             return;
         }
         setNarrativeTtsGenerating(true);
@@ -126,16 +129,16 @@ const TimelinePage: React.FC = () => {
             setSentenceTimings(timings);
         } catch (err) {
             console.error('[NarrativeTTS] 생성 실패:', err);
-            alert(`TTS 생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`);
+            showToast(`TTS 생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`, 'error');
         } finally {
             setNarrativeTtsGenerating(false);
         }
-    }, [fullScript, canAfford, spend, aiModelPreferences.tts, templateId, setNarrativeAudioUrl, setSentenceTimings]);
+    }, [fullScript, canAfford, spend, showToast, aiModelPreferences.tts, templateId, setNarrativeAudioUrl, setSentenceTimings]);
 
     // 나레이션 모드 — 씬 자동 분할 후 스토리보드로 이동
     const handleAutoSplit = useCallback(() => {
         if (sentenceTimings.length === 0) {
-            alert('먼저 TTS를 생성해주세요.');
+            showToast('먼저 TTS를 생성해주세요.', 'info');
             return;
         }
         const maxDuration = 5;
@@ -198,17 +201,7 @@ const TimelinePage: React.FC = () => {
         return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
-    const getSceneGradient = (index: number) => {
-        const g = [
-            'linear-gradient(135deg, #1a0533, #2d1b3d, #0f2027)',
-            'linear-gradient(135deg, #0f2027, #1a1a2e, #2d1b3d)',
-            'linear-gradient(135deg, #3a2518, #1a0f0a, #2d1b3d)',
-            'linear-gradient(135deg, #1e2a3a, #0a1520, #1a0533)',
-            'linear-gradient(135deg, #2d1b3d, #3a2518, #0f2027)',
-            'linear-gradient(135deg, #1a1a2e, #0f2027, #3a2518)',
-        ];
-        return g[index % g.length];
-    };
+    // getSceneGradient → src/utils/scene-gradient.ts 로 분리됨
 
     const progressPercent = totalDuration > 0 ? (currentTimeSec / totalDuration) * 100 : 0;
 
@@ -292,7 +285,7 @@ const TimelinePage: React.FC = () => {
         if (!clip || ttsGenerating[clipId]) return;
 
         if (!canAfford('tts', 1)) {
-            alert('크레딧이 부족합니다!');
+            showToast('크레딧이 부족합니다!', 'warning');
             return;
         }
 
@@ -317,11 +310,11 @@ const TimelinePage: React.FC = () => {
             );
         } catch (err) {
             console.error('[TTS] 생성 실패:', err);
-            alert(`TTS 생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`);
+            showToast(`TTS 생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`, 'error');
         } finally {
             setTtsGenerating((prev) => ({ ...prev, [clipId]: false }));
         }
-    }, [clips, ttsGenerating, canAfford, spend, aiModelPreferences.tts, templateId]);
+    }, [clips, ttsGenerating, canAfford, spend, showToast, aiModelPreferences.tts, templateId]);
 
     // ── TTS 전체 일괄 생성 ──
     const handleGenerateAllTTS = useCallback(async () => {
@@ -330,7 +323,7 @@ const TimelinePage: React.FC = () => {
 
         const totalCost = pendingClips.length * CREDIT_COSTS.tts;
         if (credits < totalCost) {
-            alert(`크레딧이 부족합니다! (필요: ${totalCost}, 보유: ${credits})`);
+            showToast('크레딧이 부족합니다!', 'warning');
             return;
         }
 
@@ -482,7 +475,7 @@ const TimelinePage: React.FC = () => {
         <div className="page-container" style={{ minHeight: 0, height: 'calc(100vh - 56px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {/* Header */}
             <div className="storyboard-header">
-                <h2 className="storyboard-header__title">{title || '강철의 북진'}</h2>
+                <h2 className="storyboard-header__title">{title || 'Untitled Project'}</h2>
                 <div className="storyboard-header__center">
                     <WorkflowSteps
                         currentMain={4}

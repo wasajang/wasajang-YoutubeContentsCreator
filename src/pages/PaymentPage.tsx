@@ -13,6 +13,7 @@ import { CreditCard, Coins, ArrowLeft, Loader, CheckCircle, Clock, Star } from '
 import { useAuth } from '../hooks/useAuth';
 import { useProjectStore } from '../store/projectStore';
 import { CREDIT_PACKS, formatKRW } from '../data/creditPacks';
+import { useToast } from '../hooks/useToast';
 import type { CreditPack } from '../data/creditPacks';
 import { fetchCredits, fetchTransactions } from '../services/credit-api';
 import type { DbCreditTransaction } from '../types/database';
@@ -23,6 +24,7 @@ const PaymentPage: React.FC = () => {
   const { user, isGuest, loading: authLoading } = useAuth();
   const { credits: storeCredits, addCredits: addCreditsStore } = useProjectStore();
 
+  const { showToast } = useToast();
   const [liveBalance, setLiveBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<DbCreditTransaction[]>([]);
   const [txLoading, setTxLoading] = useState(false);
@@ -57,9 +59,7 @@ const PaymentPage: React.FC = () => {
       //   const orderId = await createOrder({ userId: user.id, creditAmount: pack.credits, amount: pack.priceKRW, gateway: 'toss' });
       //   const toss = await loadTossPayments(import.meta.env.VITE_TOSS_CLIENT_KEY);
       //   await toss.requestPayment('카드', { amount: pack.priceKRW, orderId, orderName: `${pack.name} 팩` });
-      alert(
-        `${pack.name} 팩 (${pack.credits} 크레딧, ${formatKRW(pack.priceKRW)})\n\n토스페이먼츠 연동 후 결제가 활성화됩니다.\n(Edge Function 배포 필요)`
-      );
+      showToast(`${pack.name} 팩 — 토스페이먼츠 연동 후 결제가 활성화됩니다.`, 'info');
     } catch (err) {
       console.error('[PaymentPage] 결제 실패:', err);
     } finally {

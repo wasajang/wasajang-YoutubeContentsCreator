@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import type { User, Session } from '@supabase/supabase-js';
+import { useToastStore } from './useToast';
 
 interface AuthState {
     user: User | null;
@@ -64,7 +65,7 @@ export function useAuth() {
         });
         if (error) {
             console.error('Google 로그인 실패:', error.message);
-            alert(`Google 로그인 실패: ${error.message}`);
+            useToastStore.getState().addToast(`Google 로그인 실패: ${error.message}`, 'error');
         }
     }, []);
 
@@ -77,7 +78,7 @@ export function useAuth() {
         });
         if (error) {
             console.error('카카오 로그인 실패:', error.message);
-            alert(`카카오 로그인 실패: ${error.message}`);
+            useToastStore.getState().addToast(`카카오 로그인 실패: ${error.message}`, 'error');
         }
     }, []);
 

@@ -37,6 +37,7 @@ const NarrationEditView: React.FC<NarrationEditViewProps> = ({ onNext, onPrev })
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const animFrameRef = useRef<number>(0);
+  const tickRef = useRef<() => void>(() => {});
 
   // tick 함수를 먼저 정의 (useEffect보다 위에)
   const tick = useCallback(() => {
@@ -52,8 +53,11 @@ const NarrationEditView: React.FC<NarrationEditViewProps> = ({ onNext, onPrev })
       }
     }
 
-    animFrameRef.current = requestAnimationFrame(tick);
+    animFrameRef.current = requestAnimationFrame(tickRef.current);
   }, [narrationClips]);
+
+  // tickRef를 항상 최신 tick으로 동기화
+  tickRef.current = tick;
 
   // Audio 엘리먼트 초기화
   useEffect(() => {
