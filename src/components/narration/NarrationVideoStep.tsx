@@ -7,6 +7,7 @@
  * - 영상 AI 모델 선택 (getUserSelectableModels('video'))
  */
 import { useState, useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
 import { useProjectStore } from '../../store/projectStore';
 import type { NarrationClip } from '../../store/projectStore';
 import { generateVideo } from '../../services/ai-video';
@@ -19,6 +20,8 @@ import { syncScenesImageToClips } from '../../utils/narration-sync';
 interface NarrationVideoStepProps {
   onNext: () => void;
   onPrev?: () => void;
+  isModal?: boolean;
+  onClose?: () => void;
 }
 
 const KEN_BURNS_OPTIONS: { value: NarrationClip['effect']; label: string }[] = [
@@ -29,7 +32,7 @@ const KEN_BURNS_OPTIONS: { value: NarrationClip['effect']; label: string }[] = [
   { value: 'pan-right',  label: '패닝 우' },
 ];
 
-export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) {
+export function NarrationVideoStep({ onNext, onPrev, isModal, onClose }: NarrationVideoStepProps) {
   const narrationClips       = useProjectStore((s) => s.narrationClips);
   const setNarrationClips    = useProjectStore((s) => s.setNarrationClips);
   const scenes               = useProjectStore((s) => s.scenes);
@@ -43,6 +46,7 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
 
   const [checkedIds,    setCheckedIds]    = useState<Set<string>>(new Set());
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+  const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
   const syncedRef = useRef(false);
 
   const videoModels = getUserSelectableModels('video');
@@ -83,17 +87,30 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
   const estimatedCost  = getCost('video', checkedCount);
   const isGenerating   = generatingIds.size > 0;
 
-  // 체크박스 토글
-  const handleToggleCheck = (clipId: string) => {
-    setCheckedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(clipId)) {
-        next.delete(clipId);
-      } else {
-        next.add(clipId);
-      }
-      return next;
-    });
+  // 체크박스 토글 (Shift+클릭 범위 선택 지원)
+  const handleToggleCheck = (clipId: string, clipIndex?: number, shiftKey?: boolean) => {
+    if (shiftKey && lastClickedIdx !== null && clipIndex != null) {
+      const start = Math.min(lastClickedIdx, clipIndex);
+      const end = Math.max(lastClickedIdx, clipIndex);
+      setCheckedIds((prev) => {
+        const next = new Set(prev);
+        for (let i = start; i <= end; i++) {
+          if (visibleClips[i]) next.add(visibleClips[i].id);
+        }
+        return next;
+      });
+    } else {
+      setCheckedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(clipId)) {
+          next.delete(clipId);
+        } else {
+          next.add(clipId);
+        }
+        return next;
+      });
+    }
+    if (clipIndex != null) setLastClickedIdx(clipIndex);
   };
 
   // 전체 선택/해제
@@ -172,7 +189,7 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
     return '대기 중';
   };
 
-  return (
+  const content = (
     <div className="narration-video-step">
       {/* 헤더 */}
       <div className="narration-video-step__header">
@@ -224,7 +241,7 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
 
           {/* 클립 목록 */}
           <ul className="narration-video-step__clip-list">
-            {visibleClips.map((clip) => {
+            {visibleClips.map((clip, clipIdx) => {
               const isChecked    = checkedIds.has(clip.id);
               const isThisGen    = generatingIds.has(clip.id);
               const isDone       = !isThisGen && Boolean(clip.videoUrl) && clip.isVideoEnabled;
@@ -240,12 +257,15 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
                     isDone       ? 'narration-video-step__clip-row--done'        : '',
                   ].filter(Boolean).join(' ')}
                 >
-                  {/* 체크박스 */}
-                  <label className="narration-video-step__clip-checkbox">
+                  {/* 체크박스 (Shift+클릭 범위 선택 지원) */}
+                  <label className="narration-video-step__clip-checkbox" onClick={(e) => {
+                    e.preventDefault();
+                    if (!isGenerating) handleToggleCheck(clip.id, clipIdx, e.shiftKey);
+                  }}>
                     <input
                       type="checkbox"
                       checked={isChecked}
-                      onChange={() => handleToggleCheck(clip.id)}
+                      readOnly
                       disabled={isGenerating}
                     />
                   </label>
@@ -351,6 +371,19 @@ export function NarrationVideoStep({ onNext, onPrev }: NarrationVideoStepProps) 
       </div>
     </div>
   );
+
+  if (isModal) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="narration-video-modal" onClick={(e) => e.stopPropagation()}>
+          <button className="narration-video-modal__close" onClick={onClose}><X size={16} /></button>
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  return content;
 }
 
 export default NarrationVideoStep;

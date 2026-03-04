@@ -4,6 +4,7 @@ import { HelpCircle } from 'lucide-react';
 import WorkflowSteps, { narrationStepToGroup, narrationStepToSubKey } from '../components/WorkflowSteps';
 import CreditShortageModal from '../components/CreditShortageModal';
 import { CastSetupPhase, CutSplitPhase, SeedCheckPhase } from '../components/storyboard';
+import NarrationVideoStep from '../components/narration/NarrationVideoStep';
 import { useProjectStore } from '../store/projectStore';
 import type { Scene } from '../store/projectStore';
 import { aiSuggestedCards } from '../data/mockData';
@@ -33,6 +34,7 @@ const StoryboardPage: React.FC = () => {
         return 'cast-setup';
     });
     const [selectedScene, setSelectedScene] = useState<string | null>(null);
+    const [showVideoModal, setShowVideoModal] = useState(false);
     const [showAiAnalysisModal, setShowAiAnalysisModal] = useState(selectedDeck.length === 0);
     const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
 
@@ -178,13 +180,15 @@ const StoryboardPage: React.FC = () => {
         if (!step) return;
         setNarrationStep(step);
         if (step <= 1) { navigate('/project/idea'); return; }
-        if (step <= 3 || step >= 6) { navigate('/project/timeline'); return; }
+        if (step <= 3 || step >= 7) { navigate('/project/timeline'); return; }
         // step 4-5: stay on storyboard
         if (step === 4) setPhase('cast-setup');
         if (step === 5) setPhase('seed-check');
+        // step 6: 영상화 모달
+        if (step === 6) { setPhase('seed-check'); setShowVideoModal(true); return; }
     };
 
-    // 나레이션 Step 5(seed-check) 완료 후 Step 6으로 이동
+    // 나레이션 Step 5(seed-check) 완료 후 Step 6 모달 표시
     const handleGoToVideo = () => {
         const synced = syncScenesImageToClips(
             scenes.map((s) => ({ id: s.id, imageUrl: s.imageUrl || '' })),
@@ -192,7 +196,7 @@ const StoryboardPage: React.FC = () => {
         );
         setNarrationClips(synced);
         setNarrationStep(6);
-        navigate('/project/timeline');
+        setShowVideoModal(true);
     };
 
     // ── 나레이션 모드 분기 ──
@@ -262,6 +266,23 @@ const StoryboardPage: React.FC = () => {
                         onVideoModelChange={(id) => setAiModelPreference('video', id)}
                         nextLabel="다음: 영상화"
                         aspectRatio={aspectRatio}
+                    />
+                )}
+
+                {/* 영상화 모달 (Step 6) */}
+                {showVideoModal && (
+                    <NarrationVideoStep
+                        isModal
+                        onNext={() => {
+                            setShowVideoModal(false);
+                            setNarrationStep(7);
+                            navigate('/project/timeline');
+                        }}
+                        onClose={() => setShowVideoModal(false)}
+                        onPrev={() => {
+                            setShowVideoModal(false);
+                            setNarrationStep(5);
+                        }}
                     />
                 )}
 

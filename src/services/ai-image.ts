@@ -140,7 +140,22 @@ const replicateProvider: ImageProvider = {
     },
 };
 
+// ── base64 → Blob URL 변환 (localStorage 용량 초과 방지) ──
+
+function base64ToBlobUrl(base64Data: string, mimeType: string): string {
+    const byteChars = atob(base64Data);
+    const byteArr = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) {
+        byteArr[i] = byteChars.charCodeAt(i);
+    }
+    const blob = new Blob([byteArr], { type: mimeType });
+    return URL.createObjectURL(blob);
+}
+
 // ── Gemini Image Provider ──
+
+const GEMINI_MAX_RETRIES = 3;
+const GEMINI_RETRY_BASE_DELAY = 10_000; // 429 시 10초 대기 후 재시도
 
 const geminiProvider: ImageProvider = {
     name: 'gemini',
@@ -150,42 +165,58 @@ const geminiProvider: ImageProvider = {
 
         const startTime = Date.now();
 
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: req.prompt }] }],
-                    generationConfig: {
-                        responseModalities: ['IMAGE', 'TEXT'],
-                    },
-                }),
+        for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt++) {
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: req.prompt }] }],
+                        generationConfig: {
+                            responseModalities: ['IMAGE', 'TEXT'],
+                        },
+                    }),
+                }
+            );
+
+            // 429 Too Many Requests → 대기 후 재시도
+            if (response.status === 429) {
+                if (attempt < GEMINI_MAX_RETRIES) {
+                    const delay = GEMINI_RETRY_BASE_DELAY * (attempt + 1);
+                    console.warn(`[Gemini] 429 Rate Limit — ${delay / 1000}초 후 재시도 (${attempt + 1}/${GEMINI_MAX_RETRIES})`);
+                    await new Promise((r) => setTimeout(r, delay));
+                    continue;
+                }
+                throw new Error('Gemini API 요청 한도 초과 — 잠시 후 다시 시도해주세요.');
             }
-        );
 
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(`Gemini Image API 에러: ${err.error?.message || response.statusText}`);
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(`Gemini Image API 에러: ${err.error?.message || response.statusText}`);
+            }
+
+            const data = await response.json();
+            const parts = data.candidates?.[0]?.content?.parts || [];
+            const imagePart = parts.find((p: { inlineData?: { data: string; mimeType: string } }) => p.inlineData);
+            if (!imagePart?.inlineData?.data) {
+                throw new Error('Gemini 응답에 이미지 데이터가 없습니다.');
+            }
+
+            const mimeType = imagePart.inlineData.mimeType || 'image/png';
+            const base64Data = imagePart.inlineData.data;
+            // base64를 Blob URL로 변환 (localStorage 용량 초과 방지)
+            const imageUrl = base64ToBlobUrl(base64Data, mimeType);
+
+            return {
+                imageUrl,
+                seed: req.seed ?? Math.floor(Math.random() * 99999),
+                provider: 'gemini',
+                durationMs: Date.now() - startTime,
+            };
         }
 
-        const data = await response.json();
-        const parts = data.candidates?.[0]?.content?.parts || [];
-        const imagePart = parts.find((p: { inlineData?: { data: string; mimeType: string } }) => p.inlineData);
-        if (!imagePart?.inlineData?.data) {
-            throw new Error('Gemini 응답에 이미지 데이터가 없습니다.');
-        }
-
-        const mimeType = imagePart.inlineData.mimeType || 'image/png';
-        const base64Data = imagePart.inlineData.data;
-        const imageUrl = `data:${mimeType};base64,${base64Data}`;
-
-        return {
-            imageUrl,
-            seed: req.seed ?? Math.floor(Math.random() * 99999),
-            provider: 'gemini',
-            durationMs: Date.now() - startTime,
-        };
+        throw new Error('Gemini API 최대 재시도 횟수 초과');
     },
 };
 

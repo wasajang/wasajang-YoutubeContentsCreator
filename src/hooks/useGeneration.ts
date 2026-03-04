@@ -3,7 +3,7 @@
  *
  * StoryboardPage의 seed-check 단계에서 사용하는 생성 관련 상태와 액션을 담당합니다.
  */
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { AssetCard, Scene } from '../store/projectStore';
 import { useProjectStore } from '../store/projectStore';
 import { mockScenePrompts } from '../data/mockData';
@@ -49,6 +49,9 @@ export function useGeneration({
     const storeSceneImages = useProjectStore((s) => s.sceneImages);
     const setStoreSceneImages = useProjectStore((s) => s.setSceneImages);
     const updateSceneImageAtSub = useProjectStore((s) => s.updateSceneImageAtSub);
+    const storeSceneVideos = useProjectStore((s) => s.sceneVideos);
+    const setStoreSceneVideos = useProjectStore((s) => s.setSceneVideos);
+    const updateSceneVideoAtSub = useProjectStore((s) => s.updateSceneVideoAtSub);
 
     const [sceneGenStatus, setSceneGenStatus] = useState<Record<string, SceneGenStatus>>(() => {
         const init: Record<string, SceneGenStatus> = {};
@@ -73,6 +76,19 @@ export function useGeneration({
         if (changed) setStoreSceneImages(updated);
     }, [scenes]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // 새 씬이 추가되면 sceneVideos store에 초기값 세팅
+    useEffect(() => {
+        let changed = false;
+        const updated = { ...storeSceneVideos };
+        scenes.forEach((s) => {
+            if (!(s.id in updated)) {
+                updated[s.id] = s.videoUrl ? [s.videoUrl] : [];
+                changed = true;
+            }
+        });
+        if (changed) setStoreSceneVideos(updated);
+    }, [scenes]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // scenes가 변경되면 sceneGenStatus에 새 씬 추가
     useEffect(() => {
         setSceneGenStatus((prev) => {
@@ -88,11 +104,22 @@ export function useGeneration({
         });
     }, [scenes]);
 
-    const [videoGenStatus, setVideoGenStatus] = useState<Record<string, SceneGenStatus>>({});
-
     const storeVideoCount = useProjectStore((s) => s.videoCountPerScene);
-    const setStoreVideoCount = useProjectStore((s) => s.setVideoCountPerScene);
     const setStoreVideoCountBulk = useProjectStore((s) => s.setVideoCountPerSceneBulk);
+
+    const [videoGenStatus, setVideoGenStatus] = useState<Record<string, SceneGenStatus>>(() => {
+        // storeSceneVideos에서 이미 영상이 있으면 done으로 복원
+        const init: Record<string, SceneGenStatus> = {};
+        scenes.forEach((s) => {
+            const vids = storeSceneVideos[s.id] || [];
+            const vc = storeVideoCount[s.id] || 1;
+            for (let sub = 0; sub < vc; sub++) {
+                const key = vc > 1 ? `${s.id}-${sub}` : s.id;
+                if (vids[sub]) init[key] = 'done';
+            }
+        });
+        return init;
+    });
 
     const [videoCountPerScene, _setVideoCountPerScene] = useState<Record<string, number>>(() => {
         const init: Record<string, number> = {};
@@ -211,7 +238,10 @@ export function useGeneration({
 
         try {
             const scene = scenes.find((s) => s.id === sceneId);
-            if (!scene) return;
+            if (!scene) {
+                console.warn(`[generateSubImage] scene ${sceneId} not found — skipping`);
+                return;
+            }
             const seedCards = (sceneSeeds[sceneId] || [])
                 .map((cardId) => deck.find((c) => c.id === cardId))
                 .filter((c): c is AssetCard => !!c);
@@ -242,7 +272,7 @@ export function useGeneration({
                 model: imageModel,
             });
 
-            console.log(`[Scene ${sceneId}][sub ${subIndex}] 이미지 생성 완료: ${result.imageUrl}`);
+            console.log(`[Scene ${sceneId}][sub ${subIndex}] 이미지 생성 완료`);
 
             // sceneImages 배열에 서브인덱스 위치에 저장 (store 영구 저장)
             updateSceneImageAtSub(sceneId, subIndex, result.imageUrl);
@@ -254,7 +284,11 @@ export function useGeneration({
         } catch (err) {
             console.error(`[Scene ${sceneId}][sub ${subIndex}] 이미지 생성 실패:`, err);
         }
-    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, aspectRatio, imageModel, onCreditShortage, updateSceneImage, updateSceneImageAtSub, customPrompts]);
+    }, [scenes, sceneSeeds, deck, artStyleId, templateId, aspectRatio, imageModel, videoCountPerScene, customPrompts, updateSceneImage, updateSceneImageAtSub]);
+
+    // ref로 항상 최신 generateSubImage를 참조 (stale closure 방지)
+    const generateSubImageRef = useRef(generateSubImage);
+    useEffect(() => { generateSubImageRef.current = generateSubImage; });
 
     // 기존 generateSingleScene — 서브인덱스 0번만 생성 (단일 호출 및 재생성용)
     const generateSingleScene = useCallback(async (sceneId: string) => {
@@ -268,7 +302,17 @@ export function useGeneration({
         setSceneGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
     }, [generateSubImage, canAfford, spend, CREDIT_COSTS, onCreditShortage]);
 
-    const generateAllScenes = useCallback(() => {
+    // 이미지 일괄 생성 진행률 (null = 미실행)
+    const [imageGenProgress, setImageGenProgress] = useState<{ done: number; total: number } | null>(null);
+    const isGeneratingAllRef = useRef(false);
+
+    const generateAllScenes = useCallback(async () => {
+        // 중복 실행 방지
+        if (isGeneratingAllRef.current) {
+            console.warn('[generateAllScenes] 이미 생성 중 — 중복 호출 무시');
+            return;
+        }
+
         // videoCount 포함해서 총 이미지 수 계산
         let totalImages = 0;
         const tasks: Array<{ sceneId: string; subIndex: number }> = [];
@@ -302,17 +346,96 @@ export function useGeneration({
         // 크레딧 일괄 차감
         if (!spend('image', totalImages)) return;
 
-        // 동시 요청 제한: 최대 4개씩 순차 배치 (실제 API 대비)
-        const BATCH_SIZE = 4;
-        const BATCH_DELAY = 2500;
-        tasks.forEach((task, i) => {
-            const batchIndex = Math.floor(i / BATCH_SIZE);
-            const withinBatch = i % BATCH_SIZE;
-            const delay = batchIndex * BATCH_DELAY + withinBatch * 400;
-            setTimeout(() => generateSubImage(task.sceneId, task.subIndex), delay);
-        });
-    }, [scenes, videoCountPerScene, sceneImages, generateSubImage, canAfford, creditsRemaining, CREDIT_COSTS, onCreditShortage]);
+        isGeneratingAllRef.current = true;
+        setImageGenProgress({ done: 0, total: totalImages });
+        console.log(`[generateAllScenes] 시작: ${totalImages}장, ${tasks.length} tasks`);
 
+        // 순차 배치: 최대 7개 병렬 → 완료 후 다음 배치 (API 스팸 방지)
+        // ref를 통해 항상 최신 generateSubImage 호출 (stale closure 방지)
+        const BATCH_SIZE = 7;
+        let completed = 0;
+        for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+            const batch = tasks.slice(i, i + BATCH_SIZE);
+            const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+            console.log(`[Batch ${batchNum}] ${batch.length}개 시작`);
+
+            const results = await Promise.allSettled(
+                batch.map((task) => generateSubImageRef.current(task.sceneId, task.subIndex))
+            );
+
+            // 실패 로그
+            results.forEach((r, idx) => {
+                if (r.status === 'rejected') {
+                    console.error(`[Batch ${batchNum}] task ${idx} 실패:`, r.reason);
+                }
+            });
+
+            completed += batch.length;
+            setImageGenProgress({ done: completed, total: totalImages });
+            console.log(`[generateAllScenes] 진행: ${completed}/${totalImages}`);
+        }
+
+        isGeneratingAllRef.current = false;
+        setImageGenProgress(null);
+        console.log('[generateAllScenes] 모든 이미지 생성 완료');
+    }, [scenes, videoCountPerScene, sceneImages, canAfford, creditsRemaining, CREDIT_COSTS, onCreditShortage, spend]);
+
+    // 서브씬 단위 영상 생성 (크레딧 차감은 호출자가 처리)
+    const generateSubVideo = useCallback(async (sceneId: string, subIndex: number) => {
+        const statusKey = `${sceneId}-${subIndex}`;
+        setVideoGenStatus((p) => ({ ...p, [statusKey]: 'generating' }));
+        try {
+            const scene = scenes.find((s) => s.id === sceneId);
+            if (!scene) {
+                console.warn(`[generateSubVideo] scene ${sceneId} not found — skipping`);
+                return;
+            }
+            const seedCards = (sceneSeeds[sceneId] || [])
+                .map((cardId) => deck.find((c) => c.id === cardId))
+                .filter((c): c is AssetCard => !!c);
+
+            const vc = videoCountPerScene[sceneId] || 1;
+            const subKey = vc > 1 ? `${sceneId}-${subIndex}` : sceneId;
+            const prompt = customPrompts[subKey]?.video || customPrompts[sceneId]?.video || buildVideoPrompt({
+                artStyleId,
+                sceneText: scene.text,
+                seedCards,
+                cameraAngle: scene.cameraAngle,
+                templateId,
+                subIndex,
+                totalSubScenes: vc,
+            });
+
+            // 서브씬별 이미지를 입력으로 사용
+            const inputImage = storeSceneImages[sceneId]?.[subIndex] || scene.imageUrl || '';
+
+            const videoResult = await generateVideo({
+                imageUrl: inputImage,
+                prompt,
+                duration: 5,
+                sceneId: statusKey,
+                model: videoModel,
+            });
+            if (videoResult?.videoUrl) {
+                updateSceneVideoAtSub(sceneId, subIndex, videoResult.videoUrl);
+                // subIndex === 0이면 기존 scene.videoUrl도 업데이트 (하위 호환)
+                if (subIndex === 0) {
+                    updateSceneVideo(sceneId, videoResult.videoUrl);
+                }
+            }
+            setVideoGenStatus((p) => ({ ...p, [statusKey]: 'done' }));
+            console.log(`[Video ${sceneId}][sub ${subIndex}] 영상 생성 완료`);
+        } catch (err) {
+            console.error(`[Video ${sceneId}][sub ${subIndex}] 영상 생성 실패:`, err);
+            setVideoGenStatus((p) => ({ ...p, [statusKey]: 'idle' }));
+        }
+    }, [scenes, sceneSeeds, deck, artStyleId, templateId, videoModel, videoCountPerScene, customPrompts, storeSceneImages, updateSceneVideo, updateSceneVideoAtSub]);
+
+    // ref로 항상 최신 generateSubVideo를 참조 (stale closure 방지)
+    const generateSubVideoRef = useRef(generateSubVideo);
+    useEffect(() => { generateSubVideoRef.current = generateSubVideo; });
+
+    // 편의 래퍼: 단일 씬 영상 생성 (크레딧 차감 + sub 0 호출)
     const generateSingleVideo = useCallback(async (sceneId: string) => {
         if (!canAfford('video')) {
             if (onCreditShortage) {
@@ -323,52 +446,58 @@ export function useGeneration({
             return;
         }
         if (!spend('video')) return;
-        setVideoGenStatus((p) => ({ ...p, [sceneId]: 'generating' }));
-        try {
-            const scene = scenes.find((s) => s.id === sceneId);
-            if (!scene) return;
-            const seedCards = (sceneSeeds[sceneId] || [])
-                .map((cardId) => deck.find((c) => c.id === cardId))
-                .filter((c): c is AssetCard => !!c);
+        await generateSubVideo(sceneId, 0);
+    }, [generateSubVideo, canAfford, spend, CREDIT_COSTS, onCreditShortage]);
 
-            const prompt = customPrompts[sceneId]?.video || buildVideoPrompt({
-                artStyleId,
-                sceneText: scene.text,
-                seedCards,
-                cameraAngle: scene.cameraAngle,
-                templateId,
-            });
-            const videoResult = await generateVideo({
-                imageUrl: scene.imageUrl || '',
-                prompt,
-                duration: 5,
-                sceneId,
-                model: videoModel,
-            });
-            if (videoResult?.videoUrl) {
-                updateSceneVideo(sceneId, videoResult.videoUrl);
-            }
-            setVideoGenStatus((p) => ({ ...p, [sceneId]: 'done' }));
-        } catch (err) {
-            console.error(`[Video ${sceneId}] 영상 생성 실패:`, err);
-            setVideoGenStatus((p) => ({ ...p, [sceneId]: 'idle' }));
+    const isGeneratingAllVideosRef = useRef(false);
+
+    const generateAllVideos = useCallback(async () => {
+        if (isGeneratingAllVideosRef.current) {
+            console.warn('[generateAllVideos] 이미 생성 중 — 중복 호출 무시');
+            return;
         }
-    }, [scenes, sceneSeeds, deck, artStyleId, canAfford, spend, creditsRemaining, CREDIT_COSTS, templateId, videoModel, onCreditShortage, customPrompts]);
 
-    const generateAllVideos = useCallback(() => {
-        const pending = scenes.filter((s) => videoGenStatus[s.id] !== 'done');
-        if (!canAfford('video', pending.length)) {
+        // 모든 씬 × 서브씬을 순회해서 tasks 배열 생성
+        const tasks: Array<{ sceneId: string; subIndex: number }> = [];
+        scenes.forEach((scene) => {
+            const vc = videoCountPerScene[scene.id] || 1;
+            for (let sub = 0; sub < vc; sub++) {
+                const statusKey = `${scene.id}-${sub}`;
+                if (videoGenStatus[statusKey] !== 'done') {
+                    tasks.push({ sceneId: scene.id, subIndex: sub });
+                }
+            }
+        });
+
+        if (tasks.length === 0) return;
+
+        if (!canAfford('video', tasks.length)) {
             if (onCreditShortage) {
-                onCreditShortage(pending.length * CREDIT_COSTS.video, `영상 전체 생성 (${pending.length}편)`);
+                onCreditShortage(tasks.length * CREDIT_COSTS.video, `영상 전체 생성 (${tasks.length}편)`);
             } else {
                 useToastStore.getState().addToast('크레딧이 부족합니다!', 'warning');
             }
             return;
         }
-        pending.forEach((scene, i) => {
-            setTimeout(() => generateSingleVideo(scene.id), i * 800);
-        });
-    }, [scenes, videoGenStatus, canAfford, creditsRemaining, CREDIT_COSTS, generateSingleVideo, onCreditShortage]);
+
+        // 크레딧 일괄 차감
+        if (!spend('video', tasks.length)) return;
+
+        isGeneratingAllVideosRef.current = true;
+        console.log(`[generateAllVideos] 시작: ${tasks.length} tasks`);
+
+        // 순차 배치: 최대 3개 병렬
+        const BATCH_SIZE = 3;
+        for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+            const batch = tasks.slice(i, i + BATCH_SIZE);
+            await Promise.allSettled(
+                batch.map((t) => generateSubVideoRef.current(t.sceneId, t.subIndex))
+            );
+        }
+
+        isGeneratingAllVideosRef.current = false;
+        console.log('[generateAllVideos] 모든 영상 생성 완료');
+    }, [scenes, videoCountPerScene, videoGenStatus, canAfford, CREDIT_COSTS, onCreditShortage, spend]);
 
     const regenerateSingleVideo = useCallback((sceneId: string) => {
         generateSingleVideo(sceneId);
@@ -399,7 +528,17 @@ export function useGeneration({
 
     const doneSceneCount = scenes.filter((s) => isSceneDone(s.id)).length;
     const allImagesDone = scenes.length > 0 && doneSceneCount === scenes.length;
-    const doneVideoCount = scenes.filter((s) => videoGenStatus[s.id] === 'done').length;
+
+    // 씬별 영상 done 판정: 해당 씬의 모든 서브영상이 생성 완료된 경우
+    const isSceneVideoDone = useCallback((sceneId: string) => {
+        const vc = videoCountPerScene[sceneId] || 1;
+        for (let sub = 0; sub < vc; sub++) {
+            if (videoGenStatus[`${sceneId}-${sub}`] !== 'done') return false;
+        }
+        return true;
+    }, [videoCountPerScene, videoGenStatus]);
+
+    const doneVideoCount = scenes.filter((s) => isSceneVideoDone(s.id)).length;
     const allVideosDone = scenes.length > 0 && doneVideoCount === scenes.length;
 
     // 영상 생성 대상 선택 상태 — 키: "sceneId-subIndex" 형태
@@ -428,40 +567,87 @@ export function useGeneration({
         return false;
     }, [selectedForVideo, videoCountPerScene]);
 
-    const toggleVideoSelection = useCallback((sceneId: string) => {
+    // 전체 선택/해제 토글
+    const toggleAllVideoSelection = useCallback(() => {
         setSelectedForVideo((prev) => {
-            const next = new Set(prev);
-            const vc = videoCountPerScene[sceneId] || 1;
-            const allSelected = Array.from({ length: vc }, (_, i) => `${sceneId}-${i}`).every((k) => next.has(k));
-            for (let i = 0; i < vc; i++) {
-                const key = `${sceneId}-${i}`;
-                if (allSelected) next.delete(key);
-                else next.add(key);
-            }
-            return next;
+            const allKeys = new Set<string>();
+            scenes.forEach((s) => {
+                const vc = videoCountPerScene[s.id] || 1;
+                for (let i = 0; i < vc; i++) allKeys.add(`${s.id}-${i}`);
+            });
+            return prev.size === allKeys.size ? new Set() : allKeys;
         });
-    }, [videoCountPerScene]);
+    }, [scenes, videoCountPerScene]);
 
-    const generateSelectedVideos = useCallback(() => {
-        // selectedForVideo 키에서 sceneId 추출 (중복 제거)
-        const targetSceneIds = new Set<string>();
+    // Shift+클릭 범위 선택용 마지막 클릭 인덱스
+    const [lastClickedSceneIndex, setLastClickedSceneIndex] = useState<number | null>(null);
+
+    const toggleVideoSelection = useCallback((sceneId: string, sceneIndex?: number, shiftKey?: boolean) => {
+        // Shift+클릭: 범위 선택
+        if (shiftKey && lastClickedSceneIndex !== null && sceneIndex != null) {
+            const start = Math.min(lastClickedSceneIndex, sceneIndex);
+            const end = Math.max(lastClickedSceneIndex, sceneIndex);
+            setSelectedForVideo((prev) => {
+                const next = new Set(prev);
+                for (let si = start; si <= end; si++) {
+                    const s = scenes[si];
+                    if (!s) continue;
+                    const vc = videoCountPerScene[s.id] || 1;
+                    for (let sub = 0; sub < vc; sub++) next.add(`${s.id}-${sub}`);
+                }
+                return next;
+            });
+        } else {
+            // 일반 클릭: 단일 토글
+            setSelectedForVideo((prev) => {
+                const next = new Set(prev);
+                const vc = videoCountPerScene[sceneId] || 1;
+                const allSelected = Array.from({ length: vc }, (_, i) => `${sceneId}-${i}`).every((k) => next.has(k));
+                for (let i = 0; i < vc; i++) {
+                    const key = `${sceneId}-${i}`;
+                    if (allSelected) next.delete(key);
+                    else next.add(key);
+                }
+                return next;
+            });
+        }
+        if (sceneIndex != null) setLastClickedSceneIndex(sceneIndex);
+    }, [videoCountPerScene, lastClickedSceneIndex, scenes]);
+
+    const generateSelectedVideos = useCallback(async () => {
+        // selectedForVideo 키에서 서브씬 단위 tasks 생성
+        const tasks: Array<{ sceneId: string; subIndex: number }> = [];
         selectedForVideo.forEach((key) => {
-            const sceneId = key.split('-').slice(0, -1).join('-');
-            if (videoGenStatus[sceneId] !== 'done' && videoGenStatus[sceneId] !== 'generating') {
-                targetSceneIds.add(sceneId);
+            const parts = key.split('-');
+            const subIndex = parseInt(parts.pop()!, 10);
+            const sceneId = parts.join('-');
+            const statusKey = `${sceneId}-${subIndex}`;
+            if (videoGenStatus[statusKey] !== 'done' && videoGenStatus[statusKey] !== 'generating') {
+                tasks.push({ sceneId, subIndex });
             }
         });
-        const targets = scenes.filter((s) => targetSceneIds.has(s.id));
-        if (!canAfford('video', targets.length)) {
+
+        if (tasks.length === 0) return;
+
+        if (!canAfford('video', tasks.length)) {
             if (onCreditShortage) {
-                onCreditShortage(targets.length * CREDIT_COSTS.video, `선택 영상 생성 (${targets.length}편)`);
+                onCreditShortage(tasks.length * CREDIT_COSTS.video, `선택 영상 생성 (${tasks.length}편)`);
             }
             return;
         }
-        targets.forEach((scene, i) => {
-            setTimeout(() => generateSingleVideo(scene.id), i * 800);
-        });
-    }, [selectedForVideo, scenes, videoGenStatus, canAfford, CREDIT_COSTS, onCreditShortage, generateSingleVideo]);
+
+        // 크레딧 일괄 차감
+        if (!spend('video', tasks.length)) return;
+
+        // 배치 3개 병렬
+        const BATCH_SIZE = 3;
+        for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
+            const batch = tasks.slice(i, i + BATCH_SIZE);
+            await Promise.allSettled(
+                batch.map((t) => generateSubVideoRef.current(t.sceneId, t.subIndex))
+            );
+        }
+    }, [selectedForVideo, videoGenStatus, canAfford, CREDIT_COSTS, onCreditShortage, spend]);
 
     return {
         sceneGenStatus,
@@ -486,9 +672,14 @@ export function useGeneration({
         updatePrompt,
         selectedForVideo,
         toggleVideoSelection,
+        toggleAllVideoSelection,
         isSceneSelectedForVideo,
         generateSelectedVideos,
         sceneImages,
+        sceneVideos: storeSceneVideos,
+        generateSubVideo,
+        isSceneVideoDone,
+        imageGenProgress,
     };
 }
 

@@ -82,9 +82,12 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
         updatePrompt,
         selectedForVideo,
         toggleVideoSelection,
+        toggleAllVideoSelection,
         isSceneSelectedForVideo,
         generateSelectedVideos,
         sceneImages,
+        sceneVideos,
+        imageGenProgress,
     } = genApi;
 
     const {
@@ -200,7 +203,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 aspectRatio={aspectRatio || '16:9'}
                                 seedSummary={seedSummaryText}
                                 isSelectedForVideo={isSceneSelectedForVideo(scene.id)}
-                                onToggleVideoSelection={() => toggleVideoSelection(scene.id)}
+                                onToggleVideoSelection={(e?: React.MouseEvent) => toggleVideoSelection(scene.id, index, e?.shiftKey)}
                                 sceneImages={sceneImages[scene.id]}
                                 allPrompts={customPrompts}
                                 onSubPromptChange={updatePrompt}
@@ -235,9 +238,9 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 const label = vc > 1 ? `${scenes.indexOf(scene) + 1}-${sub + 1}` : String(scenes.indexOf(scene) + 1).padStart(2, '0');
                                 return (
                                     <div key={key} className="sc-video-filmstrip__item">
-                                        {scene.videoUrl && sub === 0 ? (
+                                        {sceneVideos?.[scene.id]?.[sub] ? (
                                             <video
-                                                src={scene.videoUrl}
+                                                src={sceneVideos[scene.id][sub]}
                                                 className="sc-video-filmstrip__video"
                                                 controls
                                                 muted
@@ -245,7 +248,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                         ) : (
                                             <div className="sc-video-filmstrip__placeholder" style={subImageUrl ? { backgroundImage: `url(${subImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
                                                 <span className="sc-video-filmstrip__sub-label">{label}</span>
-                                                {videoGenStatus[scene.id] === 'generating' ? (
+                                                {videoGenStatus[`${scene.id}-${sub}`] === 'generating' ? (
                                                     <Loader size={14} className="spinning" />
                                                 ) : (
                                                     <Video size={14} style={{ opacity: subImageUrl ? 0.8 : 0.3 }} />
@@ -287,10 +290,21 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                     ) : (
                         /* Step 2: 일괄 이미지 생성 */
                         <>
-                            <span className="sb-bottom-actions__info">{doneSceneCount}/{scenes.length} 이미지</span>
-                            <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllScenes}>
-                                <Zap size={14} /> 일괄 이미지 생성
-                            </button>
+                            <span className="sb-bottom-actions__info">
+                                {imageGenProgress
+                                    ? `생성 중... ${imageGenProgress.done}/${imageGenProgress.total}`
+                                    : `${doneSceneCount}/${scenes.length} 이미지`
+                                }
+                            </span>
+                            {imageGenProgress ? (
+                                <button className="btn-primary sb-bottom-actions__btn" disabled>
+                                    <Loader size={14} className="spin" /> 생성 중...
+                                </button>
+                            ) : (
+                                <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllScenes}>
+                                    <Zap size={14} /> 일괄 이미지 생성
+                                </button>
+                            )}
                         </>
                     )
                 ) : (
@@ -316,10 +330,21 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                     ) : !allImagesDone ? (
                         /* Step 2: 프롬프트 작성됨 → 일괄 이미지 생성 */
                         <>
-                            <span className="sb-bottom-actions__info">{doneSceneCount}/{scenes.length} 이미지</span>
-                            <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllScenes}>
-                                <Zap size={14} /> 일괄 이미지 생성
-                            </button>
+                            <span className="sb-bottom-actions__info">
+                                {imageGenProgress
+                                    ? `생성 중... ${imageGenProgress.done}/${imageGenProgress.total}`
+                                    : `${doneSceneCount}/${scenes.length} 이미지`
+                                }
+                            </span>
+                            {imageGenProgress ? (
+                                <button className="btn-primary sb-bottom-actions__btn" disabled>
+                                    <Loader size={14} className="spin" /> 생성 중...
+                                </button>
+                            ) : (
+                                <button className="btn-primary sb-bottom-actions__btn" onClick={generateAllScenes}>
+                                    <Zap size={14} /> 일괄 이미지 생성
+                                </button>
+                            )}
                         </>
                     ) : (
                         /* Step 3: 이미지 완료 → 영상 생성 (선택/전체) */
@@ -327,6 +352,9 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                             <span className="sb-bottom-actions__info" style={{ color: '#10b981' }}>
                                 이미지 완료! 영상 생성할 씬 선택
                             </span>
+                            <button className="btn-ghost sb-bottom-actions__btn" onClick={toggleAllVideoSelection}>
+                                {selectedForVideo.size > 0 ? '전체 해제' : '전체 선택'}
+                            </button>
                             <button className="btn-secondary sb-bottom-actions__btn" onClick={generateSelectedVideos}>
                                 <Video size={14} /> 선택한 {new Set(Array.from(selectedForVideo).map((k) => k.split('-').slice(0, -1).join('-'))).size}개 씬 영상 생성
                             </button>

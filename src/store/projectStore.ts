@@ -147,6 +147,11 @@ export interface ProjectState {
   setSceneImages: (images: Record<string, string[]>) => void;
   updateSceneImageAtSub: (sceneId: string, subIndex: number, imageUrl: string) => void;
 
+  // ── v12 신규: 서브영상 영구 저장 ──
+  sceneVideos: Record<string, string[]>;
+  setSceneVideos: (videos: Record<string, string[]>) => void;
+  updateSceneVideoAtSub: (sceneId: string, subIndex: number, videoUrl: string) => void;
+
   // ── v5 신규: 듀얼 모드 ──
   mode: ProjectMode;
   setMode: (mode: ProjectMode) => void;
@@ -246,6 +251,7 @@ export const useProjectStore = create<ProjectState>()(
           currentPhase: 1,
           scenes: [],
           sceneImages: {},
+          sceneVideos: {},
           artStyleId: 'cinematic',
           aspectRatio: '16:9',
           timelineClips: [],
@@ -270,6 +276,16 @@ export const useProjectStore = create<ProjectState>()(
           const arr = [...(state.sceneImages[sceneId] || [])];
           arr[subIndex] = imageUrl;
           return { sceneImages: { ...state.sceneImages, [sceneId]: arr } };
+        }),
+
+      // ── v12 신규: 서브영상 영구 저장 ──
+      sceneVideos: {},
+      setSceneVideos: (sceneVideos) => set({ sceneVideos }),
+      updateSceneVideoAtSub: (sceneId, subIndex, videoUrl) =>
+        set((state) => {
+          const arr = [...(state.sceneVideos[sceneId] || [])];
+          arr[subIndex] = videoUrl;
+          return { sceneVideos: { ...state.sceneVideos, [sceneId]: arr } };
         }),
 
       // ── v4 신규 필드 초기값 & 액션 ──
@@ -312,7 +328,22 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'antigravity-project',
-      version: 11,
+      version: 12,
+      // localStorage 용량 초과 시 조용히 무시 (base64 이미지 등)
+      storage: {
+        getItem: (name) => {
+          const str = localStorage.getItem(name);
+          return str ? JSON.parse(str) : null;
+        },
+        setItem: (name, value) => {
+          try {
+            localStorage.setItem(name, JSON.stringify(value));
+          } catch (e) {
+            console.warn('[persist] localStorage 저장 실패 (용량 초과 가능) — 메모리에만 유지합니다.');
+          }
+        },
+        removeItem: (name) => localStorage.removeItem(name),
+      },
       migrate: (persistedState: unknown, version: number) => {
         let state = persistedState as Record<string, unknown>;
         if (version < 2) {
@@ -407,6 +438,10 @@ export const useProjectStore = create<ProjectState>()(
           // v10→v11: videoCountPerScene 필드 추가 (서브씬 수 영속화)
           state = { ...state, videoCountPerScene: {} };
         }
+        if (version < 12) {
+          // v11→v12: sceneVideos 필드 추가 (서브영상 영구 저장)
+          state = { ...state, sceneVideos: {} };
+        }
         return state;
       },
       partialize: (state) => ({
@@ -414,6 +449,7 @@ export const useProjectStore = create<ProjectState>()(
         title: state.title,
         scenes: state.scenes,
         sceneImages: state.sceneImages,
+        sceneVideos: state.sceneVideos,
         artStyleId: state.artStyleId,
         cardLibrary: state.cardLibrary,
         credits: state.credits,

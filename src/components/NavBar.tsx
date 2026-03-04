@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, FolderOpen, Plus, Settings, Zap, LogIn, LogOut, User, Coins, Users } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProjectStore } from '../store/projectStore';
+import type { ProjectMode } from '../store/projectStore';
 import { useCredits } from '../hooks/useCredits';
 import SettingsModal from './SettingsModal';
 
@@ -12,10 +13,20 @@ const NavBar: React.FC = () => {
     const { user, loading, isGuest, signInWithGoogle, signInWithKakao, signOut } = useAuth();
     const { remaining } = useCredits();
     const startNewProject = useProjectStore((s) => s.startNewProject);
+    const setEntryPoint = useProjectStore((s) => s.setEntryPoint);
+    const setTemplateId = useProjectStore((s) => s.setTemplateId);
     const [showSettings, setShowSettings] = useState(false);
+    const [showModeSelect, setShowModeSelect] = useState(false);
 
     const handleNewProject = () => {
-        startNewProject('Untitled Project');
+        setShowModeSelect(true);
+    };
+
+    const handleModeSelect = (mode: ProjectMode) => {
+        startNewProject('Untitled Project', mode);
+        setEntryPoint('script');
+        setTemplateId(null);
+        setShowModeSelect(false);
         navigate('/project/idea');
     };
 
@@ -99,6 +110,25 @@ const NavBar: React.FC = () => {
                 )}
             </div>
             <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+            {showModeSelect && (
+                <div className="mode-select-overlay" onClick={() => setShowModeSelect(false)}>
+                    <div className="mode-select" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="mode-select__title">영상 제작 방식 선택</h3>
+                        <div className="mode-select__options">
+                            <div className="mode-select__option" onClick={() => handleModeSelect('cinematic')}>
+                                <div className="mode-select__icon">🎬</div>
+                                <h4>시네마틱</h4>
+                                <p>씬별 이미지/영상을 생성하고 마지막에 나레이션 추가</p>
+                            </div>
+                            <div className="mode-select__option" onClick={() => handleModeSelect('narration')}>
+                                <div className="mode-select__icon">🎙️</div>
+                                <h4>나레이션</h4>
+                                <p>먼저 나레이션 음성을 생성하고 타이밍에 맞춰 영상 배치</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </nav>
     );
 };

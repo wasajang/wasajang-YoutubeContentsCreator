@@ -34,7 +34,7 @@ interface SceneRowProps {
     seedSummary?: string;
     /** 영상 생성 대상 선택 */
     isSelectedForVideo?: boolean;
-    onToggleVideoSelection?: () => void;
+    onToggleVideoSelection?: (e?: React.MouseEvent) => void;
     /** 씬별 서브이미지 배열 (videoCount만큼) */
     sceneImages?: string[];
     /** 전체 프롬프트 맵 (서브씬별 키 "sceneId-subIdx" 지원) */
@@ -259,7 +259,7 @@ const SceneRow: React.FC<SceneRowProps> = ({
                     ) : genStatus === 'done' ? (
                         <div
                             className="sc-row__video-clip sc-row__video-clip--selectable"
-                            onClick={(e) => { e.stopPropagation(); onToggleVideoSelection?.(); }}
+                            onClick={(e) => { e.stopPropagation(); onToggleVideoSelection?.(e); }}
                         >
                             <input
                                 type="checkbox"

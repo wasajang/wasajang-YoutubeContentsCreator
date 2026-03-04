@@ -125,7 +125,7 @@ interface Props {
 }
 
 const MAX_DURATION_OPTIONS = [5, 6, 8, 10, 15] as const;
-const WARN_DURATION = 10;
+// 경고 기준: 사용자가 선택한 maxDuration을 사용 (아래 컴포넌트 내 state)
 
 const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
     const sentenceTimings = useProjectStore((s) => s.sentenceTimings);
@@ -399,7 +399,7 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
             {/* 씬 목록 */}
             <div className="narration-split-step__list">
                 {groups.map((group, index) => {
-                    const isOverDuration = group.duration > WARN_DURATION;
+                    const isOverDuration = group.duration > maxDuration;
                     const isPlaying = playingGroupId === group.id;
                     return (
                         <div key={group.id} className="narration-split-step__group-wrapper">
@@ -412,7 +412,7 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
                                         {formatDuration(group.duration)}
                                         {isOverDuration && (
                                             <span className="narration-split-step__warn-badge">
-                                                <AlertTriangle size={10} /> 10초 초과
+                                                <AlertTriangle size={10} /> {maxDuration}초 초과
                                             </span>
                                         )}
                                     </span>
