@@ -32,12 +32,21 @@ export interface Scene {
 /** 프로젝트 모드 */
 export type ProjectMode = 'cinematic' | 'narration';
 
+/** 나레이션 모드 — 단어 단위 타이밍 정보 (TTS 분석 결과) */
+export interface WordTiming {
+  index: number;       // 문장 내 단어 순서 (0부터)
+  text: string;        // 단어 텍스트
+  startTime: number;   // 절대 시간(초, 전체 오디오 기준)
+  endTime: number;     // 절대 시간(초)
+}
+
 /** 나레이션 모드 — 문장별 타이밍 정보 */
 export interface SentenceTiming {
   index: number;
   text: string;
   startTime: number;
   endTime: number;
+  words?: WordTiming[];  // 단어 단위 타이밍 (선택적, 하위 호환)
 }
 
 export interface NarrationClip {
@@ -328,7 +337,7 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'antigravity-project',
-      version: 12,
+      version: 13,
       // localStorage 용량 초과 시 조용히 무시 (base64 이미지 등)
       storage: {
         getItem: (name) => {
@@ -441,6 +450,11 @@ export const useProjectStore = create<ProjectState>()(
         if (version < 12) {
           // v11→v12: sceneVideos 필드 추가 (서브영상 영구 저장)
           state = { ...state, sceneVideos: {} };
+        }
+        if (version < 13) {
+          // v12→v13: SentenceTiming.words 필드 추가 (선택적, 하위 호환)
+          // 데이터 변환 불필요 — 런타임에서 enrichWithWordTimings()로 자동 보정
+          state = { ...state };
         }
         return state;
       },

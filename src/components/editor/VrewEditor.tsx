@@ -8,7 +8,7 @@
  *
  * 시네마틱 + 나레이션 양쪽 모드 지원
  */
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import type { NarrationClip, AssetCard } from '../../store/projectStore';
 import { useEditorPlayback } from '../../hooks/useEditorPlayback';
@@ -18,13 +18,23 @@ import {
   editorClipsToNarration,
   type EditorClip,
 } from './types';
-import { splitClip, mergeClips } from '../../utils/narration-sync';
+import {
+  splitClip,
+  mergeClips,
+  removeClip,
+  reorderClips,
+  splitClipAtWord,
+  findCurrentWord,
+} from '../../utils/narration-sync';
+import { enrichWithWordTimings } from '../../utils/word-timing';
 import EditorPreview from './EditorPreview';
 import ScriptPanel from './ScriptPanel';
 import EditorTimeline from './EditorTimeline';
 import EditorControls from './EditorControls';
 import ClipDetailPanel from './ClipDetailPanel';
+import VrewClipList from './VrewClipList';
 import { useVideoRegeneration } from '../../hooks/useVideoRegeneration';
+import { useNarrationClipGeneration } from '../../hooks/useNarrationClipGeneration';
 import { buildImagePrompt, buildVideoPrompt } from '../../services/prompt-builder';
 
 interface VrewEditorProps {
@@ -84,11 +94,26 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
   const [clipPrompts, setClipPrompts] = useState<Record<string, { image: string; video: string }>>({});
   const { isRegenerating, regenerateVideo } = useVideoRegeneration();
 
+  // 나레이션 모드: 이미지/영상 생성 훅 (항상 호출, 모드 무관하게 — React 규칙 준수)
+  const clipGen = useNarrationClipGeneration();
+
+  // 나레이션 클립에 words 자동 보정 (enrichWithWordTimings)
+  const enrichedNarrationClips = useMemo(() => {
+    if (mode !== 'narration') return narrationClips;
+    return narrationClips.map((clip) => ({
+      ...clip,
+      sentences: enrichWithWordTimings(clip.sentences),
+    }));
+  }, [mode, narrationClips]);
+
   // 통합 클립 배열
-  const clips =
-    mode === 'narration'
-      ? narrationToEditorClips(narrationClips)
-      : cinematicClips;
+  const clips = useMemo(
+    () =>
+      mode === 'narration'
+        ? narrationToEditorClips(enrichedNarrationClips)
+        : cinematicClips,
+    [mode, enrichedNarrationClips, cinematicClips]
+  );
 
   const audioUrl = mode === 'narration' ? narrativeAudioUrl : '';
 
@@ -102,6 +127,12 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
   } = useEditorPlayback({ clips, audioUrl });
 
   const currentClip = clips[currentClipIndex] ?? null;
+
+  // currentWord: 현재 재생 시간의 단어를 useMemo로 파생 (useEditorPlayback 훅 수 불변 유지)
+  const currentWord = useMemo(() => {
+    if (mode !== 'narration' || !currentClip) return null;
+    return findCurrentWord(currentTime, toNarrationClip(currentClip));
+  }, [mode, currentTime, currentClip]);
 
   // 씬 수가 바뀔 때 프롬프트 초기화 (시네마틱 모드)
   useEffect(() => {
@@ -190,6 +221,38 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     }
   }, [clips, currentClipIndex, updateClips]);
 
+  // 단어 위치에서 분할 (나레이션 모드 전용)
+  const handleSplitAtWord = useCallback(
+    (clipIndex: number, globalWordIndex: number) => {
+      if (mode !== 'narration') return;
+
+      const narr = useProjectStore.getState().narrationClips;
+      const clip = narr[clipIndex];
+      if (!clip) return;
+
+      // globalWordIndex를 sentenceIndex + wordIndexInSentence로 변환
+      let wordCount = 0;
+      for (let si = 0; si < clip.sentences.length; si++) {
+        const words = clip.sentences[si].words || [];
+        for (let wi = 0; wi < words.length; wi++) {
+          if (wordCount === globalWordIndex) {
+            try {
+              const [clipA, clipB] = splitClipAtWord(clip, si, wi);
+              const newClips = [...narr];
+              newClips.splice(clipIndex, 1, clipA, clipB);
+              setNarrationClips(reorderClips(newClips));
+            } catch (e) {
+              console.warn('[VrewEditor] 단어 분할 실패:', e);
+            }
+            return;
+          }
+          wordCount++;
+        }
+      }
+    },
+    [mode, setNarrationClips]
+  );
+
   // 합치기 — 이전 클립과 병합
   const handleMerge = useCallback(() => {
     if (currentClipIndex <= 0) return;
@@ -242,6 +305,29 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     if (currentClipIndex < clips.length - 1) seekToClip(currentClipIndex + 1);
   }, [currentClipIndex, clips.length, seekToClip]);
 
+  // 나레이션 모드: 클립 합치기 (VrewClipList에서 호출)
+  const handleMergeWithPrev = useCallback(
+    (idx: number) => {
+      if (idx <= 0) return;
+      const narr = useProjectStore.getState().narrationClips;
+      const merged = mergeClips(narr[idx - 1], narr[idx]);
+      const newClips = [...narr];
+      newClips.splice(idx - 1, 2, merged);
+      setNarrationClips(reorderClips(newClips));
+    },
+    [setNarrationClips]
+  );
+
+  // 나레이션 모드: 클립 삭제 (VrewClipList에서 호출)
+  const handleDeleteByIndex = useCallback(
+    (idx: number) => {
+      const narr = useProjectStore.getState().narrationClips;
+      if (narr.length <= 1) return;
+      setNarrationClips(removeClip(narr, narr[idx].id));
+    },
+    [setNarrationClips]
+  );
+
   const canSplit = currentClip ? currentClip.sentences.length >= 2 : false;
   const canMerge = currentClipIndex > 0;
   const canDelete = clips.length > 1;
@@ -263,15 +349,34 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
             clip={currentClip}
             currentTime={currentTime}
             isPlaying={isPlaying}
+            currentWord={currentWord}
           />
         </div>
         <div className="vrew-editor__script-area">
-          <ScriptPanel
-            clips={clips}
-            currentClipIndex={currentClipIndex}
-            onClipSelect={seekToClip}
-            onTextChange={handleTextChange}
-          />
+          {mode === 'narration' ? (
+            <VrewClipList
+              clips={clips}
+              currentClipIndex={currentClipIndex}
+              currentTime={currentTime}
+              onClipSelect={seekToClip}
+              onSplitAtWord={handleSplitAtWord}
+              onMergeWithPrev={handleMergeWithPrev}
+              onDelete={handleDeleteByIndex}
+              onGenerateImage={(clipId) => clipGen.generateClipImage(clipId)}
+              onGenerateVideo={(clipId) => clipGen.generateClipVideo(clipId)}
+              onGenerateAllImages={() => clipGen.generateAllClipImages()}
+              onGenerateAllVideos={() => clipGen.generateAllClipVideos()}
+              clipGenStatus={clipGen.clipGenStatus}
+              clipVideoGenStatus={clipGen.clipVideoGenStatus}
+            />
+          ) : (
+            <ScriptPanel
+              clips={clips}
+              currentClipIndex={currentClipIndex}
+              onClipSelect={seekToClip}
+              onTextChange={handleTextChange}
+            />
+          )}
         </div>
         {mode === 'cinematic' && (
           <div className="vrew-editor__detail-area">

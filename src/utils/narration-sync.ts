@@ -8,7 +8,7 @@
  * 만약 Phase A 진행 전이라 store에 타입이 없다면,
  * 아래 import 라인 대신 로컬 타입 정의 섹션을 활성화하세요.
  */
-import type { SentenceTiming, NarrationClip } from '../store/projectStore';
+import type { SentenceTiming, NarrationClip, WordTiming } from '../store/projectStore';
 
 // ─────────────────────────────────────────────────────────────────
 // [로컬 타입 폴백]
@@ -370,6 +370,147 @@ export function getTotalDuration(clips: NarrationClip[]): number {
   const sorted = [...clips].sort((a, b) => a.audioStartTime - b.audioStartTime);
   const last = sorted[sorted.length - 1];
   return last.audioEndTime;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 10. splitClipAtWord — 단어 위치에서 클립 분할
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * 클립을 단어 위치에서 분할.
+ *
+ * @param clip - 분할할 클립
+ * @param sentenceIndex - 분할점이 속한 문장의 인덱스
+ * @param wordIndexInSentence - 해당 문장 내 단어 인덱스 (이 단어 **뒤**에서 분할)
+ * @returns [앞 클립, 뒤 클립] 튜플
+ *
+ * 시나리오 A: 분할점이 문장의 마지막 단어 → 문장 경계 분할 (splitClip 활용)
+ * 시나리오 B: 분할점이 문장 중간 → 문장을 2개로 분리 + words 재분배
+ */
+export function splitClipAtWord(
+  clip: NarrationClip,
+  sentenceIndex: number,
+  wordIndexInSentence: number,
+): [NarrationClip, NarrationClip] {
+  const sentence = clip.sentences[sentenceIndex];
+  if (!sentence) throw new RangeError('유효하지 않은 sentenceIndex');
+
+  const words = sentence.words;
+
+  // words가 없거나 비어있으면 문장 단위 분할로 폴백
+  if (!words || words.length === 0) {
+    // 문장이 1개뿐이면 분할 불가 — 기존 splitClip은 에러 발생
+    if (clip.sentences.length <= 1) {
+      throw new RangeError('분할할 수 없습니다: 문장이 1개이고 단어 타이밍이 없습니다.');
+    }
+    return splitClip(clip, sentenceIndex);
+  }
+
+  const isLastWordInSentence = wordIndexInSentence >= words.length - 1;
+  const isLastSentence = sentenceIndex >= clip.sentences.length - 1;
+
+  // 시나리오 A: 마지막 단어 뒤 = 문장 경계 → 기존 splitClip 활용
+  if (isLastWordInSentence && !isLastSentence) {
+    return splitClip(clip, sentenceIndex);
+  }
+
+  // 시나리오 B: 문장 중간 분할
+  const wordsA = words.slice(0, wordIndexInSentence + 1);
+  const wordsB = words.slice(wordIndexInSentence + 1);
+
+  if (wordsA.length === 0 || wordsB.length === 0) {
+    throw new RangeError('분할 결과가 빈 클립이 됩니다');
+  }
+
+  const splitTime = wordsA[wordsA.length - 1].endTime;
+
+  // 원본 문장을 두 문장으로 분리
+  const sentenceA: SentenceTiming = {
+    index: sentence.index,
+    text: wordsA.map((w) => w.text).join(' '),
+    startTime: sentence.startTime,
+    endTime: splitTime,
+    words: wordsA,
+  };
+  const sentenceB: SentenceTiming = {
+    index: sentence.index + 1,
+    text: wordsB.map((w) => w.text).join(' '),
+    startTime: splitTime,
+    endTime: sentence.endTime,
+    words: wordsB.map((w, i) => ({ ...w, index: i })),
+  };
+
+  // 앞 클립: sentenceIndex까지의 문장들 + sentenceA
+  const sentencesPartA = [
+    ...clip.sentences.slice(0, sentenceIndex),
+    sentenceA,
+  ];
+  // 뒤 클립: sentenceB + sentenceIndex 이후 문장들
+  const sentencesPartB = [
+    sentenceB,
+    ...clip.sentences.slice(sentenceIndex + 1),
+  ];
+
+  const clipA: NarrationClip = {
+    ...clip,
+    ...makeClipDefaults(),
+    id: `${clip.id}-a`,
+    text: sentencesPartA.map((s) => s.text).join(' '),
+    sentences: sentencesPartA,
+    audioStartTime: sentencesPartA[0].startTime,
+    audioEndTime: sentencesPartA[sentencesPartA.length - 1].endTime,
+    duration:
+      sentencesPartA[sentencesPartA.length - 1].endTime -
+      sentencesPartA[0].startTime,
+    imageUrl: clip.imageUrl,
+    videoUrl: '',
+    isVideoEnabled: false,
+    isModified: true,
+  };
+
+  const clipB: NarrationClip = {
+    ...clip,
+    ...makeClipDefaults(),
+    id: `${clip.id}-b`,
+    text: sentencesPartB.map((s) => s.text).join(' '),
+    sentences: sentencesPartB,
+    audioStartTime: sentencesPartB[0].startTime,
+    audioEndTime: sentencesPartB[sentencesPartB.length - 1].endTime,
+    duration:
+      sentencesPartB[sentencesPartB.length - 1].endTime -
+      sentencesPartB[0].startTime,
+    order: clip.order + 1,
+    isModified: true,
+  };
+
+  return [clipA, clipB];
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 11. findCurrentWord — 현재 재생 시간의 단어 찾기
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * 현재 재생 시간에 해당하는 단어를 찾기.
+ * 클립 내 모든 문장의 words를 순회.
+ *
+ * @param currentTime - 현재 재생 위치 (초, 전체 오디오 기준)
+ * @param clip - 검색 대상 클립
+ * @returns 해당 WordTiming 또는 null
+ */
+export function findCurrentWord(
+  currentTime: number,
+  clip: NarrationClip,
+): WordTiming | null {
+  for (const sentence of clip.sentences) {
+    if (!sentence.words) continue;
+    for (const word of sentence.words) {
+      if (currentTime >= word.startTime && currentTime < word.endTime) {
+        return word;
+      }
+    }
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────

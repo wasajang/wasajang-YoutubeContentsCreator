@@ -1,20 +1,24 @@
 /**
  * EditorPreview — 미리보기 영역
  * NarrationPreview와 동일한 패턴 + 씬 라벨 표시
+ * currentWord: 현재 재생 중인 단어 하이라이트 지원
  */
 import React from 'react';
 import type { EditorClip } from './types';
+import type { WordTiming } from '../../store/projectStore';
 
 interface EditorPreviewProps {
   clip: EditorClip | null;
   currentTime: number;
   isPlaying: boolean;
+  currentWord?: WordTiming | null;
 }
 
 const EditorPreview: React.FC<EditorPreviewProps> = ({
   clip,
   currentTime,
   isPlaying,
+  currentWord,
 }) => {
   if (!clip) {
     return (
@@ -26,17 +30,23 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
     );
   }
 
-  // 현재 시간에 해당하는 자막 찾기
-  let subtitleText = '';
+  // 현재 시간에 해당하는 문장 찾기
+  let currentSentence = null;
   for (const s of clip.sentences) {
     if (currentTime >= s.startTime && currentTime < s.endTime) {
-      subtitleText = s.text;
+      currentSentence = s;
       break;
     }
   }
 
   const isVideo = clip.isVideoEnabled && Boolean(clip.videoUrl);
   const effectClass = clip.effect !== 'none' ? `ken-burns-${clip.effect}` : '';
+
+  // words가 있으면 단어별 렌더링, 없으면 문장 텍스트 표시
+  const hasWords =
+    currentSentence !== null &&
+    Array.isArray(currentSentence.words) &&
+    currentSentence.words.length > 0;
 
   return (
     <div className="vrew-preview">
@@ -68,9 +78,26 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
         {/* 씬 라벨 */}
         <div className="vrew-preview__label">{clip.label}</div>
 
-        {/* 자막 오버레이 */}
-        {subtitleText && (
-          <div className="vrew-preview__subtitle">{subtitleText}</div>
+        {/* 자막 오버레이 — 단어별 하이라이트 */}
+        {currentSentence && (
+          <div className="vrew-preview__subtitle">
+            {hasWords ? (
+              currentSentence.words!.map((word, i) => (
+                <span
+                  key={`${word.startTime}-${i}`}
+                  className={`subtitle-word${
+                    currentWord && word.startTime === currentWord.startTime
+                      ? ' subtitle-word--active'
+                      : ''
+                  }`}
+                >
+                  {word.text}{' '}
+                </span>
+              ))
+            ) : (
+              currentSentence.text
+            )}
+          </div>
         )}
       </div>
     </div>

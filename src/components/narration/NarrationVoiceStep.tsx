@@ -16,6 +16,7 @@ import { getTemplateById } from '../../data/templates';
 import { useCredits } from '../../hooks/useCredits';
 import { getUserSelectableModels } from '../../data/aiModels';
 import { useToast } from '../../hooks/useToast';
+import { enrichWithWordTimings } from '../../utils/word-timing';
 
 interface Props {
     onNext: () => void;
@@ -83,7 +84,7 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
                     currentTime += duration;
                     return timing;
                 });
-            setSentenceTimings(timings);
+            setSentenceTimings(enrichWithWordTimings(timings));
         } catch (err) {
             console.error('[NarrationVoiceStep] TTS 생성 실패:', err);
             showToast(`TTS 생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`, 'error');
