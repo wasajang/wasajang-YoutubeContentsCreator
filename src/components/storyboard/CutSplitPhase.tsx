@@ -79,6 +79,16 @@ const CutSplitPhase: React.FC<CutSplitPhaseProps> = ({
                 <span className="sb-phase-title__progress">{scenes.length}개 컷</span>
             </div>
 
+            {/* 씬 = 이미지 안내 배너 */}
+            <div className="sb-scene-meaning">
+                <span className="sb-scene-meaning__text">
+                    씬 {scenes.length}개 = 시작 이미지 {scenes.length}장 (약 {scenes.length * 5}초 영상)
+                </span>
+                <span className="sb-scene-meaning__sub">
+                    각 씬당 영상 개수를 늘리면 더 길고 다양한 영상이 됩니다
+                </span>
+            </div>
+
             {/* 일괄 설정 바 */}
             <div className="cut-split-batch">
                 <span className="cut-split-batch__label">일괄 설정:</span>

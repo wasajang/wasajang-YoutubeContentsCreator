@@ -66,6 +66,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
     const {
         sceneGenStatus,
         videoGenStatus,
+        getVideoStatus,
         videoCountPerScene,
         sceneSeeds,
         toggleSceneSeed,
@@ -131,6 +132,12 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                         </select>
                     </div>
                 </div>
+                {/* 씬 = 이미지 안내 */}
+                <div className="sb-scene-meaning sb-scene-meaning--inline">
+                    <span className="sb-scene-meaning__text">
+                        {scenes.length}개 씬 = {scenes.length}개 이미지 → 영상 변환
+                    </span>
+                </div>
                 {/* 진행 인디케이터 */}
                 <div className="sc-progress-indicator">
                     <div className={`sc-progress-step ${Object.keys(customPrompts).length > 0 ? 'sc-progress-step--done' : 'sc-progress-step--active'}`}>
@@ -185,7 +192,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 index={index}
                                 videoCount={videoCountPerScene[scene.id] || 1}
                                 genStatus={sceneGenStatus[scene.id]}
-                                videoGenStatus={videoGenStatus[scene.id] || 'idle'}
+                                videoGenStatus={getVideoStatus(scene.id)}
                                 isSelected={selectedScene === scene.id}
                                 sceneSeeds={seeds}
                                 deck={deck}

@@ -40,6 +40,7 @@ export function NarrationVideoStep({ onNext, onPrev, isModal, onClose }: Narrati
   const setAiModelPreference = useProjectStore((s) => s.setAiModelPreference);
   const artStyleId           = useProjectStore((s) => s.artStyleId);
   const templateId           = useProjectStore((s) => s.templateId);
+  const sceneVideos          = useProjectStore((s) => s.sceneVideos);
 
   const { canAfford, spend, getCost } = useCredits();
   const { showToast } = useToast();
@@ -182,10 +183,12 @@ export function NarrationVideoStep({ onNext, onPrev, isModal, onClose }: Narrati
     }
   };
 
-  // 클립별 상태 텍스트
+  // 클립별 상태 텍스트 (sceneVideos store도 확인하여 완료 상태 유지)
   const getStatusLabel = (clip: NarrationClip): string => {
     if (generatingIds.has(clip.id)) return '생성 중...';
-    if (clip.videoUrl && clip.isVideoEnabled) return '완료';
+    const hasVideo = (clip.videoUrl && clip.isVideoEnabled)
+        || (sceneVideos[clip.sceneId]?.length > 0);
+    if (hasVideo) return '완료';
     return '대기 중';
   };
 

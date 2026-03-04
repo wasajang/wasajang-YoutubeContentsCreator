@@ -1,5 +1,5 @@
-// VrewClipList — 클립 카드 리스트 + 일괄 이미지/영상 생성 버튼
-import React, { useRef, useEffect } from 'react';
+// VrewClipList — 클립 카드 리스트 (씬별 그룹핑) + 일괄·씬 이미지/영상 생성 버튼
+import React, { useRef, useEffect, useMemo } from 'react';
 import { Image, Video } from 'lucide-react';
 import type { EditorClip } from './types';
 import VrewClipCard from './VrewClipCard';
@@ -14,10 +14,18 @@ interface VrewClipListProps {
   onDelete: (clipIndex: number) => void;
   onGenerateImage: (clipId: string) => void;
   onGenerateVideo: (clipId: string) => void;
+  onGenerateSceneImage: (sceneId: string) => void;
+  onGenerateSceneVideo: (sceneId: string) => void;
   onGenerateAllImages: () => void;
   onGenerateAllVideos: () => void;
   clipGenStatus: Record<string, string>;
   clipVideoGenStatus: Record<string, string>;
+}
+
+/** 씬 그룹 (sceneId 기준) */
+interface SceneGroup {
+  sceneId: string;
+  clips: { clip: EditorClip; globalIndex: number }[];
 }
 
 const VrewClipList: React.FC<VrewClipListProps> = ({
@@ -30,6 +38,8 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
   onDelete,
   onGenerateImage,
   onGenerateVideo,
+  onGenerateSceneImage,
+  onGenerateSceneVideo,
   onGenerateAllImages,
   onGenerateAllVideos,
   clipGenStatus,
@@ -44,6 +54,24 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
       el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [currentClipIndex]);
+
+  // sceneId 기준으로 그룹핑 (순서 유지)
+  const sceneGroups = useMemo<SceneGroup[]>(() => {
+    const groups: SceneGroup[] = [];
+    const seen = new Map<string, number>(); // sceneId → groups 배열의 index
+
+    clips.forEach((clip, idx) => {
+      const sid = clip.sceneId || 'unknown';
+      if (seen.has(sid)) {
+        groups[seen.get(sid)!].clips.push({ clip, globalIndex: idx });
+      } else {
+        seen.set(sid, groups.length);
+        groups.push({ sceneId: sid, clips: [{ clip, globalIndex: idx }] });
+      }
+    });
+
+    return groups;
+  }, [clips]);
 
   // 일괄 버튼 레이블 계산
   const missingImageCount = clips.filter((c) => !c.imageUrl).length;
@@ -72,7 +100,9 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
       {/* 헤더 */}
       <div className="vrew-clip-list__header">
         <span className="vrew-clip-list__title">Vrew Editor</span>
-        <span className="vrew-clip-list__count">클립 {clips.length}개</span>
+        <span className="vrew-clip-list__count">
+          씬 {sceneGroups.length}개 · 클립 {clips.length}개
+        </span>
       </div>
 
       {/* 일괄 생성 버튼 */}
@@ -124,31 +154,84 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
         </button>
       </div>
 
-      {/* 클립 카드 목록 */}
+      {/* 클립 카드 목록 — 씬별 그룹핑 */}
       <div className="vrew-clip-list__cards">
-        {clips.map((clip, idx) => (
-          <div
-            key={clip.id}
-            ref={(el) => {
-              cardRefs.current[idx] = el;
-            }}
-          >
-            <VrewClipCard
-              clip={clip}
-              index={idx}
-              isActive={idx === currentClipIndex}
-              currentTime={currentTime}
-              onSelect={() => onClipSelect(idx)}
-              onSplitAtWord={(wordIdx) => onSplitAtWord(idx, wordIdx)}
-              onMergeWithPrev={() => onMergeWithPrev(idx)}
-              onDelete={() => onDelete(idx)}
-              onGenerateImage={() => onGenerateImage(clip.id)}
-              onGenerateVideo={() => onGenerateVideo(clip.id)}
-              isGeneratingImage={clipGenStatus[clip.id] === 'generating'}
-              isGeneratingVideo={clipVideoGenStatus[clip.id] === 'generating'}
-            />
-          </div>
-        ))}
+        {sceneGroups.map((group, sceneIdx) => {
+          const hasSceneImage = group.clips.some((c) => c.clip.imageUrl);
+          const isSceneImageGenerating = group.clips.some(
+            (c) => clipGenStatus[c.clip.id] === 'generating'
+          );
+          const isSceneVideoGenerating = group.clips.some(
+            (c) => clipVideoGenStatus[c.clip.id] === 'generating'
+          );
+
+          return (
+            <div key={group.sceneId} className="vrew-scene-group">
+              {/* 씬 헤더 */}
+              <div className="vrew-scene-group__header">
+                <span className="vrew-scene-group__label">
+                  씬 {String(sceneIdx + 1).padStart(2, '0')}
+                </span>
+                <span className="vrew-scene-group__clip-count">
+                  {group.clips.length}개 클립
+                </span>
+                <div className="vrew-scene-group__actions">
+                  <button
+                    className={[
+                      'vrew-scene-group__btn',
+                      isSceneImageGenerating ? 'vrew-scene-group__btn--loading' : '',
+                      hasSceneImage ? 'vrew-scene-group__btn--done' : '',
+                    ].filter(Boolean).join(' ')}
+                    onClick={() => onGenerateSceneImage(group.sceneId)}
+                    disabled={isSceneImageGenerating}
+                    title="씬 전체에 동일 이미지 생성"
+                  >
+                    <Image size={12} />
+                    {isSceneImageGenerating ? '...' : hasSceneImage ? '씬 이미지 ✓' : '씬 이미지'}
+                  </button>
+                  <button
+                    className={[
+                      'vrew-scene-group__btn',
+                      isSceneVideoGenerating ? 'vrew-scene-group__btn--loading' : '',
+                      !hasSceneImage ? 'vrew-scene-group__btn--disabled' : '',
+                    ].filter(Boolean).join(' ')}
+                    onClick={() => onGenerateSceneVideo(group.sceneId)}
+                    disabled={isSceneVideoGenerating || !hasSceneImage}
+                    title={!hasSceneImage ? '이미지를 먼저 생성하세요' : '씬 전체에 동일 영상 생성'}
+                  >
+                    <Video size={12} />
+                    {isSceneVideoGenerating ? '...' : '씬 영상'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 씬 내 클립 카드들 */}
+              {group.clips.map(({ clip, globalIndex }) => (
+                <div
+                  key={clip.id}
+                  ref={(el) => {
+                    cardRefs.current[globalIndex] = el;
+                  }}
+                >
+                  <VrewClipCard
+                    clip={clip}
+                    index={globalIndex}
+                    isActive={globalIndex === currentClipIndex}
+                    currentTime={currentTime}
+                    onSelect={() => onClipSelect(globalIndex)}
+                    onSplitAtWord={(wordIdx) => onSplitAtWord(globalIndex, wordIdx)}
+                    onMergeWithPrev={() => onMergeWithPrev(globalIndex)}
+                    onDelete={() => onDelete(globalIndex)}
+                    onGenerateImage={() => onGenerateImage(clip.id)}
+                    onGenerateVideo={() => onGenerateVideo(clip.id)}
+                    isGeneratingImage={clipGenStatus[clip.id] === 'generating'}
+                    isGeneratingVideo={clipVideoGenStatus[clip.id] === 'generating'}
+                  />
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -11,6 +11,8 @@ type GenStatus = 'idle' | 'generating' | 'done';
 export interface UseNarrationClipGenerationReturn {
   generateClipImage: (clipId: string) => Promise<void>;
   generateClipVideo: (clipId: string) => Promise<void>;
+  generateSceneImage: (sceneId: string) => Promise<void>;
+  generateSceneVideo: (sceneId: string) => Promise<void>;
   generateAllClipImages: () => Promise<void>;
   generateAllClipVideos: () => Promise<void>;
   clipGenStatus: Record<string, GenStatus>;
@@ -41,8 +43,18 @@ export function useNarrationClipGeneration(): UseNarrationClipGenerationReturn {
 
   const { spend, canAfford } = useCredits();
 
-  const [clipGenStatus, setClipGenStatus] = useState<Record<string, GenStatus>>({});
-  const [clipVideoGenStatus, setClipVideoGenStatus] = useState<Record<string, GenStatus>>({});
+  const [clipGenStatus, setClipGenStatus] = useState<Record<string, GenStatus>>(() => {
+    const init: Record<string, GenStatus> = {};
+    const clips = useProjectStore.getState().narrationClips;
+    clips.forEach((c) => { init[c.id] = c.imageUrl ? 'done' : 'idle'; });
+    return init;
+  });
+  const [clipVideoGenStatus, setClipVideoGenStatus] = useState<Record<string, GenStatus>>(() => {
+    const init: Record<string, GenStatus> = {};
+    const clips = useProjectStore.getState().narrationClips;
+    clips.forEach((c) => { init[c.id] = c.videoUrl ? 'done' : 'idle'; });
+    return init;
+  });
 
   // ── 상태 업데이트 헬퍼 ──
 
@@ -154,6 +166,102 @@ export function useNarrationClipGeneration(): UseNarrationClipGenerationReturn {
       }
     },
     [artStyleId, templateId, spend, setVideoStatus, updateClipVideoUrl]
+  );
+
+  // ── 씬 단위 이미지 생성 (같은 sceneId의 모든 클립에 동일 이미지 적용) ──
+  const generateSceneImage = useCallback(
+    async (sceneId: string) => {
+      const sceneClips = useProjectStore
+        .getState()
+        .narrationClips.filter((c) => c.sceneId === sceneId);
+      if (sceneClips.length === 0) return;
+
+      if (!spend('image', 1)) {
+        console.warn('[useNarrationClipGeneration] 크레딧 부족 — 씬 이미지 생성 불가');
+        return;
+      }
+
+      // 씬의 모든 클립 텍스트를 합쳐서 프롬프트 생성
+      const combinedText = sceneClips.map((c) => c.text).join(' ');
+      sceneClips.forEach((c) => setImageStatus(c.id, 'generating'));
+
+      try {
+        const { width, height } = aspectRatioToSize(aspectRatio);
+        const prompt = buildImagePrompt({
+          artStyleId,
+          sceneText: combinedText,
+          seedCards: [],
+          templateId: templateId ?? undefined,
+        });
+
+        const result = await generateImage({ prompt, width, height });
+
+        // 같은 sceneId의 모든 클립에 동일한 이미지 적용
+        const current = useProjectStore.getState().narrationClips;
+        const updated = current.map((c) =>
+          c.sceneId === sceneId ? { ...c, imageUrl: result.imageUrl } : c
+        );
+        useProjectStore.getState().setNarrationClips(updated);
+        sceneClips.forEach((c) => setImageStatus(c.id, 'done'));
+      } catch (err) {
+        console.error('[useNarrationClipGeneration] 씬 이미지 생성 실패:', err);
+        sceneClips.forEach((c) => setImageStatus(c.id, 'idle'));
+      }
+    },
+    [artStyleId, aspectRatio, templateId, spend, setImageStatus]
+  );
+
+  // ── 씬 단위 영상 생성 (같은 sceneId의 모든 클립에 동일 영상 적용) ──
+  const generateSceneVideo = useCallback(
+    async (sceneId: string) => {
+      const sceneClips = useProjectStore
+        .getState()
+        .narrationClips.filter((c) => c.sceneId === sceneId);
+      if (sceneClips.length === 0) return;
+
+      // 씬의 첫 번째 클립에서 이미지 URL 가져오기
+      const imageUrl = sceneClips[0]?.imageUrl;
+      if (!imageUrl) {
+        console.warn('[useNarrationClipGeneration] 씬 imageUrl 없음 — 영상 생성 불가');
+        return;
+      }
+
+      if (!spend('video', 1)) {
+        console.warn('[useNarrationClipGeneration] 크레딧 부족 — 씬 영상 생성 불가');
+        return;
+      }
+
+      const combinedText = sceneClips.map((c) => c.text).join(' ');
+      sceneClips.forEach((c) => setVideoStatus(c.id, 'generating'));
+
+      try {
+        const prompt = buildVideoPrompt({
+          artStyleId,
+          sceneText: combinedText,
+          seedCards: [],
+          templateId: templateId ?? undefined,
+        });
+
+        const result = await generateVideo({
+          imageUrl,
+          prompt,
+          duration: 5,
+          sceneId,
+        });
+
+        // 같은 sceneId의 모든 클립에 동일한 영상 적용
+        const current = useProjectStore.getState().narrationClips;
+        const updated = current.map((c) =>
+          c.sceneId === sceneId ? { ...c, videoUrl: result.videoUrl, isVideoEnabled: true } : c
+        );
+        useProjectStore.getState().setNarrationClips(updated);
+        sceneClips.forEach((c) => setVideoStatus(c.id, 'done'));
+      } catch (err) {
+        console.error('[useNarrationClipGeneration] 씬 영상 생성 실패:', err);
+        sceneClips.forEach((c) => setVideoStatus(c.id, 'idle'));
+      }
+    },
+    [artStyleId, templateId, spend, setVideoStatus]
   );
 
   // ── 일괄 이미지 생성 (imageUrl 없는 클립만) ──
@@ -268,6 +376,8 @@ export function useNarrationClipGeneration(): UseNarrationClipGenerationReturn {
   return {
     generateClipImage,
     generateClipVideo,
+    generateSceneImage,
+    generateSceneVideo,
     generateAllClipImages,
     generateAllClipVideos,
     clipGenStatus,

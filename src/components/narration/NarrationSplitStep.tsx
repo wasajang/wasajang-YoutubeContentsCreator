@@ -375,6 +375,7 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
                     <h3 className="narration-split-step__title">
                         씬 분할 결과
                         <span className="narration-split-step__count">{groups.length}개 씬</span>
+                        <span className="narration-split-step__image-count">≈ {groups.length}개 이미지</span>
                     </h3>
                     <div className="narration-split-step__duration-info">
                         총 {formatTime(totalDuration)}
@@ -403,6 +404,10 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
                     const isPlaying = playingGroupId === group.id;
                     return (
                         <div key={group.id} className="narration-split-step__group-wrapper">
+                            {/* 이미지 슬롯 (나누면 많아지고 합치면 적어짐을 시각화) */}
+                            <div className="narration-split-step__image-box">
+                                <span className="narration-split-step__image-placeholder">IMG</span>
+                            </div>
                             <div className={`narration-split-step__scene ${isOverDuration ? 'narration-split-step__scene--warn' : ''} ${isPlaying ? 'narration-split-step__scene--playing' : ''}`}>
                                 <div className="narration-split-step__scene-header">
                                     <span className="narration-split-step__scene-num">

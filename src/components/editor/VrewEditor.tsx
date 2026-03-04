@@ -24,6 +24,7 @@ import {
   removeClip,
   reorderClips,
   splitClipAtWord,
+  splitClipAtTime,
   findCurrentWord,
 } from '../../utils/narration-sync';
 import { enrichWithWordTimings } from '../../utils/word-timing';
@@ -34,6 +35,7 @@ import EditorControls from './EditorControls';
 import ClipDetailPanel from './ClipDetailPanel';
 import VrewClipList from './VrewClipList';
 import { useVideoRegeneration } from '../../hooks/useVideoRegeneration';
+import { useImageRegeneration } from '../../hooks/useImageRegeneration';
 import { useNarrationClipGeneration } from '../../hooks/useNarrationClipGeneration';
 import { buildImagePrompt, buildVideoPrompt } from '../../services/prompt-builder';
 
@@ -84,6 +86,8 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
   const cardLibrary = useProjectStore((s) => s.cardLibrary);
   const selectedDeck = useProjectStore((s) => s.selectedDeck);
   const storeSceneImages = useProjectStore((s) => s.sceneImages);
+  const sceneSeeds = useProjectStore((s) => s.sceneSeeds);
+  const sceneVideos = useProjectStore((s) => s.sceneVideos);
 
   // 시네마틱 모드: 로컬 클립 상태
   const [cinematicClips, setCinematicClips] = useState<EditorClip[]>(() =>
@@ -93,6 +97,7 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
   // 시네마틱 모드: 프롬프트 상태 + 재생성 훅
   const [clipPrompts, setClipPrompts] = useState<Record<string, { image: string; video: string }>>({});
   const { isRegenerating, regenerateVideo } = useVideoRegeneration();
+  const { isRegenerating: isRegeneratingImage, regenerateImage } = useImageRegeneration();
 
   // 나레이션 모드: 이미지/영상 생성 훅 (항상 호출, 모드 무관하게 — React 규칙 준수)
   const clipGen = useNarrationClipGeneration();
@@ -119,11 +124,13 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
 
   const {
     currentClipIndex,
+    setCurrentClipIndex,
     isPlaying,
     currentTime,
     totalDuration,
     togglePlay,
     seekToClip,
+    seekToTime,
   } = useEditorPlayback({ clips, audioUrl });
 
   const currentClip = clips[currentClipIndex] ?? null;
@@ -180,6 +187,28 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     }
   }, [clipPrompts, storeSceneImages, scenes, regenerateVideo]);
 
+  // 이미지 재생성 핸들러
+  const handleRegenerateImage = useCallback(async (sceneId: string) => {
+    const prompt = clipPrompts[sceneId]?.image || '';
+    const sizeMap: Record<string, { width: number; height: number }> = {
+      '9:16': { width: 720, height: 1280 },
+      '1:1': { width: 1024, height: 1024 },
+      '16:9': { width: 1280, height: 720 },
+    };
+    const { width, height } = sizeMap[aspectRatio] || sizeMap['16:9'];
+
+    const newImageUrl = await regenerateImage(sceneId, prompt, width, height);
+    if (newImageUrl) {
+      setCinematicClips((prev) =>
+        prev.map((c) =>
+          c.sceneId === sceneId
+            ? { ...c, imageUrl: newImageUrl }
+            : c
+        )
+      );
+    }
+  }, [clipPrompts, aspectRatio, regenerateImage]);
+
   // 클립 업데이트 (모드별 분기)
   const updateClips = useCallback(
     (updated: EditorClip[]) => {
@@ -203,23 +232,35 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     [clips, updateClips]
   );
 
-  // 자르기 — 문장 중간점에서 분할
+  // 자르기 — 시네마틱: 플레이헤드 위치, 나레이션: 문장 중간점
   const handleSplit = useCallback(() => {
     const clip = clips[currentClipIndex];
-    if (!clip || clip.sentences.length < 2) return;
+    if (!clip) return;
 
-    const splitIndex = Math.floor(clip.sentences.length / 2) - 1;
     try {
-      const [a, b] = splitClip(toNarrationClip(clip), splitIndex);
-      const clipA: EditorClip = { ...a, label: '' };
-      const clipB: EditorClip = { ...b, label: '' };
+      let clipA: EditorClip, clipB: EditorClip;
+
+      if (mode === 'cinematic') {
+        // 시네마틱: 플레이헤드 위치(currentTime)에서 분할
+        const [a, b] = splitClipAtTime(toNarrationClip(clip), currentTime);
+        clipA = { ...a, label: '', isEdited: true };
+        clipB = { ...b, label: '', isEdited: true };
+      } else {
+        // 나레이션: 기존 방식 (문장 중간점)
+        if (clip.sentences.length < 2) return;
+        const splitIndex = Math.floor(clip.sentences.length / 2) - 1;
+        const [a, b] = splitClip(toNarrationClip(clip), splitIndex);
+        clipA = { ...a, label: '', isEdited: true };
+        clipB = { ...b, label: '', isEdited: true };
+      }
+
       const updated = [...clips];
       updated.splice(currentClipIndex, 1, clipA, clipB);
       updateClips(relabel(updated));
     } catch (err) {
       console.error('[VrewEditor] split 실패:', err);
     }
-  }, [clips, currentClipIndex, updateClips]);
+  }, [clips, currentClipIndex, mode, currentTime, updateClips]);
 
   // 단어 위치에서 분할 (나레이션 모드 전용)
   const handleSplitAtWord = useCallback(
@@ -253,18 +294,6 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     [mode, setNarrationClips]
   );
 
-  // 합치기 — 이전 클립과 병합
-  const handleMerge = useCallback(() => {
-    if (currentClipIndex <= 0) return;
-    const a = clips[currentClipIndex - 1];
-    const b = clips[currentClipIndex];
-    const merged = mergeClips(toNarrationClip(a), toNarrationClip(b));
-    const mergedClip: EditorClip = { ...merged, label: '' };
-    const updated = [...clips];
-    updated.splice(currentClipIndex - 1, 2, mergedClip);
-    updateClips(relabel(updated));
-  }, [clips, currentClipIndex, updateClips]);
-
   // 삭제
   const handleDelete = useCallback(() => {
     if (clips.length <= 1) return;
@@ -272,29 +301,36 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     updateClips(relabel(updated));
   }, [clips, currentClipIndex, updateClips]);
 
-  // 앞으로 이동
-  const handleMoveUp = useCallback(() => {
-    if (currentClipIndex <= 0) return;
+  // 타임라인: 클립 순서 드래그 변경
+  const handleTimelineReorder = useCallback((fromIndex: number, toIndex: number) => {
     const updated = [...clips];
-    [updated[currentClipIndex - 1], updated[currentClipIndex]] = [
-      updated[currentClipIndex],
-      updated[currentClipIndex - 1],
-    ];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, { ...moved, isEdited: true });
     updateClips(relabel(updated));
-    seekToClip(currentClipIndex - 1);
-  }, [clips, currentClipIndex, updateClips, seekToClip]);
+  }, [clips, updateClips]);
 
-  // 뒤로 이동
-  const handleMoveDown = useCallback(() => {
-    if (currentClipIndex >= clips.length - 1) return;
-    const updated = [...clips];
-    [updated[currentClipIndex], updated[currentClipIndex + 1]] = [
-      updated[currentClipIndex + 1],
-      updated[currentClipIndex],
-    ];
+  // 타임라인: 클립 삭제
+  const handleTimelineDelete = useCallback((index: number) => {
+    if (clips.length <= 1) return;
+    const updated = clips.filter((_, i) => i !== index);
     updateClips(relabel(updated));
-    seekToClip(currentClipIndex + 1);
-  }, [clips, currentClipIndex, updateClips, seekToClip]);
+  }, [clips, updateClips]);
+
+  // 타임라인: 눈금자 클릭 시간 이동 (정확한 플레이헤드 위치 설정)
+  const handleTimelineSeek = useCallback((time: number) => {
+    // 정확한 시간 위치 설정 (seekToTime은 currentTime 상태도 업데이트)
+    seekToTime(time);
+    // 해당 시간에 위치한 클립도 선택
+    let accumulated = 0;
+    for (let i = 0; i < clips.length; i++) {
+      if (accumulated + clips[i].duration >= time) {
+        setCurrentClipIndex(i);
+        return;
+      }
+      accumulated += clips[i].duration;
+    }
+    if (clips.length > 0) setCurrentClipIndex(clips.length - 1);
+  }, [clips, seekToTime, setCurrentClipIndex]);
 
   // 이전/다음 클립 이동
   const handlePrevClip = useCallback(() => {
@@ -328,8 +364,30 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     [setNarrationClips]
   );
 
-  const canSplit = currentClip ? currentClip.sentences.length >= 2 : false;
-  const canMerge = currentClipIndex > 0;
+  // 스페이스바 재생/일시정지
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlay();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlay]);
+
+  // 시네마틱: 플레이헤드가 클립 시작~끝 사이에 있어야 분할 가능
+  // 나레이션: 문장 2개 이상
+  const canSplit = useMemo(() => {
+    if (!currentClip) return false;
+    if (mode === 'cinematic') {
+      return currentTime > currentClip.audioStartTime + 0.1
+          && currentTime < currentClip.audioEndTime - 0.1;
+    }
+    return currentClip.sentences.length >= 2;
+  }, [currentClip, mode, currentTime]);
   const canDelete = clips.length > 1;
 
   if (clips.length === 0) {
@@ -364,6 +422,8 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
               onDelete={handleDeleteByIndex}
               onGenerateImage={(clipId) => clipGen.generateClipImage(clipId)}
               onGenerateVideo={(clipId) => clipGen.generateClipVideo(clipId)}
+              onGenerateSceneImage={(sceneId) => clipGen.generateSceneImage(sceneId)}
+              onGenerateSceneVideo={(sceneId) => clipGen.generateSceneVideo(sceneId)}
               onGenerateAllImages={() => clipGen.generateAllClipImages()}
               onGenerateAllVideos={() => clipGen.generateAllClipVideos()}
               clipGenStatus={clipGen.clipGenStatus}
@@ -375,6 +435,10 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
               currentClipIndex={currentClipIndex}
               onClipSelect={seekToClip}
               onTextChange={handleTextChange}
+              aspectRatio={aspectRatio}
+              sceneVideos={sceneVideos}
+              onRegenerateVideo={(sceneId) => handleRegenerateVideo(sceneId)}
+              isRegenerating={(sceneId) => isRegenerating(sceneId)}
             />
           )}
         </div>
@@ -397,20 +461,43 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
                   }));
                 }
               }}
+              onImagePromptChange={(val) => {
+                if (currentClip) {
+                  setClipPrompts((prev) => ({
+                    ...prev,
+                    [currentClip.sceneId]: {
+                      ...prev[currentClip.sceneId],
+                      image: val,
+                    },
+                  }));
+                }
+              }}
               isRegenerating={currentClip ? isRegenerating(currentClip.sceneId) : false}
               onRegenerateVideo={() => {
                 if (currentClip) handleRegenerateVideo(currentClip.sceneId);
+              }}
+              isRegeneratingImage={currentClip ? isRegeneratingImage(currentClip.sceneId) : false}
+              onRegenerateImage={() => {
+                if (currentClip) handleRegenerateImage(currentClip.sceneId);
               }}
               sceneImageUrl={
                 currentClip
                   ? (storeSceneImages[currentClip.sceneId]?.[0] || currentClip.imageUrl)
                   : ''
               }
-              castNames={selectedDeck
-                .map((id) => cardLibrary.find((c) => c.id === id))
-                .filter((c): c is AssetCard => !!c)
-                .map((c) => c.name)
-                .slice(0, 5)}
+              isEdited={currentClip?.isEdited}
+              castNames={(() => {
+                // 씬별 캐스트 씨드가 있으면 해당 씨드 사용, 없으면 전체 덱 사용
+                const sceneId = currentClip?.sceneId;
+                const seedIds = sceneId && sceneSeeds[sceneId]?.length
+                  ? sceneSeeds[sceneId]
+                  : selectedDeck;
+                return seedIds
+                  .map((id) => cardLibrary.find((c) => c.id === id))
+                  .filter((c): c is AssetCard => !!c)
+                  .map((c) => c.name)
+                  .slice(0, 5);
+              })()}
             />
           </div>
         )}
@@ -423,17 +510,12 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
         totalDuration={totalDuration}
         currentClipIndex={currentClipIndex}
         clipCount={clips.length}
-        hasAudio={Boolean(audioUrl)}
         onTogglePlay={togglePlay}
         onPrev={handlePrevClip}
         onNext={handleNextClip}
         onSplit={handleSplit}
-        onMerge={handleMerge}
         onDelete={handleDelete}
-        onMoveUp={handleMoveUp}
-        onMoveDown={handleMoveDown}
         canSplit={canSplit}
-        canMerge={canMerge}
         canDelete={canDelete}
       />
 
@@ -444,6 +526,9 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
         currentTime={currentTime}
         totalDuration={totalDuration}
         onClipSelect={seekToClip}
+        onReorder={handleTimelineReorder}
+        onDeleteClip={handleTimelineDelete}
+        onSeek={handleTimelineSeek}
       />
 
       {/* 네비게이션 */}

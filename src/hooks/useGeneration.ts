@@ -109,12 +109,13 @@ export function useGeneration({
 
     const [videoGenStatus, setVideoGenStatus] = useState<Record<string, SceneGenStatus>>(() => {
         // storeSceneVideos에서 이미 영상이 있으면 done으로 복원
+        // 항상 `${sceneId}-${subIndex}` 키 패턴 사용 (통일)
         const init: Record<string, SceneGenStatus> = {};
         scenes.forEach((s) => {
             const vids = storeSceneVideos[s.id] || [];
             const vc = storeVideoCount[s.id] || 1;
             for (let sub = 0; sub < vc; sub++) {
-                const key = vc > 1 ? `${s.id}-${sub}` : s.id;
+                const key = `${s.id}-${sub}`;
                 if (vids[sub]) init[key] = 'done';
             }
         });
@@ -137,11 +138,43 @@ export function useGeneration({
         });
     }, [setStoreVideoCountBulk]);
 
-    const [sceneSeeds, setSceneSeeds] = useState<Record<string, string[]>>(() => {
+    // 씬의 영상 생성 상태를 통합 반환 (서브씬 키 패턴 통일)
+    const getVideoStatus = useCallback((sceneId: string): SceneGenStatus => {
+        const vc = videoCountPerScene[sceneId] || 1;
+        let hasGenerating = false;
+        let allDone = true;
+        for (let sub = 0; sub < vc; sub++) {
+            const key = `${sceneId}-${sub}`;
+            const status = videoGenStatus[key];
+            if (status === 'generating') hasGenerating = true;
+            if (status !== 'done') allDone = false;
+        }
+        if (hasGenerating) return 'generating';
+        if (allDone && vc > 0) return 'done';
+        return 'idle';
+    }, [videoGenStatus, videoCountPerScene]);
+
+    // sceneSeeds — store 영속화 연동
+    const storeSceneSeeds = useProjectStore((s) => s.sceneSeeds);
+    const setStoreSceneSeeds = useProjectStore((s) => s.setSceneSeeds);
+
+    const [sceneSeeds, _setSceneSeeds] = useState<Record<string, string[]>>(() => {
+        // store에 이미 있으면 그대로, 없으면 빈 배열
         const init: Record<string, string[]> = {};
-        scenes.forEach((scene) => { init[scene.id] = []; });
+        scenes.forEach((scene) => {
+            init[scene.id] = storeSceneSeeds[scene.id] || [];
+        });
         return init;
     });
+
+    // store 동기화 래퍼
+    const setSceneSeeds: React.Dispatch<React.SetStateAction<Record<string, string[]>>> = useCallback((action) => {
+        _setSceneSeeds((prev) => {
+            const next = typeof action === 'function' ? action(prev) : action;
+            setStoreSceneSeeds(next);
+            return next;
+        });
+    }, [setStoreSceneSeeds]);
 
     // 프롬프트 편집 상태
     const [customPrompts, setCustomPrompts] = useState<Record<string, { image: string; video: string }>>({});
@@ -652,6 +685,7 @@ export function useGeneration({
     return {
         sceneGenStatus,
         videoGenStatus,
+        getVideoStatus,
         videoCountPerScene,
         setVideoCountPerScene,
         sceneSeeds,

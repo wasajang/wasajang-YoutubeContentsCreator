@@ -2,8 +2,9 @@
  * EditorPreview — 미리보기 영역
  * NarrationPreview와 동일한 패턴 + 씬 라벨 표시
  * currentWord: 현재 재생 중인 단어 하이라이트 지원
+ * videoRef: 비디오 재생을 currentTime/isPlaying과 동기화
  */
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import type { EditorClip } from './types';
 import type { WordTiming } from '../../store/projectStore';
 
@@ -20,6 +21,28 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   isPlaying,
   currentWord,
 }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // isPlaying 상태에 따라 video play/pause 동기화
+  useEffect(() => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.play().catch(() => {});
+    } else {
+      videoRef.current.pause();
+    }
+  }, [isPlaying]);
+
+  // currentTime에 따라 video seek 동기화
+  useEffect(() => {
+    if (!videoRef.current || !clip) return;
+    const localTime = currentTime - clip.audioStartTime;
+    // 0.3초 이상 차이나면 seek
+    if (Math.abs(videoRef.current.currentTime - localTime) > 0.3) {
+      videoRef.current.currentTime = Math.max(0, localTime);
+    }
+  }, [currentTime, clip]);
+
   if (!clip) {
     return (
       <div className="vrew-preview">
@@ -53,12 +76,12 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
       <div className="vrew-preview__media">
         {isVideo ? (
           <video
+            ref={videoRef}
             className="vrew-preview__video"
             src={clip.videoUrl}
             loop
             muted
             playsInline
-            autoPlay={isPlaying}
           />
         ) : clip.imageUrl ? (
           <div className="vrew-preview__image-wrap">

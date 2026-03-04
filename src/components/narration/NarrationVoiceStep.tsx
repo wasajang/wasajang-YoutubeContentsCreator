@@ -39,6 +39,9 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [audioRef] = useState(() => new Audio());
+    const [playingSentenceIdx, setPlayingSentenceIdx] = useState<number | null>(null);
+    const sentenceAudioRef = React.useRef<HTMLAudioElement | null>(null);
+    const sentenceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // 전체 대본 합치기
     const fullScript = scenes.map((s) => s.text).join(' ');
@@ -105,6 +108,46 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
             setIsPlaying(true);
         }
     }, [narrativeAudioUrl, isPlaying, audioRef]);
+
+    // 문장별 구간 재생
+    const handlePlaySentence = useCallback((timing: SentenceTiming) => {
+        if (!narrativeAudioUrl) return;
+
+        // 기존 재생 중이면 정지
+        if (sentenceAudioRef.current) {
+            sentenceAudioRef.current.pause();
+            sentenceAudioRef.current = null;
+        }
+        if (sentenceTimerRef.current) {
+            clearTimeout(sentenceTimerRef.current);
+            sentenceTimerRef.current = null;
+        }
+
+        // 이미 재생 중인 같은 문장이면 토글 (정지)
+        if (playingSentenceIdx === timing.index) {
+            setPlayingSentenceIdx(null);
+            return;
+        }
+
+        const audio = new Audio(narrativeAudioUrl);
+        sentenceAudioRef.current = audio;
+        audio.currentTime = timing.startTime;
+        audio.play().catch(console.error);
+        setPlayingSentenceIdx(timing.index);
+
+        // 문장 끝에서 자동 정지
+        const durationMs = (timing.endTime - timing.startTime) * 1000;
+        sentenceTimerRef.current = setTimeout(() => {
+            audio.pause();
+            setPlayingSentenceIdx(null);
+            sentenceAudioRef.current = null;
+        }, durationMs);
+
+        audio.onended = () => {
+            setPlayingSentenceIdx(null);
+            sentenceAudioRef.current = null;
+        };
+    }, [narrativeAudioUrl, playingSentenceIdx]);
 
     const totalDuration = sentenceTimings.length > 0
         ? sentenceTimings[sentenceTimings.length - 1].endTime
@@ -198,12 +241,27 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
                             <div className="narration-voice-step__timings-list">
                                 {sentenceTimings.map((t) => (
                                     <div key={t.index} className="narration-voice-step__timing-row">
+                                        <button
+                                            className={`narration-voice-step__timing-play${playingSentenceIdx === t.index ? ' narration-voice-step__timing-play--active' : ''}`}
+                                            onClick={() => handlePlaySentence(t)}
+                                            title={playingSentenceIdx === t.index ? '정지' : '이 문장 듣기'}
+                                        >
+                                            {playingSentenceIdx === t.index ? <Pause size={10} /> : <Play size={10} />}
+                                        </button>
                                         <span className="narration-voice-step__timing-time">
                                             {formatTime(t.startTime)} — {formatTime(t.endTime)}
                                         </span>
                                         <span className="narration-voice-step__timing-text">
                                             {t.text}
                                         </span>
+                                        <button
+                                            className="narration-voice-step__timing-regen"
+                                            onClick={handleGenerateTTS}
+                                            disabled={isGenerating}
+                                            title="전체 음성 재생성"
+                                        >
+                                            <RefreshCw size={10} />
+                                        </button>
                                     </div>
                                 ))}
                             </div>

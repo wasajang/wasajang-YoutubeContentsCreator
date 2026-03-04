@@ -179,6 +179,11 @@ export interface ProjectState {
   videoCountPerScene: Record<string, number>;
   setVideoCountPerScene: (sceneId: string, count: number) => void;
   setVideoCountPerSceneBulk: (data: Record<string, number>) => void;
+
+  // ── v14 신규: 씬별 캐스트 씨드 영속화 ──
+  sceneSeeds: Record<string, string[]>;
+  setSceneSeeds: (seeds: Record<string, string[]>) => void;
+  updateSceneSeeds: (sceneId: string, seeds: string[]) => void;
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -274,6 +279,7 @@ export const useProjectStore = create<ProjectState>()(
           narrationClips: [],
           narrationStep: 1,
           videoCountPerScene: {},
+          sceneSeeds: {},
           // cardLibrary는 리셋하지 않음 — 카드 에셋은 프로젝트 간 유지
         })),
 
@@ -334,10 +340,18 @@ export const useProjectStore = create<ProjectState>()(
           videoCountPerScene: { ...state.videoCountPerScene, [sceneId]: count },
         })),
       setVideoCountPerSceneBulk: (data) => set({ videoCountPerScene: data }),
+
+      // ── v14 신규: 씬별 캐스트 씨드 영속화 ──
+      sceneSeeds: {},
+      setSceneSeeds: (sceneSeeds) => set({ sceneSeeds }),
+      updateSceneSeeds: (sceneId, seeds) =>
+        set((state) => ({
+          sceneSeeds: { ...state.sceneSeeds, [sceneId]: seeds },
+        })),
     }),
     {
       name: 'antigravity-project',
-      version: 13,
+      version: 14,
       // localStorage 용량 초과 시 조용히 무시 (base64 이미지 등)
       storage: {
         getItem: (name) => {
@@ -456,6 +470,10 @@ export const useProjectStore = create<ProjectState>()(
           // 데이터 변환 불필요 — 런타임에서 enrichWithWordTimings()로 자동 보정
           state = { ...state };
         }
+        if (version < 14) {
+          // v13→v14: sceneSeeds 필드 추가 (씬별 캐스트 씨드 영속)
+          state = { ...state, sceneSeeds: {} };
+        }
         return state;
       },
       partialize: (state) => ({
@@ -480,6 +498,7 @@ export const useProjectStore = create<ProjectState>()(
         narrationClips: state.narrationClips,
         narrationStep: state.narrationStep,
         videoCountPerScene: state.videoCountPerScene,
+        sceneSeeds: state.sceneSeeds,
       }),
     }
   )

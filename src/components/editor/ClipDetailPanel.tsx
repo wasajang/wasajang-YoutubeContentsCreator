@@ -2,13 +2,12 @@
  * ClipDetailPanel — 타임라인 우측 클립 상세 패널
  *
  * 선택된 씬의:
- * - 사용된 설정값 (비율, 스타일, 대본, 이미지, 캐스트)
- * - 영상 프롬프트 (편집 가능)
- * - 이미지 프롬프트 (읽기 전용)
- * - "다시 만들기" 버튼
+ * - 설정값 그리드 (비율, 스타일, 캐스트, 시작이미지)
+ * - 이미지 프롬프트 (편집 가능 + 이미지 재생성)
+ * - 영상 프롬프트 (편집 가능 + 영상 재생성)
  */
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import React from 'react';
+import { RefreshCw } from 'lucide-react';
 import { artStyles } from '../../data/artStyles';
 import type { EditorClip } from './types';
 
@@ -19,10 +18,14 @@ interface ClipDetailPanelProps {
   videoPrompt: string;
   imagePrompt: string;
   onVideoPromptChange: (value: string) => void;
+  onImagePromptChange?: (value: string) => void;
   isRegenerating: boolean;
   onRegenerateVideo: () => void;
+  isRegeneratingImage?: boolean;
+  onRegenerateImage?: () => void;
   sceneImageUrl: string;
   castNames: string[];
+  isEdited?: boolean;
 }
 
 function formatTime(seconds: number): string {
@@ -38,13 +41,15 @@ const ClipDetailPanel: React.FC<ClipDetailPanelProps> = ({
   videoPrompt,
   imagePrompt,
   onVideoPromptChange,
+  onImagePromptChange,
   isRegenerating,
   onRegenerateVideo,
+  isRegeneratingImage = false,
+  onRegenerateImage,
   sceneImageUrl,
   castNames,
+  isEdited = false,
 }) => {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
   if (!clip) {
     return (
       <div className="clip-detail">
@@ -63,36 +68,65 @@ const ClipDetailPanel: React.FC<ClipDetailPanelProps> = ({
         <span className="clip-detail__time">{formatTime(clip.duration)}</span>
       </div>
 
-      {/* 사용된 설정값 (접이식) */}
+      {/* 설정값 그리드 (항상 펼침) */}
+      <div className="clip-detail__settings-grid">
+        <div className="clip-detail__setting-card">
+          <span className="clip-detail__setting-label">비율</span>
+          <span className="clip-detail__setting-value">{aspectRatio}</span>
+        </div>
+        <div className="clip-detail__setting-card">
+          <span className="clip-detail__setting-label">아트스타일</span>
+          <span className="clip-detail__setting-value">{artStyle?.nameKo || artStyleId}</span>
+        </div>
+        {sceneImageUrl && (
+          <div className="clip-detail__setting-card">
+            <span className="clip-detail__setting-label">시작 이미지</span>
+            <div className="clip-detail__setting-thumb">
+              <img src={sceneImageUrl} alt="시드 이미지" />
+            </div>
+          </div>
+        )}
+        {castNames.length > 0 && (
+          <div className="clip-detail__setting-card">
+            <span className="clip-detail__setting-label">캐스트</span>
+            <div className="clip-detail__setting-tags">
+              {castNames.map((name) => (
+                <span key={name} className="clip-detail__tag">{name}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="clip-detail__setting-card clip-detail__setting-card--full">
+          <span className="clip-detail__setting-label">대본</span>
+          <span className="clip-detail__setting-value clip-detail__setting-value--text">
+            {clip.text.substring(0, 80)}{clip.text.length > 80 ? '...' : ''}
+          </span>
+        </div>
+      </div>
+
+      {/* 이미지 프롬프트 (편집 가능 + 재생성) */}
       <div className="clip-detail__section">
-        <button
-          className="clip-detail__toggle"
-          onClick={() => setSettingsOpen(!settingsOpen)}
-        >
-          {settingsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          <span>사용된 설정값</span>
-        </button>
-        {settingsOpen && (
-          <dl className="clip-detail__settings">
-            <dt>비율</dt>
-            <dd>{aspectRatio}</dd>
-            <dt>스타일</dt>
-            <dd>{artStyle?.nameKo || artStyleId}</dd>
-            <dt>대본</dt>
-            <dd>{clip.text.substring(0, 50)}{clip.text.length > 50 ? '...' : ''}</dd>
-            {sceneImageUrl && (
-              <>
-                <dt>시작이미지</dt>
-                <dd><img src={sceneImageUrl} alt="시작이미지" className="clip-detail__thumb" /></dd>
-              </>
-            )}
-            {castNames.length > 0 && (
-              <>
-                <dt>캐스트</dt>
-                <dd>{castNames.join(', ')}</dd>
-              </>
-            )}
-          </dl>
+        <div className="clip-detail__section-title">이미지 프롬프트</div>
+        <textarea
+          className="clip-detail__prompt-area"
+          value={imagePrompt}
+          onChange={(e) => onImagePromptChange?.(e.target.value)}
+          readOnly={!onImagePromptChange}
+          rows={4}
+          placeholder="이미지 생성에 사용될 프롬프트..."
+        />
+        {isEdited && (
+          <div className="clip-detail__edited-notice">타임라인에서 편집되어 재생성이 잠겼습니다</div>
+        )}
+        {onRegenerateImage && (
+          <button
+            className="clip-detail__regen-btn clip-detail__regen-btn--image"
+            onClick={onRegenerateImage}
+            disabled={isRegeneratingImage || !imagePrompt.trim() || isEdited}
+          >
+            <RefreshCw size={14} className={isRegeneratingImage ? 'spin' : ''} />
+            {isEdited ? '편집됨 — 재생성 불가' : isRegeneratingImage ? '이미지 생성 중...' : '이미지 다시 만들기'}
+          </button>
         )}
       </div>
 
@@ -109,22 +143,11 @@ const ClipDetailPanel: React.FC<ClipDetailPanelProps> = ({
         <button
           className="clip-detail__regen-btn"
           onClick={onRegenerateVideo}
-          disabled={isRegenerating || !videoPrompt.trim()}
+          disabled={isRegenerating || !videoPrompt.trim() || isEdited}
         >
           <RefreshCw size={14} className={isRegenerating ? 'spin' : ''} />
-          {isRegenerating ? '생성 중...' : '다시 만들기'}
+          {isEdited ? '편집됨 — 재생성 불가' : isRegenerating ? '영상 생성 중...' : '영상 다시 만들기'}
         </button>
-      </div>
-
-      {/* 이미지 프롬프트 (읽기 전용) */}
-      <div className="clip-detail__section">
-        <div className="clip-detail__section-title">이미지 프롬프트</div>
-        <textarea
-          className="clip-detail__prompt-area clip-detail__prompt-area--readonly"
-          value={imagePrompt}
-          readOnly
-          rows={4}
-        />
       </div>
     </div>
   );

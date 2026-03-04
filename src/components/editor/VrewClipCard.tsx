@@ -43,6 +43,10 @@ const VrewClipCard: React.FC<VrewClipCardProps> = ({
   const words = clip.sentences.flatMap((s) => s.words ?? []);
   const hasWords = words.length > 0;
 
+  // 생성 완료 상태
+  const hasImage = Boolean(clip.imageUrl);
+  const hasVideo = Boolean(clip.videoUrl);
+
   const clipLabel = String(index + 1).padStart(2, '0');
   const startLabel = formatTime(clip.audioStartTime);
   const endLabel = formatTime(clip.audioEndTime);
@@ -140,31 +144,33 @@ const VrewClipCard: React.FC<VrewClipCardProps> = ({
           className={[
             'vrew-clip-card__btn',
             isGeneratingImage ? 'vrew-clip-card__btn--loading' : '',
+            hasImage ? 'vrew-clip-card__btn--done' : '',
           ]
             .filter(Boolean)
             .join(' ')}
           onClick={onGenerateImage}
           disabled={isGeneratingImage}
-          title="이미지 생성"
+          title={hasImage ? '이미지 재생성' : '이미지 생성'}
         >
           <Image size={14} />
-          {isGeneratingImage ? '생성 중...' : '이미지 생성'}
+          {isGeneratingImage ? '생성 중...' : hasImage ? '이미지 완료 ✓' : '이미지 생성'}
         </button>
 
         <button
           className={[
             'vrew-clip-card__btn',
             isGeneratingVideo ? 'vrew-clip-card__btn--loading' : '',
+            hasVideo ? 'vrew-clip-card__btn--done' : '',
             !clip.imageUrl ? 'vrew-clip-card__btn--disabled' : '',
           ]
             .filter(Boolean)
             .join(' ')}
           onClick={onGenerateVideo}
           disabled={isGeneratingVideo || !clip.imageUrl}
-          title={!clip.imageUrl ? '이미지 먼저 생성하세요' : '영상 생성'}
+          title={!clip.imageUrl ? '이미지 먼저 생성하세요' : hasVideo ? '영상 재생성' : '영상 생성'}
         >
           <Video size={14} />
-          {isGeneratingVideo ? '생성 중...' : '영상 생성'}
+          {isGeneratingVideo ? '생성 중...' : hasVideo ? '영상 완료 ✓' : '영상 생성'}
         </button>
 
         {index > 0 && (

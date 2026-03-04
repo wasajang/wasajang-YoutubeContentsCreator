@@ -514,6 +514,106 @@ export function findCurrentWord(
 }
 
 // ─────────────────────────────────────────────────────────────────
+// 12. splitClipAtTime — 임의 시간 지점에서 클립 분할 (시네마틱 모드용)
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * 클립을 임의의 시간 지점에서 분할 (시네마틱 모드용).
+ *
+ * 분할 전략 (우선순위):
+ *   1) sentences에 word 타이밍이 있는 경우 → 가장 가까운 단어 경계에서 분할
+ *   2) sentences가 2개 이상이면 → 가장 가까운 문장 경계에서 분할
+ *   3) 그 외 → 시간 비율로 텍스트/타이밍 균등 분할
+ *
+ * @param clip - 분할할 클립
+ * @param splitTime - 분할 시간 (절대 시간, 클립 내부 시간 아님)
+ * @returns [앞 클립, 뒤 클립] 튜플
+ * @throws splitTime이 클립 범위 밖이면 에러
+ */
+export function splitClipAtTime(
+  clip: NarrationClip,
+  splitTime: number,
+): [NarrationClip, NarrationClip] {
+  // 유효성 검사
+  if (splitTime <= clip.audioStartTime || splitTime >= clip.audioEndTime) {
+    throw new RangeError('splitTime은 클립의 시작과 끝 사이여야 합니다.');
+  }
+
+  const { sentences } = clip;
+
+  // 전략 1: word 타이밍 기반 (가장 정밀)
+  for (let si = 0; si < sentences.length; si++) {
+    const s = sentences[si];
+    if (!s.words || s.words.length === 0) continue;
+    if (splitTime >= s.startTime && splitTime < s.endTime) {
+      // 이 문장 안에서 가장 가까운 단어 경계 찾기
+      for (let wi = 0; wi < s.words.length - 1; wi++) {
+        if (splitTime >= s.words[wi].startTime && splitTime < s.words[wi + 1].startTime) {
+          return splitClipAtWord(clip, si, wi);
+        }
+      }
+    }
+  }
+
+  // 전략 2: 문장 경계 (splitTime 직전 문장에서 분할)
+  if (sentences.length >= 2) {
+    for (let si = 0; si < sentences.length - 1; si++) {
+      if (splitTime >= sentences[si].startTime && splitTime < sentences[si + 1].startTime) {
+        return splitClip(clip, si);
+      }
+    }
+  }
+
+  // 전략 3: 시간 비율 분할 (문장이 없거나 1개뿐)
+  const ratio = (splitTime - clip.audioStartTime) / clip.duration;
+  const textSplitPos = Math.max(1, Math.round(clip.text.length * ratio));
+  const textA = clip.text.slice(0, textSplitPos);
+  const textB = clip.text.slice(textSplitPos);
+
+  // 단일 문장을 2개로 분리
+  const sentenceA: SentenceTiming = {
+    index: 0,
+    text: textA,
+    startTime: clip.audioStartTime,
+    endTime: splitTime,
+  };
+  const sentenceB: SentenceTiming = {
+    index: 0,
+    text: textB,
+    startTime: splitTime,
+    endTime: clip.audioEndTime,
+  };
+
+  const clipA: NarrationClip = {
+    ...clip,
+    ...makeClipDefaults(),
+    id: `${clip.id}-a`,
+    text: textA,
+    sentences: [sentenceA],
+    audioStartTime: clip.audioStartTime,
+    audioEndTime: splitTime,
+    duration: splitTime - clip.audioStartTime,
+    imageUrl: clip.imageUrl,
+    isModified: true,
+  };
+
+  const clipB: NarrationClip = {
+    ...clip,
+    ...makeClipDefaults(),
+    id: `${clip.id}-b`,
+    text: textB,
+    sentences: [sentenceB],
+    audioStartTime: splitTime,
+    audioEndTime: clip.audioEndTime,
+    duration: clip.audioEndTime - splitTime,
+    order: clip.order + 1,
+    isModified: true,
+  };
+
+  return [clipA, clipB];
+}
+
+// ─────────────────────────────────────────────────────────────────
 // sentenceDuration은 export되어 있으며 외부에서도 사용할 수 있습니다.
 //   예) const dur = sentenceDuration(sentence);
 // ─────────────────────────────────────────────────────────────────

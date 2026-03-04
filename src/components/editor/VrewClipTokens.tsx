@@ -1,5 +1,6 @@
-// VrewClipTokens — 단어 토큰 칩 렌더링 + Enter 키 클립 분할 핵심 컴포넌트
+// VrewClipTokens — 단어 토큰 칩 렌더링 + 칩 사이 분할 커서 + 인라인 액션 바
 import React, { useState, useEffect, useCallback } from 'react';
+import { Scissors } from 'lucide-react';
 import type { WordTiming } from '../../store/projectStore';
 
 interface VrewClipTokensProps {
@@ -77,7 +78,7 @@ const VrewClipTokens: React.FC<VrewClipTokensProps> = ({
             idx === 0);
 
         // 단어 사이 분할 포인트 (마지막 단어 뒤 제외)
-        const showSplitPoint = idx < words.length - 1;
+        const showSplitGap = idx < words.length - 1;
         const isSplitSelected = selectedSplitIndex === idx;
 
         return (
@@ -95,19 +96,14 @@ const VrewClipTokens: React.FC<VrewClipTokensProps> = ({
               {word.text}
             </span>
 
-            {/* 단어 사이 분할 포인트 */}
-            {showSplitPoint && (
+            {/* 단어 사이 gap (독립 클릭 영역, 12px 폭) */}
+            {showSplitGap && (
               <span
-                className={[
-                  'vrew-token__split-point',
-                  isSplitSelected ? 'vrew-token__split-point--selected' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
+                className={`vrew-token__gap${isSplitSelected ? ' vrew-token__gap--selected' : ''}`}
                 role="button"
                 tabIndex={0}
                 aria-label={`${idx + 1}번째 단어 뒤에서 분할`}
-                title="클릭 후 Enter로 분할"
+                title="클릭하여 분할 위치 선택"
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedSplitIndex(isSplitSelected ? null : idx);
@@ -119,22 +115,27 @@ const VrewClipTokens: React.FC<VrewClipTokensProps> = ({
                   }
                 }}
               >
-                {isSplitSelected ? (
-                  <span className="vrew-token__split-cursor" aria-hidden="true">|</span>
-                ) : (
-                  <span className="vrew-token__split-dot" aria-hidden="true" />
-                )}
+                <span className="vrew-token__gap-line" />
               </span>
             )}
           </React.Fragment>
         );
       })}
 
-      {/* 선택된 분할 포인트 안내 */}
+      {/* 분할 포인트 선택 시 인라인 액션 바 */}
       {selectedSplitIndex !== null && (
-        <span className="vrew-tokens__hint" role="status" aria-live="polite">
-          Enter: 분할 / Esc: 취소
-        </span>
+        <div className="vrew-tokens__action-bar">
+          <button
+            className="vrew-tokens__action-btn"
+            onClick={() => {
+              onSplitAfterWord(selectedSplitIndex!);
+              setSelectedSplitIndex(null);
+            }}
+          >
+            <Scissors size={12} /> 여기서 나누기
+          </button>
+          <span className="vrew-tokens__hint-text">Enter: 나누기 / Esc: 취소</span>
+        </div>
       )}
     </div>
   );

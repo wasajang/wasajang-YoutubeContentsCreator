@@ -19,6 +19,7 @@ export interface EditorClip {
   order: number;
   label: string;
   audioUrl?: string; // 클립별 TTS (시네마틱 모드)
+  isEdited?: boolean; // 타임라인에서 자르기/순서변경 시 true → 재생성 잠금
 }
 
 /** 시네마틱 Scene[] → EditorClip[] 변환 */
