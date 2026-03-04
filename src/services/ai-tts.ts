@@ -10,7 +10,11 @@
  *   - VITE_FISH_SPEECH_API_KEY  → API 키 (클라우드 사용 시)
  *   - VITE_FISH_SPEECH_API_URL  → API 엔드포인트 (셀프호스팅 시, 기본: https://api.fish.audio)
  *   - VITE_FISH_SPEECH_MODEL_ID → 음성 모델 ID (reference_id)
+ *
+ * BYOK: 설정 페이지에서 입력한 키 우선 사용, 없으면 .env 키 사용
  */
+
+import { useSettingsStore } from '../store/settingsStore';
 
 // ── 타입 정의 ──
 
@@ -115,73 +119,135 @@ function writeString(view: DataView, offset: number, str: string) {
 
 // ── Fish Speech Provider ──
 
+/** BYOK 우선, 없으면 .env 키 사용 */
+function getFishSpeechApiKey(): string {
+    const byokKey = useSettingsStore.getState().apiKeys.fishSpeech;
+    if (byokKey) return byokKey;
+    return import.meta.env.VITE_FISH_SPEECH_API_KEY || '';
+}
+
+/** 자체 서버 사용 여부 (VITE_FISH_SPEECH_API_URL이 설정되면 자체 서버) */
+function isSelfHosted(): boolean {
+    return !!import.meta.env.VITE_FISH_SPEECH_API_URL;
+}
+
+/**
+ * API URL 결정:
+ * - 자체 서버: VITE_FISH_SPEECH_API_URL 직접 사용 (Vite proxy 경유)
+ * - 클라우드:  개발 시 Vite proxy, 프로덕션은 직접 호출
+ */
+function getFishSpeechApiUrl(): string {
+    if (import.meta.env.DEV) return '/api/fish-speech';
+    return import.meta.env.VITE_FISH_SPEECH_API_URL || 'https://api.fish.audio';
+}
+
+/** Audio element로 실제 오디오 길이(초) 측정 */
+function getAudioDuration(blobUrl: string): Promise<number> {
+    return new Promise((resolve) => {
+        const audio = new Audio();
+        audio.addEventListener('loadedmetadata', () => {
+            // Infinity가 반환되면 (스트리밍 blob) 0으로 처리
+            resolve(Number.isFinite(audio.duration) ? audio.duration : 0);
+        });
+        audio.addEventListener('error', () => resolve(0));
+        audio.src = blobUrl;
+    });
+}
+
+/** Fish Speech API 호출 (재시도 지원) */
+async function fishSpeechGenerate(req: TTSRequest, retryCount = 0): Promise<TTSResult> {
+    const apiKey = getFishSpeechApiKey();
+    const apiUrl = getFishSpeechApiUrl();
+    const defaultModelId = import.meta.env.VITE_FISH_SPEECH_MODEL_ID || '';
+
+    // 자체 서버: API 키 불필요 / 클라우드: API 키 필수
+    if (!apiKey && !isSelfHosted()) {
+        throw new Error(
+            'Fish Speech API 키가 필요합니다.\n' +
+            '설정 페이지에서 입력하거나 .env에 VITE_FISH_SPEECH_API_KEY를 추가해주세요.\n' +
+            'API 키 발급: https://fish.audio/app/api-keys/\n\n' +
+            '또는 자체 서버를 사용하려면 .env에 VITE_FISH_SPEECH_API_URL=http://localhost:8080 을 추가하세요.'
+        );
+    }
+
+    const start = Date.now();
+
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'model': 's1',  // 최신 모델 (한국어 지원)
+    };
+    // 클라우드 API일 때만 인증 헤더 추가 (자체 서버는 불필요)
+    if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    const body: Record<string, unknown> = {
+        text: req.text,
+        format: req.format || 'mp3',
+        mp3_bitrate: 128,
+        normalize: true,
+        latency: 'normal',
+    };
+
+    // 음성 모델(화자) 지정
+    const voiceId = req.voiceId || defaultModelId;
+    if (voiceId) {
+        body.reference_id = voiceId;
+    }
+
+    // 속도 조절 (prosody)
+    if (req.speed && req.speed !== 1.0) {
+        body.prosody = { speed: req.speed };
+    }
+
+    const response = await fetch(`${apiUrl}/v1/tts`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+    });
+
+    // 429 Rate Limit → 자동 재시도 (최대 3회, 10/20/30초 backoff)
+    if (response.status === 429 && retryCount < 3) {
+        const waitSec = (retryCount + 1) * 10;
+        console.warn(`[Fish Speech] Rate limit 도달, ${waitSec}초 후 재시도... (${retryCount + 1}/3)`);
+        await new Promise((r) => setTimeout(r, waitSec * 1000));
+        return fishSpeechGenerate(req, retryCount + 1);
+    }
+
+    if (!response.ok) {
+        let errMsg: string;
+        try {
+            const errData = await response.json();
+            errMsg = (errData as Record<string, string>).message
+                || (errData as Record<string, string>).detail
+                || response.statusText;
+        } catch {
+            errMsg = response.statusText;
+        }
+        throw new Error(`Fish Speech API 에러 (${response.status}): ${errMsg}`);
+    }
+
+    // Fish Speech는 오디오 바이너리를 스트림으로 반환
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+
+    // 실제 오디오 길이 측정 (실패 시 텍스트 기반 추정)
+    const realDuration = await getAudioDuration(audioUrl);
+    const estimatedDuration = realDuration > 0
+        ? Math.round(realDuration * 10) / 10
+        : Math.max(2, Math.round(req.text.length / 4));
+
+    return {
+        audioUrl,
+        estimatedDuration,
+        provider: 'fish-speech',
+        durationMs: Date.now() - start,
+    };
+}
+
 const fishSpeechProvider: TTSProvider = {
     name: 'fish-speech',
-    generate: async (req) => {
-        const apiKey = import.meta.env.VITE_FISH_SPEECH_API_KEY;
-        const apiUrl = import.meta.env.VITE_FISH_SPEECH_API_URL || 'https://api.fish.audio';
-        const defaultModelId = import.meta.env.VITE_FISH_SPEECH_MODEL_ID || '';
-
-        const start = Date.now();
-
-        const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
-        };
-        // 클라우드 API 사용 시 Bearer 토큰 필요 (셀프호스팅은 불필요할 수 있음)
-        if (apiKey) {
-            headers['Authorization'] = `Bearer ${apiKey}`;
-        }
-
-        const body: Record<string, unknown> = {
-            text: req.text,
-            format: req.format || 'mp3',
-            mp3_bitrate: 128,
-            normalize: true,
-            latency: 'normal',
-        };
-
-        // 음성 모델 지정
-        const voiceId = req.voiceId || defaultModelId;
-        if (voiceId) {
-            body.reference_id = voiceId;
-        }
-
-        // 속도 조절 (prosody)
-        if (req.speed && req.speed !== 1.0) {
-            body.prosody = { speed: req.speed };
-        }
-
-        const response = await fetch(`${apiUrl}/v1/tts`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body),
-        });
-
-        if (!response.ok) {
-            let errMsg: string;
-            try {
-                const errData = await response.json();
-                errMsg = (errData as Record<string, string>).message || (errData as Record<string, string>).detail || response.statusText;
-            } catch {
-                errMsg = response.statusText;
-            }
-            throw new Error(`Fish Speech API 에러 (${response.status}): ${errMsg}`);
-        }
-
-        // Fish Speech는 오디오 바이너리를 스트림으로 반환
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-
-        // 텍스트 길이 기반 오디오 길이 추정
-        const estimatedDuration = Math.max(2, Math.round(req.text.length / 4));
-
-        return {
-            audioUrl,
-            estimatedDuration,
-            provider: 'fish-speech',
-            durationMs: Date.now() - start,
-        };
-    },
+    generate: (req) => fishSpeechGenerate(req),
 };
 
 // ── Provider 선택 & 공개 API ──

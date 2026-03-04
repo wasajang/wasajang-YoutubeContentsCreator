@@ -71,22 +71,28 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
             });
             setNarrativeAudioUrl(result.audioUrl);
 
-            // 문장 단위 타이밍 추정 (한국어 4자/초)
+            // 문장 분리
             const sentences = text.match(/[^.!?。\n]+[.!?。]?/g) || [text];
+            const cleaned = sentences.filter((s) => s.trim());
+
+            // 실제 오디오 길이 (ai-tts에서 측정) 또는 추정값 사용
+            const totalDuration = result.estimatedDuration;
+
+            // 각 문장의 글자 수 비율로 시간 배분
+            const totalChars = cleaned.reduce((sum, s) => sum + s.trim().length, 0);
             let currentTime = 0;
-            const timings: SentenceTiming[] = sentences
-                .filter((s) => s.trim())
-                .map((s, i) => {
-                    const duration = Math.max(1, s.trim().length / 4);
-                    const timing: SentenceTiming = {
-                        index: i,
-                        text: s.trim(),
-                        startTime: Math.round(currentTime * 10) / 10,
-                        endTime: Math.round((currentTime + duration) * 10) / 10,
-                    };
-                    currentTime += duration;
-                    return timing;
-                });
+            const timings: SentenceTiming[] = cleaned.map((s, i) => {
+                const ratio = totalChars > 0 ? s.trim().length / totalChars : 1 / cleaned.length;
+                const duration = Math.max(0.5, totalDuration * ratio);
+                const timing: SentenceTiming = {
+                    index: i,
+                    text: s.trim(),
+                    startTime: Math.round(currentTime * 10) / 10,
+                    endTime: Math.round((currentTime + duration) * 10) / 10,
+                };
+                currentTime += duration;
+                return timing;
+            });
             setSentenceTimings(enrichWithWordTimings(timings));
         } catch (err) {
             console.error('[NarrationVoiceStep] TTS 생성 실패:', err);
