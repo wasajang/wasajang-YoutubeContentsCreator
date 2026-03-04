@@ -110,12 +110,14 @@ export function migrateLegacyOverrides(): void {
             splitInstruction: '',
           },
           imagePromptRules: {
+            systemPrompt: '',
             prefix: edit.imagePrefix || '',
             suffix: '',
             negativePrompt: edit.negativePrompt || '',
             instruction: '',
           },
           videoPromptRules: {
+            systemPrompt: '',
             prefix: edit.videoPrefix || '',
             suffix: '',
             defaultDuration: 5,
@@ -172,12 +174,14 @@ export function createBlankTemplate(mode: 'cinematic' | 'narration'): Template {
         splitInstruction: '',
       },
       imagePromptRules: {
+        systemPrompt: '',
         prefix: '',
         suffix: '',
         negativePrompt: '',
         instruction: '',
       },
       videoPromptRules: {
+        systemPrompt: '',
         prefix: '',
         suffix: '',
         defaultDuration: 5,

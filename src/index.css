@@ -10621,6 +10621,159 @@ button.export-btn:disabled {
   border-left: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
 }
 
+/* ── 타임라인 3열 레이아웃 (시네마틱 모드) ── */
+.vrew-editor__detail-area {
+  flex: 3;
+  min-width: 0;
+  border-left: 1px solid var(--border-color);
+  overflow-y: auto;
+}
+
+/* 3열 모드일 때 preview / script 비율 조정 */
+.vrew-editor__main:has(.vrew-editor__detail-area) .vrew-editor__preview-area {
+  flex: 5;
+}
+.vrew-editor__main:has(.vrew-editor__detail-area) .vrew-editor__script-area {
+  flex: 2;
+}
+
+/* ── ClipDetailPanel ── */
+.clip-detail {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+.clip-detail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.clip-detail__scene-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.clip-detail__time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.clip-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.clip-detail__section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.clip-detail__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.clip-detail__toggle:hover {
+  color: var(--text-primary);
+}
+.clip-detail__settings {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 0.7rem;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+}
+.clip-detail__settings dt {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.clip-detail__settings dd {
+  color: var(--text-primary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.clip-detail__prompt-area {
+  width: 100%;
+  padding: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-family: 'Inter', monospace;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 60px;
+}
+.clip-detail__prompt-area:focus {
+  border-color: var(--accent-primary);
+  outline: none;
+}
+.clip-detail__prompt-area--readonly {
+  opacity: 0.7;
+  cursor: default;
+}
+.clip-detail__regen-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.clip-detail__regen-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.clip-detail__regen-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.clip-detail__regen-btn .spin {
+  animation: clip-detail-spin 1s linear infinite;
+}
+@keyframes clip-detail-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.clip-detail__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.clip-detail__thumb {
+  width: 48px;
+  height: 27px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+}
+
 /* ── 미리보기 (EditorPreview) ── */
 .vrew-preview {
   flex: 1;
@@ -11492,6 +11645,51 @@ button.export-btn:disabled {
   font-family: 'Inter', monospace;
   line-height: 1.6;
   margin: 0;
+}
+
+/* ── 참고 데이터 블록 ── */
+.bp-ref-data {
+  padding: 10px 12px;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px dashed rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-sm);
+}
+.bp-ref-data__title {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.bp-ref-data__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bp-ref-data__item {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 10px;
+  font-size: 0.65rem;
+  color: #818cf8;
+  font-weight: 500;
+}
+
+/* ── 카드 내 구분선 ── */
+.bp-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 0;
+}
+
+/* ── 카드 내 섹션 라벨 ── */
+.bp-section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* ── 빈 상태 ── */

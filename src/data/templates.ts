@@ -30,27 +30,31 @@ export interface TemplatePromptRules {
     splitInstruction: string;
   };
 
-  /** 씬 대본 -> 이미지 프롬프트 변환 규칙 */
+  /** LLM이 씬별 이미지 프롬프트를 작성할 때의 규칙 */
   imagePromptRules: {
-    /** 프롬프트 앞에 항상 붙는 prefix */
+    /** LLM 시스템 프롬프트: 이미지 프롬프트를 어떻게 작성할지 지시 */
+    systemPrompt?: string;
+    /** 프롬프트 앞에 항상 붙는 스타일 키워드 */
     prefix: string;
-    /** 프롬프트 뒤에 항상 붙는 suffix */
+    /** 프롬프트 뒤에 항상 붙는 품질 키워드 */
     suffix: string;
     /** 네거티브 프롬프트 */
     negativePrompt: string;
-    /** 추가 지시사항 (AI 프롬프트 빌더에게 전달) */
+    /** 연출 가이드 (장면 유형별 연출 지시) */
     instruction: string;
   };
 
-  /** 이미지 -> 영상 프롬프트 변환 규칙 */
+  /** LLM이 씬별 영상 프롬프트를 작성할 때의 규칙 */
   videoPromptRules: {
-    /** 프롬프트 앞에 항상 붙는 prefix */
+    /** LLM 시스템 프롬프트: 영상 프롬프트를 어떻게 작성할지 지시 */
+    systemPrompt?: string;
+    /** 프롬프트 앞에 항상 붙는 카메라 연출 키워드 */
     prefix: string;
     /** 프롬프트 뒤에 항상 붙는 suffix */
     suffix: string;
     /** 기본 영상 길이 (초) */
     defaultDuration: number;
-    /** 추가 지시사항 */
+    /** 연출 가이드 (장면 유형별 영상 연출 지시) */
     instruction: string;
   };
 }
@@ -164,6 +168,11 @@ export const templates: Template[] = [
           + '액션 장면은 짧게(3-4초), 감정 장면은 길게(5-7초) 구성하세요.',
       },
       imagePromptRules: {
+        systemPrompt:
+          '당신은 시네마틱 이미지 프롬프트 전문가입니다.\n'
+          + '아래 정보를 참고하여, 이미지 생성 AI에 보낼 영문 프롬프트를 작성하세요.\n'
+          + '프롬프트는 반드시 영어로, 쉼표로 구분된 키워드+설명 형식으로 작성하세요.\n'
+          + '인물의 외모/표정/자세/의상, 배경의 분위기/조명, 카메라 앵글을 구체적으로 서술하세요.',
         prefix: 'photorealistic cinematic still, anamorphic lens, dramatic lighting, film grain, 4K,',
         suffix: 'award-winning cinematography, golden hour lighting, shallow depth of field',
         negativePrompt: 'blurry, low quality, distorted, deformed, ugly, watermark, text, logo, anime, cartoon, oversaturated',
@@ -174,6 +183,10 @@ export const templates: Template[] = [
           + '교차 장면: 두 시대의 요소가 한 프레임에 공존',
       },
       videoPromptRules: {
+        systemPrompt:
+          '당신은 시네마틱 영상 프롬프트 전문가입니다.\n'
+          + '이전 단계에서 생성된 이미지를 시작 프레임으로 삼아, 어떤 영상을 만들지 영문 프롬프트를 작성하세요.\n'
+          + '카메라 움직임(패닝, 틸트, 줌, 트래킹), 피사체 동작, 분위기 변화를 구체적으로 서술하세요.',
         prefix: 'cinematic, slow motion, dramatic camera movement,',
         suffix: 'epic orchestral score, atmospheric sound design',
         defaultDuration: 5,
@@ -269,6 +282,10 @@ export const templates: Template[] = [
           + '도입(2씬) -> 전개(3-4씬) -> 클라이맥스(1-2씬) -> 마무리(1씬) 구조 권장.',
       },
       imagePromptRules: {
+        systemPrompt:
+          '당신은 감성 다큐멘터리 이미지 프롬프트 전문가입니다.\n'
+          + '실화 기반 스토리에 맞는 따뜻하고 사실적인 이미지 프롬프트를 영문으로 작성하세요.\n'
+          + '인물의 표정과 감정, 자연광 분위기를 중심으로 서술하세요.',
         prefix: 'photorealistic, emotional, warm tones, real life story, documentary style, heartwarming,',
         suffix: 'soft natural lighting, gentle bokeh, magazine quality photography',
         negativePrompt: 'blurry, low quality, distorted, deformed, ugly, watermark, text, logo, anime, cartoon, dark, horror',
@@ -278,6 +295,10 @@ export const templates: Template[] = [
           + '실화 다큐멘터리 느낌의 사실적인 이미지.',
       },
       videoPromptRules: {
+        systemPrompt:
+          '당신은 감성 다큐멘터리 영상 프롬프트 전문가입니다.\n'
+          + '생성된 이미지를 시작 프레임으로, 부드러운 카메라 무브먼트 중심의 영상 프롬프트를 작성하세요.\n'
+          + '감정의 흐름을 따라가는 느린 영상 연출에 집중하세요.',
         prefix: 'documentary style, gentle camera movement, warm color grading,',
         suffix: 'emotional piano music, soft focus transitions',
         defaultDuration: 8,
@@ -363,6 +384,10 @@ export const templates: Template[] = [
           + '결말(여운 1-2씬)',
       },
       imagePromptRules: {
+        systemPrompt:
+          '당신은 동양 무협 판타지 이미지 프롬프트 전문가입니다.\n'
+          + '수묵화 풍 동양 판타지 분위기의 이미지 프롬프트를 영문으로 작성하세요.\n'
+          + '산수화 배경, 나부끼는 도복, 무술 포즈를 중심으로 서술하세요.',
         prefix: 'wuxia, martial arts, ancient chinese fantasy, dramatic pose, flowing robes, mountain scenery, ink wash painting influence,',
         suffix: 'epic composition, dramatic clouds, volumetric lighting, martial arts movie still',
         negativePrompt: 'blurry, low quality, distorted, deformed, ugly, watermark, text, logo, modern, contemporary, western, guns',
@@ -372,6 +397,9 @@ export const templates: Template[] = [
           + '인물은 동양인 외모, 고전 복장.',
       },
       videoPromptRules: {
+        systemPrompt:
+          '당신은 무협 액션 영상 프롬프트 전문가입니다.\n'
+          + '생성된 이미지를 시작으로, 무술 슬로우모션과 풍경 패닝 중심의 영상 프롬프트를 작성하세요.',
         prefix: 'wuxia action, slow motion martial arts, flowing movements, epic landscapes,',
         suffix: 'traditional korean/chinese music, wind sound effects, bamboo forest atmosphere',
         defaultDuration: 6,
@@ -467,6 +495,10 @@ export const templates: Template[] = [
           + '결투 클라이맥스: 여러 개의 짧은 컷으로 긴장감 구축.',
       },
       imagePromptRules: {
+        systemPrompt:
+          '당신은 무협 영화 스틸컷 프롬프트 전문가입니다.\n'
+          + '영화 포스터급의 액션 장면 이미지 프롬프트를 영문으로 작성하세요.\n'
+          + '역동적 구도, 역광, 빗속 결투 등 영화적 연출에 집중하세요.',
         prefix: 'wuxia cinematic, martial arts action, dynamic composition, dramatic lighting, epic battle, flying swords,',
         suffix: 'wire-fu aesthetics, rain and wind effects, epic movie poster quality',
         negativePrompt: 'blurry, low quality, distorted, deformed, ugly, watermark, text, logo, modern weapons, guns',
@@ -476,6 +508,9 @@ export const templates: Template[] = [
           + '한 장면 한 장면이 영화 포스터가 될 수 있는 퀄리티.',
       },
       videoPromptRules: {
+        systemPrompt:
+          '당신은 무협 액션 영상 프롬프트 전문가입니다.\n'
+          + '생성된 이미지에서 와이어액션과 360도 카메라 회전 등 역동적인 영상 프롬프트를 작성하세요.',
         prefix: 'cinematic wuxia, wire-fu action, sweeping camera, dramatic score, slow motion combat,',
         suffix: 'epic orchestral music, sword clash sound effects, wind howling',
         defaultDuration: 4,
@@ -576,6 +611,10 @@ export const templates: Template[] = [
           + '씬 4: 반전/펀치라인 (5-8초)',
       },
       imagePromptRules: {
+        systemPrompt:
+          '당신은 쇼츠용 캐릭터 이미지 프롬프트 전문가입니다.\n'
+          + '세로 9:16 비율의 해골 캐릭터 중심 이미지 프롬프트를 영문으로 작성하세요.\n'
+          + '네온 색감과 어두운 배경 대비, 캐릭터 중심 구도에 집중하세요.',
         prefix: 'skeleton character, dark humor, spooky cute, vertical composition 9:16, eerie lighting, fun horror,',
         suffix: 'TikTok viral aesthetic, bold colors on dark background, eye-catching vertical frame',
         negativePrompt: 'blurry, low quality, distorted, deformed, watermark, text, logo, realistic gore, disturbing, horizontal',
@@ -586,6 +625,9 @@ export const templates: Template[] = [
           + '표정이 읽히도록 눈/턱 부분 강조.',
       },
       videoPromptRules: {
+        systemPrompt:
+          '당신은 쇼츠 영상 프롬프트 전문가입니다.\n'
+          + '세로 영상에서 점프스케어와 줌 효과를 활용한 영상 프롬프트를 작성하세요.',
         prefix: 'vertical video 9:16, skeleton animation, dark comedy, spooky atmosphere,',
         suffix: 'jump scare elements, TikTok style transitions, bass-boosted sound effects',
         defaultDuration: 8,

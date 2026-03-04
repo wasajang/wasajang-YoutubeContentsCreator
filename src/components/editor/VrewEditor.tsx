@@ -8,9 +8,9 @@
  *
  * 시네마틱 + 나레이션 양쪽 모드 지원
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useProjectStore } from '../../store/projectStore';
-import type { NarrationClip } from '../../store/projectStore';
+import type { NarrationClip, AssetCard } from '../../store/projectStore';
 import { useEditorPlayback } from '../../hooks/useEditorPlayback';
 import {
   scenesToEditorClips,
@@ -23,6 +23,9 @@ import EditorPreview from './EditorPreview';
 import ScriptPanel from './ScriptPanel';
 import EditorTimeline from './EditorTimeline';
 import EditorControls from './EditorControls';
+import ClipDetailPanel from './ClipDetailPanel';
+import { useVideoRegeneration } from '../../hooks/useVideoRegeneration';
+import { buildImagePrompt, buildVideoPrompt } from '../../services/prompt-builder';
 
 interface VrewEditorProps {
   onNext?: () => void;
@@ -64,10 +67,22 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
   const setNarrationClips = useProjectStore((s) => s.setNarrationClips);
   const narrativeAudioUrl = useProjectStore((s) => s.narrativeAudioUrl);
 
+  // 시네마틱 모드용 추가 store 데이터
+  const artStyleId = useProjectStore((s) => s.artStyleId);
+  const templateId = useProjectStore((s) => s.templateId);
+  const aspectRatio = useProjectStore((s) => s.aspectRatio);
+  const cardLibrary = useProjectStore((s) => s.cardLibrary);
+  const selectedDeck = useProjectStore((s) => s.selectedDeck);
+  const storeSceneImages = useProjectStore((s) => s.sceneImages);
+
   // 시네마틱 모드: 로컬 클립 상태
   const [cinematicClips, setCinematicClips] = useState<EditorClip[]>(() =>
     scenesToEditorClips(scenes)
   );
+
+  // 시네마틱 모드: 프롬프트 상태 + 재생성 훅
+  const [clipPrompts, setClipPrompts] = useState<Record<string, { image: string; video: string }>>({});
+  const { isRegenerating, regenerateVideo } = useVideoRegeneration();
 
   // 통합 클립 배열
   const clips =
@@ -87,6 +102,52 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
   } = useEditorPlayback({ clips, audioUrl });
 
   const currentClip = clips[currentClipIndex] ?? null;
+
+  // 씬 수가 바뀔 때 프롬프트 초기화 (시네마틱 모드)
+  useEffect(() => {
+    if (mode !== 'cinematic' || scenes.length === 0) return;
+    const prompts: Record<string, { image: string; video: string }> = {};
+    const seedCards: AssetCard[] = selectedDeck
+      .map((id) => cardLibrary.find((c) => c.id === id))
+      .filter((c): c is AssetCard => !!c);
+    scenes.forEach((scene) => {
+      prompts[scene.id] = {
+        image: buildImagePrompt({
+          artStyleId,
+          sceneText: scene.text,
+          seedCards,
+          templateId: templateId ?? undefined,
+        }),
+        video: buildVideoPrompt({
+          artStyleId,
+          sceneText: scene.text,
+          seedCards,
+          templateId: templateId ?? undefined,
+        }),
+      };
+    });
+    setClipPrompts(prompts);
+  }, [scenes.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 재생성 핸들러
+  const handleRegenerateVideo = useCallback(async (sceneId: string) => {
+    const prompt = clipPrompts[sceneId]?.video || '';
+    const imageUrl =
+      storeSceneImages[sceneId]?.[0] ||
+      scenes.find((s) => s.id === sceneId)?.imageUrl ||
+      '';
+
+    const newVideoUrl = await regenerateVideo(sceneId, prompt, imageUrl);
+    if (newVideoUrl) {
+      setCinematicClips((prev) =>
+        prev.map((c) =>
+          c.sceneId === sceneId
+            ? { ...c, videoUrl: newVideoUrl, isVideoEnabled: true }
+            : c
+        )
+      );
+    }
+  }, [clipPrompts, storeSceneImages, scenes, regenerateVideo]);
 
   // 클립 업데이트 (모드별 분기)
   const updateClips = useCallback(
@@ -195,7 +256,7 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
 
   return (
     <div className="vrew-editor">
-      {/* 상단: 미리보기 + 대본 패널 */}
+      {/* 상단: 미리보기 + 대본 패널 (+ 시네마틱 모드: 클립 상세 패널) */}
       <div className="vrew-editor__main">
         <div className="vrew-editor__preview-area">
           <EditorPreview
@@ -212,6 +273,42 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
             onTextChange={handleTextChange}
           />
         </div>
+        {mode === 'cinematic' && (
+          <div className="vrew-editor__detail-area">
+            <ClipDetailPanel
+              clip={currentClip}
+              aspectRatio={aspectRatio}
+              artStyleId={artStyleId}
+              videoPrompt={currentClip ? (clipPrompts[currentClip.sceneId]?.video || '') : ''}
+              imagePrompt={currentClip ? (clipPrompts[currentClip.sceneId]?.image || '') : ''}
+              onVideoPromptChange={(val) => {
+                if (currentClip) {
+                  setClipPrompts((prev) => ({
+                    ...prev,
+                    [currentClip.sceneId]: {
+                      ...prev[currentClip.sceneId],
+                      video: val,
+                    },
+                  }));
+                }
+              }}
+              isRegenerating={currentClip ? isRegenerating(currentClip.sceneId) : false}
+              onRegenerateVideo={() => {
+                if (currentClip) handleRegenerateVideo(currentClip.sceneId);
+              }}
+              sceneImageUrl={
+                currentClip
+                  ? (storeSceneImages[currentClip.sceneId]?.[0] || currentClip.imageUrl)
+                  : ''
+              }
+              castNames={selectedDeck
+                .map((id) => cardLibrary.find((c) => c.id === id))
+                .filter((c): c is AssetCard => !!c)
+                .map((c) => c.name)
+                .slice(0, 5)}
+            />
+          </div>
+        )}
       </div>
 
       {/* 중간: 컨트롤 */}

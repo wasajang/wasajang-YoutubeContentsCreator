@@ -135,28 +135,35 @@ const BlueprintCanvas: React.FC<BlueprintCanvasProps> = ({ template, onChange, i
     const ctx = {
       artStyleId: template.artStyleId,
       sceneText: previewScene,
-      seedCards: template.castPreset.characters.map((c) => ({
-        id: c.name,
-        name: c.name,
-        type: 'character' as const,
-        description: c.description,
-        imageUrl: '',
-      })).concat(
-        template.castPreset.backgrounds.map((b) => ({
+      seedCards: [
+        ...template.castPreset.characters.map((c) => ({
+          id: c.name,
+          name: c.name,
+          type: 'character' as const,
+          description: c.description,
+          imageUrl: '',
+          seed: 0,
+          status: 'done' as const,
+        })),
+        ...template.castPreset.backgrounds.map((b) => ({
           id: b.name,
           name: b.name,
           type: 'background' as const,
           description: b.description,
           imageUrl: '',
+          seed: 0,
+          status: 'done' as const,
         })),
-        template.castPreset.items.map((i) => ({
+        ...template.castPreset.items.map((i) => ({
           id: i.name,
           name: i.name,
           type: 'item' as const,
           description: i.description,
           imageUrl: '',
-        }))
-      ),
+          seed: 0,
+          status: 'done' as const,
+        })),
+      ],
       templateId: template.id,
     };
     if (previewType === 'image') return buildImagePrompt(ctx);
@@ -327,14 +334,35 @@ const BlueprintCanvas: React.FC<BlueprintCanvasProps> = ({ template, onChange, i
         {/* 화살표 C→D */}
         <div className="bp-arrow">→</div>
 
-        {/* D. 이미지 AI */}
-        <Card title="이미지 AI" subtitle="이미지 프롬프트 규칙" stage="Generate" stageColor="#10b981" icon="D">
-          <Field label="이미지 분위기" help="모든 이미지에 적용될 기본 스타일 키워드">
+        {/* D. 이미지 프롬프트 작성 */}
+        <Card title="이미지 프롬프트 작성" subtitle="LLM이 씬별 이미지 프롬프트를 작성하는 규칙" stage="Generate" stageColor="#10b981" icon="D">
+          <Field label="LLM 시스템 프롬프트" help="이미지 프롬프트를 생성하는 LLM에게 전달할 역할 지시">
+            <textarea className="bp-textarea" value={template.promptRules.imagePromptRules.systemPrompt || ''} disabled={disabled}
+              onChange={(e) => updateRules('imagePromptRules', 'systemPrompt', e.target.value)} rows={5}
+              placeholder="예: 당신은 이미지 프롬프트 전문가입니다..." />
+          </Field>
+          <div className="bp-ref-data">
+            <div className="bp-ref-data__title">참고 데이터 (LLM이 자동으로 참고합니다)</div>
+            <div className="bp-ref-data__list">
+              <span className="bp-ref-data__item">씬 대본</span>
+              <span className="bp-ref-data__item">캐스트 씨드카드</span>
+              <span className="bp-ref-data__item">아트 스타일</span>
+              <span className="bp-ref-data__item">화면 비율</span>
+              <span className="bp-ref-data__item">서브씬 구도</span>
+            </div>
+          </div>
+          <Field label="연출 가이드" help="LLM이 장면 유형별로 참고할 연출 지시">
+            <textarea className="bp-textarea bp-textarea--sm" value={template.promptRules.imagePromptRules.instruction} disabled={disabled}
+              onChange={(e) => updateRules('imagePromptRules', 'instruction', e.target.value)} rows={3} />
+          </Field>
+          <div className="bp-divider" />
+          <div className="bp-section-label">생성 설정</div>
+          <Field label="스타일 키워드" help="LLM이 프롬프트에 반드시 포함할 스타일 키워드">
             <textarea className="bp-textarea" value={template.promptRules.imagePromptRules.prefix} disabled={disabled}
               onChange={(e) => updateRules('imagePromptRules', 'prefix', e.target.value)} rows={3}
               placeholder="예: photorealistic cinematic still, 4K, dramatic lighting" />
           </Field>
-          <Field label="이미지 마무리" help="이미지 끝에 붙는 품질 지시">
+          <Field label="품질 키워드" help="이미지 끝에 붙는 품질 지시">
             <textarea className="bp-textarea bp-textarea--sm" value={template.promptRules.imagePromptRules.suffix} disabled={disabled}
               onChange={(e) => updateRules('imagePromptRules', 'suffix', e.target.value)} rows={2} />
           </Field>
@@ -342,10 +370,6 @@ const BlueprintCanvas: React.FC<BlueprintCanvasProps> = ({ template, onChange, i
             <textarea className="bp-textarea bp-textarea--sm" value={template.promptRules.imagePromptRules.negativePrompt} disabled={disabled}
               onChange={(e) => updateRules('imagePromptRules', 'negativePrompt', e.target.value)} rows={2}
               placeholder="예: blurry, low quality, watermark" />
-          </Field>
-          <Field label="세부 연출" help="추가 연출 지시사항">
-            <textarea className="bp-textarea bp-textarea--sm" value={template.promptRules.imagePromptRules.instruction} disabled={disabled}
-              onChange={(e) => updateRules('imagePromptRules', 'instruction', e.target.value)} rows={3} />
           </Field>
           <Field label="이미지 AI 모델">
             <select className="bp-select" value={template.defaultModels.image} disabled={disabled}
@@ -391,9 +415,31 @@ const BlueprintCanvas: React.FC<BlueprintCanvasProps> = ({ template, onChange, i
         {/* 화살표 E→F */}
         <div className="bp-arrow">←</div>
 
-        {/* E. 영상 AI */}
-        <Card title="영상 AI" subtitle="영상 프롬프트 규칙" stage="Generate" stageColor="#10b981" icon="E" defaultOpen={false}>
-          <Field label="카메라 연출" help="영상에 적용할 기본 카메라/연출 스타일">
+        {/* E. 영상 프롬프트 작성 */}
+        <Card title="영상 프롬프트 작성" subtitle="LLM이 씬별 영상 프롬프트를 작성하는 규칙" stage="Generate" stageColor="#10b981" icon="E" defaultOpen={false}>
+          <Field label="LLM 시스템 프롬프트" help="영상 프롬프트를 생성하는 LLM에게 전달할 역할 지시">
+            <textarea className="bp-textarea" value={template.promptRules.videoPromptRules.systemPrompt || ''} disabled={disabled}
+              onChange={(e) => updateRules('videoPromptRules', 'systemPrompt', e.target.value)} rows={5}
+              placeholder="예: 당신은 영상 프롬프트 전문가입니다..." />
+          </Field>
+          <div className="bp-ref-data">
+            <div className="bp-ref-data__title">참고 데이터 (LLM이 자동으로 참고합니다)</div>
+            <div className="bp-ref-data__list">
+              <span className="bp-ref-data__item">생성된 이미지</span>
+              <span className="bp-ref-data__item">씬 대본</span>
+              <span className="bp-ref-data__item">캐스트 씨드카드</span>
+              <span className="bp-ref-data__item">아트 스타일</span>
+              <span className="bp-ref-data__item">화면 비율</span>
+              <span className="bp-ref-data__item">대사/나레이션</span>
+            </div>
+          </div>
+          <Field label="연출 가이드" help="LLM이 장면 유형별로 참고할 연출 지시">
+            <textarea className="bp-textarea bp-textarea--sm" value={template.promptRules.videoPromptRules.instruction} disabled={disabled}
+              onChange={(e) => updateRules('videoPromptRules', 'instruction', e.target.value)} rows={3} />
+          </Field>
+          <div className="bp-divider" />
+          <div className="bp-section-label">생성 설정</div>
+          <Field label="카메라 연출 키워드" help="영상에 적용할 기본 카메라/연출 스타일 키워드">
             <textarea className="bp-textarea" value={template.promptRules.videoPromptRules.prefix} disabled={disabled}
               onChange={(e) => updateRules('videoPromptRules', 'prefix', e.target.value)} rows={3}
               placeholder="예: cinematic camera movement, slow motion" />
@@ -402,10 +448,6 @@ const BlueprintCanvas: React.FC<BlueprintCanvasProps> = ({ template, onChange, i
             <input className="bp-input bp-input--num" type="number" min={1} max={30}
               value={template.promptRules.videoPromptRules.defaultDuration} disabled={disabled}
               onChange={(e) => updateRules('videoPromptRules', 'defaultDuration', parseInt(e.target.value) || 5)} />
-          </Field>
-          <Field label="세부 연출">
-            <textarea className="bp-textarea bp-textarea--sm" value={template.promptRules.videoPromptRules.instruction} disabled={disabled}
-              onChange={(e) => updateRules('videoPromptRules', 'instruction', e.target.value)} rows={3} />
           </Field>
           <Field label="영상 AI 모델">
             <select className="bp-select" value={template.defaultModels.video} disabled={disabled}
