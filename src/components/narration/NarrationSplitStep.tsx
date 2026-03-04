@@ -388,7 +388,16 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
                             <button
                                 key={sec}
                                 className={`narration-split-step__duration-btn ${maxDuration === sec ? 'active' : ''}`}
-                                onClick={() => setMaxDuration(sec)}
+                                onClick={() => {
+                                    if (sec === maxDuration) return;
+                                    setMaxDuration(sec);
+                                    // 즉시 재분할 결과를 계산해 피드백 표시
+                                    const newGroups = autoSplit(sentenceTimings, sec);
+                                    showToast(
+                                        `${sec}초 기준으로 자동 분할: ${newGroups.length}개 씬`,
+                                        'info',
+                                    );
+                                }}
                             >
                                 {sec}초
                             </button>

@@ -20,6 +20,8 @@ interface ScriptPanelProps {
   sceneVideos?: Record<string, string[]>;
   onRegenerateVideo?: (sceneId: string) => void;
   isRegenerating?: (sceneId: string) => boolean;
+  // 씬 삽입
+  onInsertScene?: (afterIndex: number) => void;
 }
 
 const formatTime = (sec: number): string => {
@@ -37,6 +39,7 @@ const ScriptPanel: React.FC<ScriptPanelProps> = ({
   sceneVideos,
   onRegenerateVideo,
   isRegenerating,
+  onInsertScene,
 }) => {
   const aspectClass = aspectRatio === '9:16' ? 'portrait'
     : aspectRatio === '1:1' ? 'square' : 'landscape';
@@ -72,8 +75,8 @@ const ScriptPanel: React.FC<ScriptPanelProps> = ({
           const regenActive = isRegenerating?.(clip.sceneId) ?? false;
 
           return (
+            <React.Fragment key={clip.id}>
             <div
-              key={clip.id}
               className={`vrew-script-panel__item${isActive ? ' vrew-script-panel__item--active' : ''}`}
               onClick={() => onClipSelect(index)}
             >
@@ -132,6 +135,20 @@ const ScriptPanel: React.FC<ScriptPanelProps> = ({
                 </button>
               )}
             </div>
+
+            {/* 씬 사이 삽입 버튼 */}
+            {onInsertScene && (
+              <div
+                className="vrew-script-panel__insert-line"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onInsertScene(index);
+                }}
+              >
+                <span className="vrew-script-panel__insert-btn">+</span>
+              </div>
+            )}
+            </React.Fragment>
           );
         })}
       </div>

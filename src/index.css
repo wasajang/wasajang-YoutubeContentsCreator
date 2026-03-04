@@ -11286,24 +11286,128 @@ button.export-btn:disabled {
   color: #ef4444;
 }
 
-/* ── 3트랙 타임라인 (EditorTimeline) ── */
+/* ── 3트랙 타임라인 (EditorTimeline v2) ── */
+/* 구조: .vrew-timeline > .vrew-timeline__layout > [labels | scroll] */
 .vrew-timeline {
   flex-shrink: 0;
   background: var(--bg-primary, #0a0a0f);
   padding: 0 0 4px;
-  overflow-x: auto;
   position: relative;
+  user-select: none;
 }
-/* playhead는 이제 ruler 안에 위치 */
+
+/* 2열: 고정 라벨 + 스크롤 영역 */
+.vrew-timeline__layout {
+  display: flex;
+  align-items: stretch;
+}
+
+/* 왼쪽 고정 라벨 열 */
+.vrew-timeline__labels {
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  z-index: 2;
+  background: var(--bg-primary, #0a0a0f);
+}
+
+/* ruler 행에 대응하는 라벨 빈칸 */
+.vrew-timeline__ruler-label {
+  height: 22px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+/* 트랙 라벨 */
+.vrew-timeline__track-label {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.vrew-timeline__track-label:nth-child(2) { min-height: 40px; }  /* 영상 */
+.vrew-timeline__track-label:nth-child(3) { min-height: 28px; }  /* 음성 */
+.vrew-timeline__track-label:nth-child(4) { min-height: 28px; }  /* 자막 */
+
+/* 오른쪽 가로 스크롤 영역 */
+.vrew-timeline__scroll {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* 스크롤바 스타일 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.vrew-timeline__scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.vrew-timeline__scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.vrew-timeline__scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+}
+
+/* 내부 고정 너비 컨테이너 (totalWidth px) */
+.vrew-timeline__inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* ── 시간 눈금자 (CapCut 스타일) ── */
+.vrew-timeline__ruler {
+  position: relative;
+  height: 22px;
+  flex-shrink: 0;
+  background: var(--bg-tertiary, rgba(255,255,255,0.03));
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer;
+  overflow: hidden;
+}
+.vrew-timeline__ruler-mark {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-left: 1px solid rgba(255,255,255,0.12);
+  padding-left: 3px;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.vrew-timeline__ruler-mark span {
+  font-size: 0.55rem;
+  color: var(--text-muted, rgba(255,255,255,0.4));
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* ── 플레이헤드 ── */
 .vrew-timeline__playhead {
   position: absolute;
   top: 0;
+  left: 0;
   width: 2px;
-  height: 200%;
+  height: 500%;           /* ruler 너머 아래 트랙까지 */
   background: var(--accent-primary, #e91e8c);
-  transition: left 100ms linear;
   z-index: 10;
   pointer-events: none;
+  /* 기존 left% 방식 fallback */
+  transition: left 100ms linear;
+}
+/* GPU 가속 모드: transition 제거, transform 사용 */
+.vrew-timeline__playhead--gpu {
+  transition: none;
+  will-change: transform;
+  left: 0 !important;
 }
 .vrew-timeline__playhead::after {
   content: '';
@@ -11316,31 +11420,20 @@ button.export-btn:disabled {
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
 }
+
+/* ── 트랙 공통 ── */
 .vrew-timeline__track {
   display: flex;
   align-items: stretch;
-  min-height: 36px;
+  flex-shrink: 0;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.vrew-timeline__track-label {
-  width: 56px;
-  flex-shrink: 0;
-  display: flex;
+.vrew-timeline__track--video-row {
+  min-height: 40px;
   align-items: center;
-  gap: 4px;
-  padding: 0 8px;
-  font-size: 0.625rem;
-  color: var(--text-muted);
-  border-right: 1px solid rgba(255,255,255,0.06);
-  white-space: nowrap;
-}
-.vrew-timeline__track-content {
-  flex: 1;
-  display: flex;
-  min-width: 0;
 }
 
-/* 타임라인 블록 — 공통 */
+/* ── 타임라인 블록 — 공통 ── */
 .vrew-timeline__block {
   display: flex;
   align-items: center;
@@ -11350,7 +11443,8 @@ button.export-btn:disabled {
   border-right: 1px solid rgba(255,255,255,0.06);
   overflow: hidden;
   position: relative;
-  min-width: 30px;
+  min-width: 20px;
+  flex-shrink: 0;
 }
 .vrew-timeline__block:hover {
   background: rgba(255,255,255,0.06);
@@ -11427,31 +11521,6 @@ button.export-btn:disabled {
   white-space: nowrap;
 }
 
-/* ── 시간 눈금자 (CapCut 스타일) ── */
-.vrew-timeline__ruler {
-  position: relative;
-  height: 22px;
-  background: var(--bg-tertiary, rgba(255,255,255,0.03));
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  cursor: pointer;
-  margin-left: 56px; /* track-label 너비에 맞춤 */
-}
-.vrew-timeline__ruler-mark {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  border-left: 1px solid rgba(255,255,255,0.12);
-  padding-left: 3px;
-  display: flex;
-  align-items: center;
-  pointer-events: none;
-}
-.vrew-timeline__ruler-mark span {
-  font-size: 0.55rem;
-  color: var(--text-muted, rgba(255,255,255,0.4));
-  letter-spacing: 0.02em;
-}
-
 /* ── 드래그 이동 ── */
 .vrew-timeline__block[draggable] {
   cursor: grab;
@@ -11489,6 +11558,43 @@ button.export-btn:disabled {
 }
 .vrew-timeline__block-delete:hover {
   background: rgba(239, 68, 68, 1);
+}
+
+/* ── Part C: 씬 삽입 버튼 ── */
+.vrew-timeline__insert-zone {
+  width: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: width 150ms;
+}
+.vrew-timeline__insert-zone:hover,
+.vrew-timeline__insert-zone--visible {
+  width: 20px;
+}
+.vrew-timeline__insert-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-primary, #e91e8c);
+  color: #fff;
+  border: none;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.vrew-timeline__insert-zone:hover .vrew-timeline__insert-btn,
+.vrew-timeline__insert-zone--visible .vrew-timeline__insert-btn {
+  display: flex;
+  opacity: 1;
 }
 
 /* ── 대본 패널 미디어 플로우 ── */
@@ -11557,6 +11663,42 @@ button.export-btn:disabled {
 .vrew-script-panel__regen-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ScriptPanel 씬 사이 삽입 버튼 */
+.vrew-script-panel__insert-line {
+  height: 0;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 2;
+}
+.vrew-script-panel__item:hover + .vrew-script-panel__insert-line,
+.vrew-script-panel__insert-line:hover {
+  opacity: 1;
+}
+.vrew-script-panel__insert-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transform: translateY(-50%);
+  border: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.vrew-script-panel__insert-btn:hover {
+  transform: translateY(-50%) scale(1.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 
 /* ── 네비게이션 버튼 ── */
@@ -12421,10 +12563,8 @@ button.export-btn:disabled {
   font-size: 0.75rem;
   color: var(--text-secondary);
   line-height: 1.5;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  max-height: 80px;
+  overflow-y: auto;
 }
 
 .vrew-clip-card__thumb {

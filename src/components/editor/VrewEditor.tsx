@@ -8,7 +8,7 @@
  *
  * 시네마틱 + 나레이션 양쪽 모드 지원
  */
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import type { NarrationClip, AssetCard } from '../../store/projectStore';
 import { useEditorPlayback } from '../../hooks/useEditorPlayback';
@@ -122,6 +122,10 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
 
   const audioUrl = mode === 'narration' ? narrativeAudioUrl : '';
 
+  // GPU 가속 플레이헤드 ref
+  const playheadRef = useRef<HTMLDivElement | null>(null);
+  const ppsGetterRef = useRef<() => number>(() => 40);
+
   const {
     currentClipIndex,
     setCurrentClipIndex,
@@ -131,7 +135,12 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     togglePlay,
     seekToClip,
     seekToTime,
-  } = useEditorPlayback({ clips, audioUrl });
+  } = useEditorPlayback({
+    clips,
+    audioUrl,
+    playheadRef,
+    getTimelinePxPerSec: () => ppsGetterRef.current(),
+  });
 
   const currentClip = clips[currentClipIndex] ?? null;
 
@@ -271,14 +280,19 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
       const clip = narr[clipIndex];
       if (!clip) return;
 
+      // ★ 핵심 수정: store 클립에 word timing이 없을 수 있으므로 보강
+      const enrichedSentences = enrichWithWordTimings(clip.sentences);
+
       // globalWordIndex를 sentenceIndex + wordIndexInSentence로 변환
       let wordCount = 0;
-      for (let si = 0; si < clip.sentences.length; si++) {
-        const words = clip.sentences[si].words || [];
+      for (let si = 0; si < enrichedSentences.length; si++) {
+        const words = enrichedSentences[si].words || [];
         for (let wi = 0; wi < words.length; wi++) {
           if (wordCount === globalWordIndex) {
             try {
-              const [clipA, clipB] = splitClipAtWord(clip, si, wi);
+              // enriched words를 포함한 클립으로 분할
+              const enrichedClip = { ...clip, sentences: enrichedSentences };
+              const [clipA, clipB] = splitClipAtWord(enrichedClip, si, wi);
               const newClips = [...narr];
               newClips.splice(clipIndex, 1, clipA, clipB);
               setNarrationClips(reorderClips(newClips));
@@ -331,6 +345,44 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     }
     if (clips.length > 0) setCurrentClipIndex(clips.length - 1);
   }, [clips, seekToTime, setCurrentClipIndex]);
+
+  // 씬 삽입 (Part C)
+  const handleInsertScene = useCallback((afterIndex: number) => {
+    const insertIndex = afterIndex + 1;
+    const prevClip = clips[afterIndex];
+    if (!prevClip) return;
+
+    const newClip: EditorClip = {
+      id: `scene-new-${Date.now()}`,
+      sceneId: `scene-new-${Date.now()}`,
+      text: '',
+      sentences: [],
+      imageUrl: '',
+      videoUrl: '',
+      isVideoEnabled: false,
+      effect: 'none',
+      audioStartTime: prevClip.audioEndTime,
+      audioEndTime: prevClip.audioEndTime + 5,
+      duration: 5,
+      order: insertIndex,
+      label: '',
+    };
+
+    const newClips = [...clips];
+    newClips.splice(insertIndex, 0, newClip);
+
+    // 삽입 지점 이후 시간 +5초 재조정
+    for (let i = insertIndex + 1; i < newClips.length; i++) {
+      newClips[i] = {
+        ...newClips[i],
+        audioStartTime: newClips[i].audioStartTime + 5,
+        audioEndTime: newClips[i].audioEndTime + 5,
+      };
+    }
+
+    updateClips(relabel(newClips));
+    setCurrentClipIndex(insertIndex);
+  }, [clips, updateClips, setCurrentClipIndex]);
 
   // 이전/다음 클립 이동
   const handlePrevClip = useCallback(() => {
@@ -439,6 +491,7 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
               sceneVideos={sceneVideos}
               onRegenerateVideo={(sceneId) => handleRegenerateVideo(sceneId)}
               isRegenerating={(sceneId) => isRegenerating(sceneId)}
+              onInsertScene={handleInsertScene}
             />
           )}
         </div>
@@ -529,6 +582,9 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
         onReorder={handleTimelineReorder}
         onDeleteClip={handleTimelineDelete}
         onSeek={handleTimelineSeek}
+        playheadRef={playheadRef}
+        onInsertScene={handleInsertScene}
+        onPpsChange={(getter) => { ppsGetterRef.current = getter; }}
       />
 
       {/* 네비게이션 */}

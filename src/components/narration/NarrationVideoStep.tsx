@@ -171,6 +171,14 @@ export function NarrationVideoStep({ onNext, onPrev, isModal, onClose }: Narrati
             : c
         );
         setNarrationClips(updated);
+
+        // sceneVideos store에도 기록 (상태 라벨 동기화)
+        const { setSceneVideos, sceneVideos: currentSV } = useProjectStore.getState();
+        const existing = currentSV[clip.sceneId] || [];
+        setSceneVideos({
+          ...currentSV,
+          [clip.sceneId]: [...existing, result.videoUrl],
+        });
       } catch (err) {
         console.error(`[NarrationVideo] ${clip.id} 영상화 실패:`, err);
       } finally {
@@ -261,14 +269,22 @@ export function NarrationVideoStep({ onNext, onPrev, isModal, onClose }: Narrati
                   ].filter(Boolean).join(' ')}
                 >
                   {/* 체크박스 (Shift+클릭 범위 선택 지원) */}
-                  <label className="narration-video-step__clip-checkbox" onClick={(e) => {
-                    e.preventDefault();
-                    if (!isGenerating) handleToggleCheck(clip.id, clipIdx, e.shiftKey);
-                  }}>
+                  <label
+                    className="narration-video-step__clip-checkbox"
+                    onClick={(e) => {
+                      // Shift+클릭 범위 선택은 label의 onClick에서 처리
+                      if (e.shiftKey && !isGenerating) {
+                        e.preventDefault();
+                        handleToggleCheck(clip.id, clipIdx, true);
+                      }
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={isChecked}
-                      readOnly
+                      onChange={() => {
+                        if (!isGenerating) handleToggleCheck(clip.id, clipIdx);
+                      }}
                       disabled={isGenerating}
                     />
                   </label>

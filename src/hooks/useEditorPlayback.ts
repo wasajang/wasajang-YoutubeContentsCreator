@@ -12,6 +12,10 @@ import { findCurrentClip } from '../utils/narration-sync';
 interface UseEditorPlaybackOptions {
   clips: EditorClip[];
   audioUrl: string;
+  /** GPU 가속 플레이헤드를 위한 DOM ref (직접 transform 업데이트) */
+  playheadRef?: React.RefObject<HTMLDivElement | null>;
+  /** 현재 타임라인의 pixelsPerSecond 값을 반환하는 콜백 */
+  getTimelinePxPerSec?: () => number;
 }
 
 interface UseEditorPlaybackReturn {
@@ -30,6 +34,8 @@ interface UseEditorPlaybackReturn {
 export function useEditorPlayback({
   clips,
   audioUrl,
+  playheadRef,
+  getTimelinePxPerSec,
 }: UseEditorPlaybackOptions): UseEditorPlaybackReturn {
   const [currentClipIndex, setCurrentClipIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -76,6 +82,11 @@ export function useEditorPlayback({
 
     setCurrentTime(time);
 
+    // GPU 가속 플레이헤드 직접 DOM 업데이트 (60fps, React 리렌더 없이)
+    if (playheadRef?.current && getTimelinePxPerSec) {
+      playheadRef.current.style.transform = `translateX(${time * getTimelinePxPerSec()}px)`;
+    }
+
     // 클립 인덱스 동기화
     const clip = findCurrentClip(time, clips as unknown as NarrationClip[]);
     if (clip) {
@@ -84,7 +95,7 @@ export function useEditorPlayback({
     }
 
     animFrameRef.current = requestAnimationFrame(tickRef.current);
-  }, [clips, audioUrl, totalDuration]);
+  }, [clips, audioUrl, totalDuration, playheadRef, getTimelinePxPerSec]);
 
   tickRef.current = tick;
 
