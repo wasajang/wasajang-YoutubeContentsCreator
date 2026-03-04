@@ -82,7 +82,7 @@ const IdeaPage: React.FC = () => {
         hasActiveProject, startNewProject,
         templateId, setTemplateId,
         aiModelPreferences, setAiModelPreference,
-        mode, narrationStep, setNarrationStep,
+        mode, setMode, narrationStep, setNarrationStep,
     } = useProjectStore();
     const { canAfford, spend } = useCredits();
     const { showToast } = useToast();
@@ -217,6 +217,17 @@ const IdeaPage: React.FC = () => {
         if (!pendingPreset) return;
         handlePresetSelect(pendingPreset);
         setPendingPreset(null);
+    };
+
+    // ── 모드 전환 핸들러 ──
+    const handleModeSwitch = (newMode: 'cinematic' | 'narration') => {
+        if (newMode === mode) return;
+        setMode(newMode);
+        setTemplateId(null);          // 모드별 템플릿이 다르므로 리셋
+        setSceneCount(10);            // 씬 개수도 기본값 리셋
+        if (newMode === 'narration') {
+            setNarrationStep(1);      // 나레이션 모드 진입 시 1단계부터
+        }
     };
 
     // 아트스타일 수동 변경 → 프리셋 해제
@@ -438,6 +449,30 @@ const IdeaPage: React.FC = () => {
                     </div>
 
                     <div className="idea-settings-body">
+                        {/* 모드 전환 토글 */}
+                        <div className="idea-settings-section">
+                            <div className="idea-settings-label">영상 모드</div>
+                            <div className="idea-mode-toggle">
+                                <button
+                                    className={`idea-mode-toggle__btn ${mode === 'cinematic' ? 'active' : ''}`}
+                                    onClick={() => handleModeSwitch('cinematic')}
+                                >
+                                    🎬 시네마틱
+                                </button>
+                                <button
+                                    className={`idea-mode-toggle__btn ${mode === 'narration' ? 'active' : ''}`}
+                                    onClick={() => handleModeSwitch('narration')}
+                                >
+                                    🎙️ 나레이션
+                                </button>
+                            </div>
+                            <p className="idea-mode-toggle__hint">
+                                {mode === 'cinematic'
+                                    ? '영상 중심: 대본 → 스토리보드 → AI 이미지/영상 생성 → 편집 (예: 예고편, 다큐, MV)'
+                                    : '음성 중심: 대본 → TTS 음성 생성 → 자막 편집 → 이미지 배치 (예: 해설, 교육, 뉴스)'}
+                            </p>
+                        </div>
+
                         {/* 프리셋 섹션 */}
                         {modeTemplates.length > 0 && (
                             <div className="idea-settings-section">
@@ -519,7 +554,14 @@ const IdeaPage: React.FC = () => {
                         {/* 씬 개수 선택 + 예상 시간 (나레이션 모드에서는 숨김) */}
                         {mode !== 'narration' && (
                             <div className="idea-settings-section">
-                                <div className="idea-settings-label">씬 개수</div>
+                                <div className="idea-settings-label">
+                                    씬 개수
+                                    {currentTemplate?.promptRules?.sceneSplitRules?.defaultSceneCount && (
+                                        <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                                            {' '}(템플릿 추천: {currentTemplate.promptRules.sceneSplitRules.defaultSceneCount}개)
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="scene-count-picker" style={{ justifyContent: 'flex-start' }}>
                                     <button className="scene-count-btn" onClick={() => setSceneCount((n) => Math.max(1, n - 1))}>
                                         <Minus size={12} />

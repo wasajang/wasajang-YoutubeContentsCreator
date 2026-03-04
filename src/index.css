@@ -7820,6 +7820,24 @@ button.export-btn:disabled {
   color: var(--text-secondary);
   line-height: 1.4;
 }
+.mode-select__details {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+.mode-select__details li {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  padding-left: 1em;
+  text-indent: -1em;
+}
+.mode-select__details li::before {
+  content: '·';
+  margin-right: 0.4em;
+  color: var(--text-muted);
+}
 
 /* 나레이션 TTS 섹션 (TimelinePage) */
 .narration-tts-section {
@@ -9980,6 +9998,42 @@ button.export-btn:disabled {
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.06em;
+}
+/* ── 모드 전환 토글 ── */
+.idea-mode-toggle {
+    display: flex;
+    gap: 0;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+.idea-mode-toggle__btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border: none;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.idea-mode-toggle__btn:first-child {
+    border-right: 1px solid var(--border-color);
+}
+.idea-mode-toggle__btn.active {
+    background: var(--color-primary);
+    color: #fff;
+}
+.idea-mode-toggle__btn:not(.active):hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+.idea-mode-toggle__hint {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    margin: 4px 0 0;
+    line-height: 1.4;
 }
 /* 스타일 칩 리스트 */
 .idea-style-chips {

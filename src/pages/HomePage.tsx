@@ -158,12 +158,20 @@ const HomePage: React.FC = () => {
                                 <div className="mode-select__option" onClick={() => handleModeSelect('cinematic')}>
                                     <div className="mode-select__icon">🎬</div>
                                     <h4>시네마틱</h4>
-                                    <p>씬별 이미지/영상을 생성하고 마지막에 나레이션 추가</p>
+                                    <p>영상 중심 — 씬별 이미지/영상을 먼저 만들고, 나레이션은 나중에</p>
+                                    <ul className="mode-select__details">
+                                        <li>예: 영화 예고편, 다큐멘터리, 뮤직비디오</li>
+                                        <li>대본 → 스토리보드 → AI 이미지/영상 생성 → 편집</li>
+                                    </ul>
                                 </div>
                                 <div className="mode-select__option" onClick={() => handleModeSelect('narration')}>
                                     <div className="mode-select__icon">🎙️</div>
                                     <h4>나레이션</h4>
-                                    <p>먼저 나레이션 음성을 생성하고 타이밍에 맞춰 영상 배치</p>
+                                    <p>음성 중심 — TTS 음성을 먼저 만들고, 자막과 영상을 동기화</p>
+                                    <ul className="mode-select__details">
+                                        <li>예: 해설 영상, 교육 콘텐츠, 뉴스 리포트</li>
+                                        <li>대본 → TTS 음성 → 자막 편집 → 이미지/영상 배치</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
