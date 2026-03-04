@@ -6,6 +6,8 @@
  * 나중에 Supabase 테이블로 이전 가능한 구조.
  */
 
+import { getCustomTemplates } from '../services/template-store';
+
 const TEMPLATE_OVERRIDE_KEY = 'antigravity-template-overrides';
 
 // ── 인터페이스 정의 ──────────────────────────────────────
@@ -633,33 +635,46 @@ export const templates: Template[] = [
 // ── 헬퍼 함수 ──────────────────────────────────────
 
 /**
- * ID로 템플릿 조회 (localStorage 오버라이드 반영)
+ * ID로 템플릿 조회 (localStorage 오버라이드 반영 + 커스텀 템플릿 포함)
  *
- * 어드민이 런타임에 프롬프트 규칙을 수정할 수 있도록
- * localStorage의 오버라이드를 우선 적용합니다.
+ * 1. 공식 템플릿에서 검색 + 오버라이드 병합
+ * 2. 없으면 커스텀 템플릿에서 검색
  */
 export function getTemplateById(id: string): Template | undefined {
+  // 1. 공식 템플릿 검색 + 오버라이드
   const base = templates.find((t) => t.id === id);
-  if (!base) return undefined;
-  try {
-    const overrides = JSON.parse(localStorage.getItem(TEMPLATE_OVERRIDE_KEY) || '{}') as Record<string, Partial<Template>>;
-    if (overrides[id]) {
-      return { ...base, ...overrides[id] };
+  if (base) {
+    try {
+      const overrides = JSON.parse(localStorage.getItem(TEMPLATE_OVERRIDE_KEY) || '{}') as Record<string, Partial<Template>>;
+      if (overrides[id]) {
+        return { ...base, ...overrides[id] };
+      }
+    } catch {
+      // localStorage 접근 실패 시 원본 반환
     }
-  } catch {
-    // localStorage 접근 실패 시 원본 반환
+    return base;
   }
-  return base;
+  // 2. 커스텀 템플릿 검색
+  const customs = getCustomTemplates();
+  return customs.find((t) => t.id === id);
 }
 
-/** 공개 템플릿만 반환 (오버라이드 반영) */
+/** 공개 템플릿만 반환 (공식 + 커스텀, 오버라이드 반영) */
 export function getPublicTemplates(): Template[] {
-  return templates
+  const officials = templates
     .filter((t) => t.visibility === 'public')
     .map((t) => getTemplateById(t.id)!);
+  const customs = getCustomTemplates()
+    .filter((t) => t.visibility === 'public');
+  return [...officials, ...customs];
 }
 
-/** 모드별 템플릿 반환 */
+/** 모드별 템플릿 반환 (공식 + 커스텀) */
 export function getTemplatesByMode(mode: 'cinematic' | 'narration'): Template[] {
-  return templates.filter((t) => t.mode === mode && t.visibility === 'public');
+  const officials = templates
+    .filter((t) => t.mode === mode && t.visibility === 'public')
+    .map((t) => getTemplateById(t.id)!);
+  const customs = getCustomTemplates()
+    .filter((t) => t.mode === mode && t.visibility === 'public');
+  return [...officials, ...customs];
 }

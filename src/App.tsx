@@ -11,6 +11,7 @@ import CastPage from './pages/CastPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 import PaymentPage from './pages/PaymentPage';
+import TemplateBlueprintPage from './pages/TemplateBlueprintPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ToastContainer from './components/ToastContainer';
 import { useProject } from './hooks/useProject';
@@ -38,6 +39,8 @@ const App: React.FC = () => {
             <Route path="/project/timeline" element={<TimelinePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/templates/blueprint" element={<TemplateBlueprintPage />} />
+            <Route path="/templates/blueprint/:id" element={<TemplateBlueprintPage />} />
             <Route path="/payment" element={<PaymentPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

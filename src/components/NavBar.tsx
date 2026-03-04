@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, FolderOpen, Plus, Settings, Zap, LogIn, LogOut, User, Coins, Users } from 'lucide-react';
+import { Home, FolderOpen, Plus, Settings, Zap, LogIn, LogOut, User, Coins, Users, Layout } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProjectStore } from '../store/projectStore';
 import type { ProjectMode } from '../store/projectStore';
@@ -62,6 +62,13 @@ const NavBar: React.FC = () => {
                     >
                         <Users size={14} />
                         My Cast
+                    </Link>
+                    <Link
+                        to="/templates/blueprint"
+                        className={`navbar__nav-item ${location.pathname.startsWith('/templates') ? 'active' : ''}`}
+                    >
+                        <Layout size={14} />
+                        Templates
                     </Link>
                 </div>
             </div>
