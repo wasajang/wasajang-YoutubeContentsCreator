@@ -16,6 +16,8 @@ interface SceneRowProps {
     videoGenStatus: SceneGenStatus;
     isSelected: boolean;
     sceneSeeds: string[];
+    /** 서브씬별 씨드맵 — allSceneSeeds[`sceneId-subIdx`] 형태 */
+    allSceneSeeds?: Record<string, string[]>;
     deck: AssetCard[];
     promptPrefix: string;
     /** 편집 가능한 프롬프트 (customPrompts에서 전달) */
@@ -25,6 +27,10 @@ interface SceneRowProps {
     onVideoPromptChange?: (value: string) => void;
     gradientFallback: string;
     onSelect: () => void;
+    /** 서브씬 선택 콜백 (CastStrip 연동) */
+    onSelectSub?: (subKey: string) => void;
+    /** 현재 선택된 씬/서브씬 키 */
+    selectedKey?: string | null;
     onGenerateImage: (sceneId: string) => void;
     onRegenerateVideo: (sceneId: string) => void;
     onToggleSeed: (sceneId: string, cardId: string) => void;
@@ -41,23 +47,34 @@ interface SceneRowProps {
     allPrompts?: Record<string, { image: string; video: string }>;
     /** 서브씬별 프롬프트 업데이트 함수 */
     onSubPromptChange?: (key: string, type: 'image' | 'video', value: string) => void;
+    /** Ken Burns 효과 */
+    kenBurnsEffect?: string;
+    onKenBurnsChange?: (effect: string) => void;
 }
 
 const SceneRow: React.FC<SceneRowProps> = ({
     scene, index, videoCount, genStatus, videoGenStatus: vidStatus,
-    isSelected, sceneSeeds: seeds, deck, promptPrefix,
+    isSelected, sceneSeeds: seeds, allSceneSeeds, deck, promptPrefix,
     imagePrompt, videoPrompt, onImagePromptChange, onVideoPromptChange,
-    gradientFallback, onSelect, onGenerateImage, onRegenerateVideo, onToggleSeed,
+    gradientFallback, onSelect, onSelectSub, selectedKey, onGenerateImage, onRegenerateVideo, onToggleSeed,
     artStyleLabel, aspectRatio, seedSummary,
     isSelectedForVideo, onToggleVideoSelection, sceneImages,
     allPrompts, onSubPromptChange,
+    kenBurnsEffect, onKenBurnsChange,
 }) => (
     <React.Fragment>
         {Array.from({ length: videoCount }, (_, subIdx) => (
             <div
                 key={`${scene.id}-${subIdx}`}
-                className={`sc-row ${isSelected ? 'sc-row--selected' : ''} ${genStatus === 'done' ? 'sc-row--done' : ''} ${subIdx > 0 ? 'sc-row--sub-row' : ''}`}
-                onClick={onSelect}
+                className={`sc-row ${isSelected || selectedKey === `${scene.id}-${subIdx}` ? 'sc-row--selected' : ''} ${genStatus === 'done' ? 'sc-row--done' : ''} ${subIdx > 0 ? 'sc-row--sub-row' : ''}`}
+                onClick={() => {
+                    const vc = videoCount;
+                    if (vc > 1 && onSelectSub) {
+                        onSelectSub(`${scene.id}-${subIdx}`);
+                    } else {
+                        onSelect();
+                    }
+                }}
             >
                 {/* Col 1: Image — 서브인덱스별 이미지 표시 */}
                 <div className="sc-row__img-col">
@@ -109,7 +126,7 @@ const SceneRow: React.FC<SceneRowProps> = ({
                                             key={cardId}
                                             className={`sc-row__seed-card sc-row__seed-card--${card.type} sc-row__seed-card--img-only`}
                                             style={{ zIndex: 10 - seedIdx, marginLeft: seedIdx > 0 ? '-12px' : '0' }}
-                                            onClick={(e) => { e.stopPropagation(); onToggleSeed(scene.id, cardId); }}
+                                            onClick={(e) => { e.stopPropagation(); onToggleSeed(videoCount > 1 ? `${scene.id}-${subIdx}` : scene.id, cardId); }}
                                             title={`${card.name} #${card.seed} (클릭하여 해제)`}
                                         >
                                             {card.imageUrl ? (
@@ -127,35 +144,42 @@ const SceneRow: React.FC<SceneRowProps> = ({
                                 )}
                             </div>
                         </>
-                    ) : (
+                    ) : (() => {
+                        const subSeedKey = `${scene.id}-${subIdx}`;
+                        const subSeeds = allSceneSeeds?.[subSeedKey] || seeds;
+                        return (
                         <div className="sc-row__sub-label">
                             <span>파트 {subIdx + 1}/{videoCount}</span>
-                            {seeds.length > 0 && (
-                                <div className="sc-row__seed-stack sc-row__seed-stack--overlap" style={{ marginTop: 4 }}>
-                                    {seeds.slice(0, 3).map((cardId, seedIdx) => {
-                                        const card = deck.find(c => c.id === cardId);
-                                        if (!card) return null;
-                                        return (
-                                            <div
-                                                key={cardId}
-                                                className={`sc-row__seed-card sc-row__seed-card--${card.type} sc-row__seed-card--img-only`}
-                                                style={{ zIndex: 10 - seedIdx, marginLeft: seedIdx > 0 ? '-12px' : '0', width: 24, height: 24 }}
-                                                title={card.name}
-                                            >
-                                                {card.imageUrl ? (
-                                                    <img src={card.imageUrl} className="sc-row__seed-card__img" alt={card.name} />
-                                                ) : (
-                                                    <div className="sc-row__seed-card__img sc-row__seed-card__img--empty">
-                                                        {card.type === 'character' ? <User size={8} /> : card.type === 'background' ? <MapPin size={8} /> : <Sword size={8} />}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                            <div className="sc-row__script-label" style={{ marginTop: 2 }}><Sparkles size={9} /> 참고할 씨드 카드</div>
+                            <div className="sc-row__seed-stack sc-row__seed-stack--overlap" style={{ marginTop: 4 }}>
+                                {subSeeds.map((cardId, seedIdx) => {
+                                    const card = deck.find(c => c.id === cardId);
+                                    if (!card) return null;
+                                    return (
+                                        <div
+                                            key={cardId}
+                                            className={`sc-row__seed-card sc-row__seed-card--${card.type} sc-row__seed-card--img-only`}
+                                            style={{ zIndex: 10 - seedIdx, marginLeft: seedIdx > 0 ? '-12px' : '0', width: 24, height: 24 }}
+                                            onClick={(e) => { e.stopPropagation(); onToggleSeed(subSeedKey, cardId); }}
+                                            title={`${card.name} (클릭하여 해제)`}
+                                        >
+                                            {card.imageUrl ? (
+                                                <img src={card.imageUrl} className="sc-row__seed-card__img" alt={card.name} />
+                                            ) : (
+                                                <div className="sc-row__seed-card__img sc-row__seed-card__img--empty">
+                                                    {card.type === 'character' ? <User size={8} /> : card.type === 'background' ? <MapPin size={8} /> : <Sword size={8} />}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                                {subSeeds.length === 0 && (
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>상단 카드를 클릭하여 배정</span>
+                                )}
+                            </div>
                         </div>
-                    )}
+                        );
+                    })()}
                 </div>
 
                 {/* Col 3: Script */}
@@ -268,6 +292,20 @@ const SceneRow: React.FC<SceneRowProps> = ({
                                 className="sc-row__video-checkbox"
                             />
                             <span>{isSelectedForVideo ? '영상 생성 대상' : '영상 생성 제외'}</span>
+                            {/* Ken Burns 효과 드롭다운 */}
+                            {onKenBurnsChange && subIdx === 0 && (
+                                <select
+                                    className="sc-row__ken-burns-select"
+                                    value={kenBurnsEffect || 'none'}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => { e.stopPropagation(); onKenBurnsChange(e.target.value); }}
+                                >
+                                    <option value="none">효과 없음</option>
+                                    <option value="zoom-in">줌인</option>
+                                    <option value="zoom-out">줌아웃</option>
+                                    <option value="pan-lr">패닝 (좌→우)</option>
+                                </select>
+                            )}
                         </div>
                     ) : (
                         <div className="sc-row__video-clip sc-row__video-clip--empty">

@@ -6,6 +6,7 @@ import {
     Zap, Video, CheckCircle2, ChevronLeft, ArrowRight, Sparkles, Loader,
 } from 'lucide-react';
 import type { AssetCard, Scene } from '../../store/projectStore';
+import { useProjectStore } from '../../store/projectStore';
 import type { UseDeckApi } from '../../hooks/useDeck';
 import { MAX_DECK_SIZE } from '../../hooks/useDeck';
 import type { UseGenerationApi } from '../../hooks/useGeneration';
@@ -100,6 +101,11 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
         removeFromDeck,
     } = deckApi;
 
+    // Ken Burns 효과
+    const kenBurnsPerScene = useProjectStore((s) => s.kenBurnsPerScene);
+    const setKenBurnsForScene = useProjectStore((s) => s.setKenBurnsForScene);
+    const setKenBurnsForAll = useProjectStore((s) => s.setKenBurnsForAll);
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
             <div className="sb-phase-title">
@@ -180,7 +186,10 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
             <div className="sc-layout">
                 <div className="sc-list">
                     {scenes.map((scene, index) => {
-                        const seeds = sceneSeeds[scene.id] || [];
+                        const vc = videoCountPerScene[scene.id] || 1;
+                        const seeds = vc > 1
+                            ? sceneSeeds[`${scene.id}-0`] || sceneSeeds[scene.id] || []
+                            : sceneSeeds[scene.id] || [];
                         const chars = seeds.filter((id) => deck.find((c) => c.id === id)?.type === 'character').length;
                         const bgs = seeds.filter((id) => deck.find((c) => c.id === id)?.type === 'background').length;
                         const items = seeds.filter((id) => deck.find((c) => c.id === id)?.type === 'item').length;
@@ -193,8 +202,10 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 videoCount={videoCountPerScene[scene.id] || 1}
                                 genStatus={sceneGenStatus[scene.id]}
                                 videoGenStatus={getVideoStatus(scene.id)}
-                                isSelected={selectedScene === scene.id}
+                                isSelected={selectedScene === scene.id || (selectedScene?.startsWith(scene.id + '-') ?? false)}
+                                selectedKey={selectedScene}
                                 sceneSeeds={seeds}
+                                allSceneSeeds={sceneSeeds}
                                 deck={deck}
                                 promptPrefix={getArtStylePromptPrefix(artStyleId)}
                                 imagePrompt={customPrompts[scene.id]?.image || ''}
@@ -203,6 +214,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 onVideoPromptChange={(val) => updatePrompt(scene.id, 'video', val)}
                                 gradientFallback={getSceneGradient(index)}
                                 onSelect={() => setSelectedScene(selectedScene === scene.id ? null : scene.id)}
+                                onSelectSub={(subKey: string) => setSelectedScene(selectedScene === subKey ? null : subKey)}
                                 onGenerateImage={generateSingleScene}
                                 onRegenerateVideo={regenerateSingleVideo}
                                 onToggleSeed={toggleSceneSeed}
@@ -211,6 +223,8 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                                 seedSummary={seedSummaryText}
                                 isSelectedForVideo={isSceneSelectedForVideo(scene.id)}
                                 onToggleVideoSelection={(e?: React.MouseEvent) => toggleVideoSelection(scene.id, index, e?.shiftKey)}
+                                kenBurnsEffect={kenBurnsPerScene[scene.id]}
+                                onKenBurnsChange={(effect) => setKenBurnsForScene(scene.id, effect)}
                                 sceneImages={sceneImages[scene.id]}
                                 allPrompts={customPrompts}
                                 onSubPromptChange={updatePrompt}
@@ -362,6 +376,22 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                             <button className="btn-ghost sb-bottom-actions__btn" onClick={toggleAllVideoSelection}>
                                 {selectedForVideo.size > 0 ? '전체 해제' : '전체 선택'}
                             </button>
+                            <select
+                                className="sb-bottom-actions__ken-burns-select"
+                                value=""
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        setKenBurnsForAll(scenes.map((s) => s.id), e.target.value);
+                                        e.target.value = '';
+                                    }
+                                }}
+                            >
+                                <option value="" disabled>Ken Burns 일괄</option>
+                                <option value="none">효과 없음</option>
+                                <option value="zoom-in">줌인</option>
+                                <option value="zoom-out">줌아웃</option>
+                                <option value="pan-lr">패닝 (좌→우)</option>
+                            </select>
                             <button className="btn-secondary sb-bottom-actions__btn" onClick={generateSelectedVideos}>
                                 <Video size={14} /> 선택한 {new Set(Array.from(selectedForVideo).map((k) => k.split('-').slice(0, -1).join('-'))).size}개 씬 영상 생성
                             </button>

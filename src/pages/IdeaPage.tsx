@@ -1,21 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    Pencil, Wand2, Check, Minus, Plus, ArrowRight, RotateCcw, Loader,
-    FileText,
-} from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import WorkflowSteps, { narrationStepToGroup, narrationStepToSubKey } from '../components/WorkflowSteps';
 import { useProjectStore } from '../store/projectStore';
 import { mockScript, mockCardLibrary } from '../data/mockData';
-import { artStyles } from '../data/artStyles';
 import { getTemplateById, getTemplatesByMode } from '../data/templates';
 import type { Template } from '../data/templates';
 import { generateScript } from '../services/ai-llm';
 import { useCredits } from '../hooks/useCredits';
-import { getUserSelectableModels } from '../data/aiModels';
 import { useToast } from '../hooks/useToast';
-
-type InputMode = 'script' | 'idea';
+import PresetConfirmModal from '../components/idea/PresetConfirmModal';
+import IdeaResultPanel from '../components/idea/IdeaResultPanel';
+import ScriptInputPanel from '../components/idea/ScriptInputPanel';
+import type { InputMode } from '../components/idea/ScriptInputPanel';
+import IdeaSettingsPanel from '../components/idea/IdeaSettingsPanel';
 
 // ── 텍스트를 N개 씬으로 균등 분할하는 함수 ──
 function splitScriptIntoScenes(text: string, count: number) {
@@ -252,14 +250,24 @@ const IdeaPage: React.FC = () => {
         }
     };
 
-    // ── 스타일 그라디언트 ──
-    const getStyleGradient = (color: string) =>
-        `linear-gradient(145deg, ${color} 0%, ${color}88 50%, ${color}44 100%)`;
+    // 나레이션 모드 직접 입력 → 저장 후 이동
+    const handleNarrationScriptSave = () => {
+        setScenes([{
+            id: 'scene-1',
+            text: rawScript.trim(),
+            location: '', cameraAngle: '', imageUrl: '',
+            characters: [] as string[],
+            status: 'pending' as const,
+            checked: true,
+        }]);
+        setIsGenerated(true);
+        setNarrationStep(2);
+        navigate('/project/timeline');
+    };
 
     // ── 워크플로우 클릭 ──
     const handleMainClick = (step: number) => {
         if (mode === 'narration') {
-            // 나레이션 그룹 클릭
             const groupFirstStep: Record<number, number> = { 1: 1, 2: 4, 3: 6, 4: 8 };
             const groupRoute: Record<number, string> = {
                 1: '/project/idea', 2: '/project/storyboard',
@@ -277,12 +285,6 @@ const IdeaPage: React.FC = () => {
             }
         }
     };
-
-    const aspectOptions: { ratio: '16:9' | '9:16' | '1:1'; label: string }[] = [
-        { ratio: '16:9', label: '16:9' },
-        { ratio: '9:16', label: '9:16' },
-        { ratio: '1:1', label: '1:1' },
-    ];
 
     // ── 다음 버튼 활성화 조건 ──
     const canProceed = mode === 'narration'
@@ -356,345 +358,56 @@ const IdeaPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* ═══ 3분할 레이아웃 ═══ */}
+            {/* 3분할 레이아웃 */}
             <div className="idea-layout">
-                {/* ── 1열: 대본 작성 ── */}
-                <div className="idea-layout__script">
-                    <div className="idea-col-header">
-                        <h3 className="idea-col-title">1. 대본 작성</h3>
-                    </div>
+                <ScriptInputPanel
+                    inputMode={inputMode}
+                    rawScript={rawScript}
+                    ideaText={ideaText}
+                    sceneCount={sceneCount}
+                    mode={mode}
+                    aiModelPreferences={aiModelPreferences}
+                    currentTemplateSampleIdea={currentTemplate?.sampleIdea}
+                    onInputModeChange={setInputMode}
+                    onRawScriptChange={setRawScript}
+                    onIdeaTextChange={setIdeaText}
+                    onAiModelPreferenceChange={setAiModelPreference}
+                />
 
-                    {/* 입력 모드 탭 */}
-                    <div className="script-input-tabs" style={{ padding: '0 16px', marginBottom: 0 }}>
-                        <button
-                            className={`script-input-tab ${inputMode === 'idea' ? 'active' : ''}`}
-                            onClick={() => setInputMode('idea')}
-                        >
-                            <Wand2 size={13} /> 아이디어 입력
-                        </button>
-                        <button
-                            className={`script-input-tab ${inputMode === 'script' ? 'active' : ''}`}
-                            onClick={() => setInputMode('script')}
-                        >
-                            대본 직접 입력
-                        </button>
-                    </div>
+                <IdeaSettingsPanel
+                    mode={mode}
+                    templateId={templateId}
+                    artStyleId={artStyleId}
+                    aspectRatio={aspectRatio}
+                    sceneCount={sceneCount}
+                    modeTemplates={modeTemplates}
+                    currentTemplate={currentTemplate ?? null}
+                    rawScript={rawScript}
+                    ideaText={ideaText}
+                    inputMode={inputMode}
+                    isIdeaGenerating={isIdeaGenerating}
+                    onModeSwitch={handleModeSwitch}
+                    onPresetClick={handlePresetClick}
+                    onArtStyleChange={handleArtStyleChange}
+                    onAspectChange={handleAspectChange}
+                    onSceneCountChange={setSceneCount}
+                    onGenerateScript={handleGenerateScript}
+                    onIdeaGenerate={handleIdeaGenerate}
+                    onNarrationScriptSave={handleNarrationScriptSave}
+                />
 
-                    {/* 텍스트 입력 */}
-                    <div className="idea-col-body">
-                        {inputMode === 'script' ? (
-                            <textarea
-                                className="script-textarea idea-textarea"
-                                placeholder={`대본을 여기에 붙여넣거나 직접 입력하세요.\n\n문단을 빈 줄로 구분하면 씬 분할 시 기준으로 사용됩니다.`}
-                                value={rawScript}
-                                onChange={(e) => setRawScript(e.target.value)}
-                            />
-                        ) : (
-                            <textarea
-                                className="script-textarea idea-textarea"
-                                placeholder={currentTemplate?.sampleIdea || `영상의 아이디어나 줄거리를 자유롭게 입력하세요.\n\n예시: "1950년대 한국전쟁 중 미래에서 온 현대 군대가 타임포털을 통해 나타나 전세를 바꾼다."`}
-                                value={ideaText}
-                                onChange={(e) => setIdeaText(e.target.value)}
-                            />
-                        )}
-                    </div>
-
-                    {/* 씬 이미지 시각화 (씬 개수/분할 버튼은 2열로 이동) */}
-                    <div className="idea-col-footer">
-                        {mode === 'narration' ? (
-                            <div className="scene-image-preview">
-                                <div className="scene-image-preview__title" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                                    대본을 입력하면 음성을 먼저 생성합니다
-                                </div>
-                            </div>
-                        ) : (
-                        <div className="scene-image-preview">
-                            <div className="scene-image-preview__title">
-                                씬 {sceneCount}개 = 시작 이미지 {sceneCount}장 (약 {sceneCount * 5}초)
-                            </div>
-                            <div className="scene-image-preview__boxes">
-                                {Array.from({ length: Math.min(sceneCount, 12) }, (_, i) => (
-                                    <div key={i} className="scene-image-preview__box">
-                                        {String(i + 1).padStart(2, '0')}
-                                    </div>
-                                ))}
-                                {sceneCount > 12 && (
-                                    <span className="scene-image-preview__more">+{sceneCount - 12}</span>
-                                )}
-                            </div>
-                        </div>
-                        )}
-
-                        {inputMode === 'idea' && (
-                            <div className="ai-model-row">
-                                <label className="ai-model-row__label">대본 AI</label>
-                                <select
-                                    className="ai-model-select"
-                                    value={aiModelPreferences.script}
-                                    onChange={(e) => setAiModelPreference('script', e.target.value)}
-                                >
-                                    {getUserSelectableModels('script').map((m) => (
-                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* ── 2열: 설정 선택 ── */}
-                <div className="idea-layout__settings">
-                    <div className="idea-col-header">
-                        <h3 className="idea-col-title">2. 설정 선택</h3>
-                    </div>
-
-                    <div className="idea-settings-body">
-                        {/* 모드 전환 토글 */}
-                        <div className="idea-settings-section">
-                            <div className="idea-settings-label">영상 모드</div>
-                            <div className="idea-mode-toggle">
-                                <button
-                                    className={`idea-mode-toggle__btn ${mode === 'cinematic' ? 'active' : ''}`}
-                                    onClick={() => handleModeSwitch('cinematic')}
-                                >
-                                    🎬 시네마틱
-                                </button>
-                                <button
-                                    className={`idea-mode-toggle__btn ${mode === 'narration' ? 'active' : ''}`}
-                                    onClick={() => handleModeSwitch('narration')}
-                                >
-                                    🎙️ 나레이션
-                                </button>
-                            </div>
-                            <p className="idea-mode-toggle__hint">
-                                {mode === 'cinematic'
-                                    ? '영상 중심: 대본 → 스토리보드 → AI 이미지/영상 생성 → 편집 (예: 예고편, 다큐, MV)'
-                                    : '음성 중심: 대본 → TTS 음성 생성 → 자막 편집 → 이미지 배치 (예: 해설, 교육, 뉴스)'}
-                            </p>
-                        </div>
-
-                        {/* 프리셋 섹션 */}
-                        {modeTemplates.length > 0 && (
-                            <div className="idea-settings-section">
-                                <div className="idea-settings-label">
-                                    {mode === 'cinematic' ? '시네마틱 프리셋' : '나레이션 프리셋'}
-                                </div>
-                                <div className="idea-style-chips">
-                                    {modeTemplates.map((tmpl) => (
-                                        <button
-                                            key={tmpl.id}
-                                            className={`idea-style-chip ${templateId === tmpl.id ? 'selected' : ''}`}
-                                            onClick={() => handlePresetClick(tmpl)}
-                                        >
-                                            {tmpl.thumbnail ? (
-                                                <img src={tmpl.thumbnail} alt={tmpl.name} className="idea-style-chip__img" />
-                                            ) : (
-                                                <div className="idea-style-chip__img" style={{ background: 'var(--bg-tertiary)' }} />
-                                            )}
-                                            <span className="idea-style-chip__label">{tmpl.name}</span>
-                                            {templateId === tmpl.id && (
-                                                <Check size={12} className="idea-style-chip__check" />
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 프리셋 적용 안내 */}
-                        {templateId && currentTemplate && (
-                            <div className="preset-script-notice">
-                                '{currentTemplate.name}' 템플릿의 대본 작성 규칙이 적용됩니다
-                            </div>
-                        )}
-
-                        {/* 아트 스타일 */}
-                        <div className="idea-settings-section">
-                            <div className="idea-settings-label">아트 스타일</div>
-                            <div className="idea-style-chips">
-                                {artStyles.map((style) => (
-                                    <button
-                                        key={style.id}
-                                        className={`idea-style-chip ${artStyleId === style.id ? 'selected' : ''}`}
-                                        onClick={() => handleArtStyleChange(style.id)}
-                                    >
-                                        {style.thumbnail ? (
-                                            <img src={style.thumbnail} alt={style.nameKo} className="idea-style-chip__img" />
-                                        ) : (
-                                            <div
-                                                className="idea-style-chip__img"
-                                                style={{ background: getStyleGradient(style.color || '#333') }}
-                                            />
-                                        )}
-                                        <span className="idea-style-chip__label">{style.nameKo}</span>
-                                        {artStyleId === style.id && (
-                                            <Check size={12} className="idea-style-chip__check" />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* 화면 비율 */}
-                        <div className="idea-settings-section">
-                            <div className="idea-settings-label">화면 비율</div>
-                            <div className="idea-aspect-options">
-                                {aspectOptions.map((opt) => (
-                                    <button
-                                        key={opt.ratio}
-                                        className={`idea-aspect-btn ${aspectRatio === opt.ratio ? 'selected' : ''}`}
-                                        onClick={() => handleAspectChange(opt.ratio)}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* 씬 개수 선택 + 예상 시간 (나레이션 모드에서는 숨김) */}
-                        {mode !== 'narration' && (
-                            <div className="idea-settings-section">
-                                <div className="idea-settings-label">
-                                    씬 개수
-                                    {currentTemplate?.promptRules?.sceneSplitRules?.defaultSceneCount && (
-                                        <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
-                                            {' '}(템플릿 추천: {currentTemplate.promptRules.sceneSplitRules.defaultSceneCount}개)
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="scene-count-picker" style={{ justifyContent: 'flex-start' }}>
-                                    <button className="scene-count-btn" onClick={() => setSceneCount((n) => Math.max(1, n - 1))}>
-                                        <Minus size={12} />
-                                    </button>
-                                    <span className="scene-count-value">{sceneCount} scenes</span>
-                                    <button className="scene-count-btn" onClick={() => setSceneCount((n) => Math.min(30, n + 1))}>
-                                        <Plus size={12} />
-                                    </button>
-                                </div>
-                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                                    예상 영상 길이: 약 {sceneCount * 5}초 ({Math.floor(sceneCount * 5 / 60)}분 {(sceneCount * 5) % 60}초)
-                                </p>
-                            </div>
-                        )}
-
-                        {/* 씬 분할 / AI 생성 / 다음 버튼 */}
-                        <div className="idea-settings-section">
-                            {mode === 'narration' ? (
-                                inputMode === 'idea' ? (
-                                    <button
-                                        className="btn-primary"
-                                        style={{ width: '100%' }}
-                                        onClick={handleIdeaGenerate}
-                                        disabled={!ideaText.trim() || isIdeaGenerating}
-                                    >
-                                        {isIdeaGenerating ? (
-                                            <><Loader size={14} className="animate-spin" /> 생성 중...</>
-                                        ) : (
-                                            <><Wand2 size={14} /> AI로 대본 생성</>
-                                        )}
-                                    </button>
-                                ) : (
-                                    <button
-                                        className="btn-primary"
-                                        style={{ width: '100%' }}
-                                        onClick={() => {
-                                            // 대본 전체를 1개 씬으로 store에 저장 (나레이션은 TTS 후 분할)
-                                            setScenes([{
-                                                id: 'scene-1',
-                                                text: rawScript.trim(),
-                                                location: '', cameraAngle: '', imageUrl: '',
-                                                characters: [] as string[],
-                                                status: 'pending' as const,
-                                                checked: true,
-                                            }]);
-                                            setIsGenerated(true);
-                                            setNarrationStep(2);
-                                            navigate('/project/timeline');
-                                        }}
-                                        disabled={!rawScript.trim()}
-                                    >
-                                        다음: 음성 생성 <ArrowRight size={14} />
-                                    </button>
-                                )
-                            ) : (
-                                inputMode === 'script' ? (
-                                    <button className="btn-primary" style={{ width: '100%' }} onClick={handleGenerateScript}>
-                                        씬 분할하기 <ArrowRight size={14} />
-                                    </button>
-                                ) : (
-                                    <button
-                                        className="btn-primary"
-                                        style={{ width: '100%' }}
-                                        onClick={handleIdeaGenerate}
-                                        disabled={!ideaText.trim() || isIdeaGenerating}
-                                    >
-                                        {isIdeaGenerating ? (
-                                            <><Loader size={14} className="animate-spin" /> 생성 중...</>
-                                        ) : (
-                                            <><Wand2 size={14} /> AI로 대본 생성</>
-                                        )}
-                                    </button>
-                                )
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* ── 3열: 결과 (Script Breakdown) ── */}
-                <div className="idea-layout__result">
-                    <div className="idea-col-header idea-col-header--result">
-                        <h3 className="idea-col-title">3. 결과 확인</h3>
-                        {isGenerated && (
-                            <button className="btn-secondary script-reset-btn" onClick={handleReset}>
-                                <RotateCcw size={13} /> 다시 입력
-                            </button>
-                        )}
-                    </div>
-
-                    {isGenerated ? (
-                        <div className="idea-result-body">
-                            <div className="idea-result-meta">
-                                <span className="idea-result-count">{scenes.length}개 씬</span>
-                            </div>
-                            <div className="idea-scene-list">
-                                {scenes.map((scene, i) => (
-                                    <div key={scene.id} className="idea-scene-item">
-                                        <span className="script-scene-num">{String(i + 1).padStart(2, '0')}</span>
-                                        {editingSceneId === scene.id ? (
-                                            <textarea
-                                                className="script-scene-edit"
-                                                value={editingText}
-                                                onChange={(e) => setEditingText(e.target.value)}
-                                                onBlur={handleSaveEdit}
-                                                onKeyDown={(e) => e.key === 'Escape' && setEditingSceneId(null)}
-                                                autoFocus
-                                            />
-                                        ) : (
-                                            <p className="script-editor__scene-text">{scene.text}</p>
-                                        )}
-                                        <div className="script-scene-actions">
-                                            <button className="btn-icon" title="편집" onClick={() => handleEditScene(scene.id, scene.text)}>
-                                                <Pencil size={13} />
-                                            </button>
-                                            <div
-                                                className={`script-editor__scene-check ${scene.checked ? 'checked' : ''}`}
-                                                onClick={() => toggleSceneCheck(scene.id)}
-                                                title="씬 포함 여부"
-                                            >
-                                                <Check size={16} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="idea-layout__result-placeholder">
-                            <FileText size={32} opacity={0.15} />
-                            <p>대본을 생성하면 여기에 씬 목록이 표시됩니다</p>
-                        </div>
-                    )}
-                </div>
+                <IdeaResultPanel
+                    scenes={scenes}
+                    isGenerated={isGenerated}
+                    editingSceneId={editingSceneId}
+                    editingText={editingText}
+                    onEditScene={handleEditScene}
+                    onSaveEdit={handleSaveEdit}
+                    onEditingTextChange={setEditingText}
+                    onCancelEdit={() => setEditingSceneId(null)}
+                    onToggleSceneCheck={toggleSceneCheck}
+                    onReset={handleReset}
+                />
             </div>
 
             {/* Bottom Navigation */}
@@ -718,7 +431,6 @@ const IdeaPage: React.FC = () => {
                     disabled={!canProceed}
                     onClick={() => {
                         if (mode === 'narration') {
-                            // 대본이 store에 없으면 rawScript를 1개 씬으로 저장
                             if (scenes.length === 0 && rawScript.trim()) {
                                 setScenes([{
                                     id: 'scene-1',
@@ -740,31 +452,13 @@ const IdeaPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* ── 프리셋 확인 팝업 ── */}
+            {/* 프리셋 확인 팝업 */}
             {pendingPreset && (
-                <div className="preset-confirm-overlay" onClick={() => setPendingPreset(null)}>
-                    <div className="preset-confirm-modal" onClick={(e) => e.stopPropagation()}>
-                        <h3 className="preset-confirm-modal__title">
-                            '{pendingPreset.name}' 템플릿 적용
-                        </h3>
-                        <p className="preset-confirm-modal__desc">
-                            이 템플릿의 설정과 프롬프트 규칙을 모두 적용할까요?
-                        </p>
-                        <div className="preset-confirm-modal__info">
-                            <div>아트 스타일: {artStyles.find(s => s.id === pendingPreset.artStyleId)?.nameKo || pendingPreset.artStyleId}</div>
-                            <div>화면 비율: {pendingPreset.aspectRatio}</div>
-                            <div>추천 씬 수: {pendingPreset.promptRules?.sceneSplitRules?.defaultSceneCount || '-'}</div>
-                        </div>
-                        <div className="preset-confirm-modal__actions">
-                            <button className="btn-secondary" onClick={() => setPendingPreset(null)}>
-                                아니요
-                            </button>
-                            <button className="btn-primary" onClick={handlePresetConfirm}>
-                                <Check size={14} /> 예, 적용
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <PresetConfirmModal
+                    pendingPreset={pendingPreset}
+                    onConfirm={handlePresetConfirm}
+                    onCancel={() => setPendingPreset(null)}
+                />
             )}
         </div>
     );

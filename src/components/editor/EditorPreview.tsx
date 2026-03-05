@@ -78,9 +78,11 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
       <div className="vrew-preview__media">
         {isVideo ? (
           <video
+            key={clip.videoUrl}
             ref={videoRef}
             className="vrew-preview__video"
             src={clip.videoUrl}
+            autoPlay={isPlaying}
             loop
             muted
             playsInline

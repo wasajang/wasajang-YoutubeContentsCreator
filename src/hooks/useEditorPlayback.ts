@@ -16,6 +16,8 @@ interface UseEditorPlaybackOptions {
   playheadRef?: React.RefObject<HTMLDivElement | null>;
   /** 현재 타임라인의 pixelsPerSecond 값을 반환하는 콜백 */
   getTimelinePxPerSec?: () => number;
+  /** 외부에서 총 재생 시간을 실시간 참조 (시네마틱 모드용) */
+  getDuration?: () => number;
 }
 
 interface UseEditorPlaybackReturn {
@@ -36,6 +38,7 @@ export function useEditorPlayback({
   audioUrl,
   playheadRef,
   getTimelinePxPerSec,
+  getDuration,
 }: UseEditorPlaybackOptions): UseEditorPlaybackReturn {
   const [currentClipIndex, setCurrentClipIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -55,14 +58,24 @@ export function useEditorPlayback({
   useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
 
-  const totalDuration =
-    clips.length > 0
-      ? Math.max(...clips.map((c) => c.audioEndTime))
-      : 0;
+  const clipsBasedDuration = clips.length > 0
+    ? Math.max(...clips.map((c) => c.audioEndTime))
+    : 0;
+  const totalDuration = clipsBasedDuration || (getDuration?.() ?? 0);
+
+  // totalDurationRef: tick에서 항상 최신 값을 읽도록 (getDuration 포함)
+  const totalDurationRef = useRef(totalDuration);
+  // 매 렌더마다 갱신 (getDuration이 반환하는 값이 변할 수 있으므로)
+  totalDurationRef.current = clipsBasedDuration || (getDuration?.() ?? 0);
+
+  // clips ref (tick에서 최신 클립 참조)
+  const clipsRef = useRef(clips);
+  useEffect(() => { clipsRef.current = clips; }, [clips]);
 
   // requestAnimationFrame tick — 현재 시간 추적 + 클립 인덱스 동기화
   const tick = useCallback(() => {
     let time: number;
+    const dur = totalDurationRef.current;
 
     if (audioUrl && audioRef.current) {
       // 나레이션: Audio 기반
@@ -71,11 +84,16 @@ export function useEditorPlayback({
       // 시네마틱: rAF 타이머
       const elapsed = (performance.now() - timerStartRef.current) / 1000;
       time = playStartTimeRef.current + elapsed;
-      if (time >= totalDuration) {
+      if (dur > 0 && time >= dur) {
         // 끝 도달 시 정지
-        setCurrentTime(totalDuration);
+        setCurrentTime(dur);
         setIsPlaying(false);
         cancelAnimationFrame(animFrameRef.current);
+        return;
+      }
+      // duration이 0이면 재생 불가 — 다음 프레임까지 대기
+      if (dur <= 0) {
+        animFrameRef.current = requestAnimationFrame(tickRef.current);
         return;
       }
     }
@@ -88,14 +106,17 @@ export function useEditorPlayback({
     }
 
     // 클립 인덱스 동기화
-    const clip = findCurrentClip(time, clips as unknown as NarrationClip[]);
-    if (clip) {
-      const idx = clips.findIndex((c) => c.id === clip.id);
-      if (idx !== -1) setCurrentClipIndex(idx);
+    const currentClips = clipsRef.current;
+    if (currentClips.length > 0) {
+      const clip = findCurrentClip(time, currentClips as unknown as NarrationClip[]);
+      if (clip) {
+        const idx = currentClips.findIndex((c) => c.id === clip.id);
+        if (idx !== -1) setCurrentClipIndex(idx);
+      }
     }
 
     animFrameRef.current = requestAnimationFrame(tickRef.current);
-  }, [clips, audioUrl, totalDuration, playheadRef, getTimelinePxPerSec]);
+  }, [audioUrl, playheadRef, getTimelinePxPerSec]);
 
   tickRef.current = tick;
 

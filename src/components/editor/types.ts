@@ -39,37 +39,64 @@ export interface SubtitleItem {
   text: string;
 }
 
-/** 시네마틱 Scene[] → EditorClip[] 변환 */
+/** 에셋 적용 범위 — 하나의 이미지/영상이 여러 클립에 걸쳐 적용 (Vrew 스타일) */
+export interface MediaRange {
+  id: string;
+  type: 'image' | 'video';
+  url: string;
+  startClipIndex: number;       // 적용 시작 클립 인덱스 (0-based)
+  endClipIndex: number;         // 적용 끝 클립 인덱스 (inclusive)
+  videoStartOffset?: number;    // 비디오 시작점 오프셋 (초)
+  sceneId?: string;             // 원본 씬 ID
+}
+
+/** 시네마틱 Scene[] → EditorClip[] 변환 (서브씬 확장 지원) */
 export function scenesToEditorClips(
   scenes: Scene[],
   sceneDurations?: Record<string, number>,
+  videoCountPerScene?: Record<string, number>,
+  sceneImages?: Record<string, string[]>,
+  sceneVideos?: Record<string, string[]>,
 ): EditorClip[] {
   let acc = 0;
-  return scenes.map((s, i) => {
-    const duration = sceneDurations?.[s.id] ?? 5;
-    const clip: EditorClip = {
-      id: `editor-${s.id}`,
-      sceneId: s.id,
-      text: s.text,
-      sentences: [{
-        index: 0,
-        text: s.text,
-        startTime: acc,
-        endTime: acc + duration,
-      }],
-      imageUrl: s.imageUrl || '',
-      videoUrl: s.videoUrl || '',
-      isVideoEnabled: Boolean(s.videoUrl),
-      effect: 'none',
-      audioStartTime: acc,
-      audioEndTime: acc + duration,
-      duration,
-      order: i,
-      label: `씬 ${String(i + 1).padStart(2, '0')}`,
-    };
-    acc += duration;
-    return clip;
+  const clips: EditorClip[] = [];
+  let order = 0;
+
+  scenes.forEach((s, sceneIdx) => {
+    const vc = videoCountPerScene?.[s.id] || 1;
+
+    for (let sub = 0; sub < vc; sub++) {
+      const duration = sceneDurations?.[`${s.id}-${sub}`] ?? sceneDurations?.[s.id] ?? 5;
+      const imageUrl = sceneImages?.[s.id]?.[sub] || (sub === 0 ? (s.imageUrl || '') : '');
+      const videoUrl = sceneVideos?.[s.id]?.[sub] || (sub === 0 ? (s.videoUrl || '') : '');
+
+      clips.push({
+        id: `editor-${s.id}-${sub}`,
+        sceneId: s.id,
+        text: sub === 0 ? s.text : `(파트 ${sub + 1})`,
+        sentences: [{
+          index: 0,
+          text: sub === 0 ? s.text : `(파트 ${sub + 1})`,
+          startTime: acc,
+          endTime: acc + duration,
+        }],
+        imageUrl,
+        videoUrl,
+        isVideoEnabled: Boolean(videoUrl),
+        effect: 'none',
+        audioStartTime: acc,
+        audioEndTime: acc + duration,
+        duration,
+        order: order++,
+        label: vc > 1
+          ? `씬 ${String(sceneIdx + 1).padStart(2, '0')}-${sub + 1}`
+          : `씬 ${String(sceneIdx + 1).padStart(2, '0')}`,
+      });
+      acc += duration;
+    }
   });
+
+  return clips;
 }
 
 /** NarrationClip[] → EditorClip[] 변환 */

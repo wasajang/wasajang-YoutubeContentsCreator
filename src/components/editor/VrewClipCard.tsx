@@ -1,6 +1,6 @@
-// VrewClipCard — 개별 클립 카드 (Vrew 스타일 레이아웃: 토큰 + 자막 + 썸네일 + 버튼)
+// VrewClipCard — Vrew 스타일 클립 카드 (가로 2영역: 내용 + 썸네일)
 import React from 'react';
-import { Image, Video, Scissors, Trash2 } from 'lucide-react';
+import { Volume2, AlignJustify, Pencil, Play, Image } from 'lucide-react';
 import type { EditorClip } from './types';
 import VrewClipTokens from './VrewClipTokens';
 
@@ -17,6 +17,9 @@ interface VrewClipCardProps {
   onGenerateVideo: () => void;
   isGeneratingImage?: boolean;
   isGeneratingVideo?: boolean;
+  // 신규
+  appliedImageUrl?: string;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -32,25 +35,28 @@ const VrewClipCard: React.FC<VrewClipCardProps> = ({
   currentTime,
   onSelect,
   onSplitAtWord,
-  onMergeWithPrev,
-  onDelete,
-  onGenerateImage,
-  onGenerateVideo,
+  onMergeWithPrev: _onMergeWithPrev,
+  onDelete: _onDelete,
+  onGenerateImage: _onGenerateImage,
+  onGenerateVideo: _onGenerateVideo,
   isGeneratingImage = false,
   isGeneratingVideo = false,
+  appliedImageUrl,
+  onContextMenu,
 }) => {
   // sentences에서 모든 단어 평탄화
   const words = clip.sentences.flatMap((s) => s.words ?? []);
   const hasWords = words.length > 0;
 
-  // 생성 완료 상태
-  const hasImage = Boolean(clip.imageUrl);
-  const hasVideo = Boolean(clip.videoUrl);
-
-  const clipLabel = String(index + 1).padStart(2, '0');
+  const clipNum = String(index + 1).padStart(2, '0');
   const startLabel = formatTime(clip.audioStartTime);
-  const endLabel = formatTime(clip.audioEndTime);
-  const durationLabel = clip.duration.toFixed(1);
+  const durationLabel = clip.duration.toFixed(2);
+
+  // 썸네일: appliedImageUrl 우선, 없으면 clip.imageUrl
+  const thumbUrl = appliedImageUrl || clip.imageUrl;
+
+  // 로딩 중 표시
+  const isGenerating = isGeneratingImage || isGeneratingVideo;
 
   return (
     <div
@@ -61,128 +67,93 @@ const VrewClipCard: React.FC<VrewClipCardProps> = ({
         .filter(Boolean)
         .join(' ')}
       data-clip-id={clip.id}
+      onClick={onSelect}
+      onContextMenu={onContextMenu}
+      role="button"
+      tabIndex={0}
+      aria-label={`클립 ${clipNum} 선택`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
     >
-      {/* 헤더: 클립 번호, 시간 범위, 삭제 버튼 */}
-      <div
-        className="vrew-clip-card__header"
-        role="button"
-        tabIndex={0}
-        aria-label={`클립 ${clipLabel} 선택`}
-        onClick={onSelect}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onSelect();
-          }
-        }}
-      >
-        <span className="vrew-clip-card__label">클립 [{clipLabel}]</span>
-        <span className="vrew-clip-card__time">
-          {startLabel} — {endLabel}
-        </span>
-        <span className="vrew-clip-card__duration">지속: {durationLabel}s</span>
-        <div className="vrew-clip-card__header-actions">
+      {/* 왼쪽: 클립 내용 */}
+      <div className="vrew-clip-card__content">
+        {/* 상단 행: 번호 + 보이스 + 드래그핸들 + 토큰 + 편집 아이콘 */}
+        <div className="vrew-clip-card__header">
+          <span className="vrew-clip-card__num">{clipNum}</span>
+          <span className="vrew-clip-card__voice">
+            <Volume2 size={10} />
+            Fish-기본
+          </span>
+          <AlignJustify size={12} className="vrew-clip-card__drag-handle" />
+
+          {/* 단어 토큰 or 텍스트 폴백 */}
+          <div className="vrew-clip-card__tokens-wrap">
+            {hasWords ? (
+              <VrewClipTokens
+                words={words}
+                currentTime={currentTime}
+                clipAudioStart={clip.audioStartTime}
+                clipAudioEnd={clip.audioEndTime}
+                onSplitAfterWord={onSplitAtWord}
+              />
+            ) : (
+              <span className="vrew-clip-card__text-fallback">
+                {clip.text || '(텍스트 없음)'}
+              </span>
+            )}
+          </div>
+
           <button
-            className="vrew-clip-card__btn-delete"
-            title="클립 삭제"
-            aria-label="클립 삭제"
+            className="vrew-clip-card__edit-btn"
+            title="편집"
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              onContextMenu?.(e);
             }}
           >
-            <Trash2 size={14} />
+            <Pencil size={11} />
           </button>
         </div>
-      </div>
 
-      {/* 토큰 영역 */}
-      <div className="vrew-clip-card__tokens">
-        {hasWords ? (
-          <VrewClipTokens
-            words={words}
-            currentTime={currentTime}
-            clipAudioStart={clip.audioStartTime}
-            clipAudioEnd={clip.audioEndTime}
-            onSplitAfterWord={onSplitAtWord}
-          />
-        ) : (
-          <div className="vrew-clip-card__text-fallback">
-            {clip.text || '(텍스트 없음)'}
+        {/* 하단 행: ▶ + 자막 텍스트 */}
+        <div className="vrew-clip-card__subtitle-row">
+          <Play size={10} className="vrew-clip-card__play-icon" />
+          <span className="vrew-clip-card__subtitle-text">{clip.text}</span>
+        </div>
+
+        {/* 생성 중 인디케이터 */}
+        {isGenerating && (
+          <div className="vrew-clip-card__generating">
+            {isGeneratingImage ? '이미지 생성 중...' : '영상 생성 중...'}
           </div>
         )}
       </div>
 
-      {/* 자막 + 썸네일 */}
-      <div className="vrew-clip-card__body">
-        <div className="vrew-clip-card__subtitle">
-          <p className="vrew-clip-card__subtitle-text">{clip.text}</p>
-        </div>
-        <div className="vrew-clip-card__thumbnail">
-          {clip.imageUrl ? (
+      {/* 오른쪽: 썸네일 + 시간 */}
+      <div className="vrew-clip-card__thumb-col">
+        <div className="vrew-clip-card__thumb">
+          {thumbUrl ? (
             <img
-              src={clip.imageUrl}
-              alt={`클립 ${clipLabel} 썸네일`}
-              className="vrew-clip-card__thumbnail-img"
+              src={thumbUrl}
+              alt={`클립 ${clipNum} 썸네일`}
+              className="vrew-clip-card__thumb-img"
             />
           ) : (
-            <div className="vrew-clip-card__thumbnail-empty">
-              <Image size={24} />
+            <div className="vrew-clip-card__thumb-empty">
+              <Image size={16} />
             </div>
           )}
-          {clip.isVideoEnabled && clip.videoUrl && (
-            <span className="vrew-clip-card__video-badge" title="영상 있음">
-              <Video size={10} />
-            </span>
-          )}
         </div>
-      </div>
-
-      {/* 버튼 바 */}
-      <div className="vrew-clip-card__actions">
-        <button
-          className={[
-            'vrew-clip-card__btn',
-            isGeneratingImage ? 'vrew-clip-card__btn--loading' : '',
-            hasImage ? 'vrew-clip-card__btn--done' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          onClick={onGenerateImage}
-          disabled={isGeneratingImage}
-          title={hasImage ? '이미지 재생성' : '이미지 생성'}
-        >
-          <Image size={14} />
-          {isGeneratingImage ? '생성 중...' : hasImage ? '이미지 완료 ✓' : '이미지 생성'}
-        </button>
-
-        <button
-          className={[
-            'vrew-clip-card__btn',
-            isGeneratingVideo ? 'vrew-clip-card__btn--loading' : '',
-            hasVideo ? 'vrew-clip-card__btn--done' : '',
-            !clip.imageUrl ? 'vrew-clip-card__btn--disabled' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          onClick={onGenerateVideo}
-          disabled={isGeneratingVideo || !clip.imageUrl}
-          title={!clip.imageUrl ? '이미지 먼저 생성하세요' : hasVideo ? '영상 재생성' : '영상 생성'}
-        >
-          <Video size={14} />
-          {isGeneratingVideo ? '생성 중...' : hasVideo ? '영상 완료 ✓' : '영상 생성'}
-        </button>
-
-        {index > 0 && (
-          <button
-            className="vrew-clip-card__btn vrew-clip-card__btn--merge"
-            onClick={onMergeWithPrev}
-            title="이전 클립과 합치기"
-          >
-            <Scissors size={14} />
-            합치기
-          </button>
-        )}
+        <span className="vrew-clip-card__time">
+          {startLabel}
+        </span>
+        <span className="vrew-clip-card__time">
+          + {durationLabel}초
+        </span>
       </div>
     </div>
   );

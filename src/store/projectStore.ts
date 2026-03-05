@@ -185,6 +185,23 @@ export interface ProjectState {
   sceneSeeds: Record<string, string[]>;
   setSceneSeeds: (seeds: Record<string, string[]>) => void;
   updateSceneSeeds: (sceneId: string, seeds: string[]) => void;
+
+  // ── v16 신규: Ken Burns 효과 ──
+  kenBurnsPerScene: Record<string, string>; // sceneId → 'none'|'zoom-in'|'zoom-out'|'pan-lr'
+  setKenBurnsForScene: (sceneId: string, effect: string) => void;
+  setKenBurnsForAll: (sceneIds: string[], effect: string) => void;
+
+  // ── v15 신규: 에셋 적용 범위 (Vrew 스타일) ──
+  mediaRanges: Array<{
+    id: string;
+    type: 'image' | 'video';
+    url: string;
+    startClipIndex: number;
+    endClipIndex: number;
+    videoStartOffset?: number;
+    sceneId?: string;
+  }>;
+  setMediaRanges: (ranges: ProjectState['mediaRanges']) => void;
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -281,6 +298,8 @@ export const useProjectStore = create<ProjectState>()(
           narrationStep: 1,
           videoCountPerScene: {},
           sceneSeeds: {},
+          mediaRanges: [],
+          kenBurnsPerScene: {},
           // cardLibrary는 리셋하지 않음 — 카드 에셋은 프로젝트 간 유지
         })),
 
@@ -345,10 +364,25 @@ export const useProjectStore = create<ProjectState>()(
       // ── v14 신규: 씬별 캐스트 씨드 영속화 ──
       sceneSeeds: {},
       setSceneSeeds: (sceneSeeds) => set({ sceneSeeds }),
+      mediaRanges: [],
+      setMediaRanges: (mediaRanges) => set({ mediaRanges }),
       updateSceneSeeds: (sceneId, seeds) =>
         set((state) => ({
           sceneSeeds: { ...state.sceneSeeds, [sceneId]: seeds },
         })),
+
+      // ── v16 신규: Ken Burns 효과 ──
+      kenBurnsPerScene: {},
+      setKenBurnsForScene: (sceneId, effect) =>
+        set((state) => ({
+          kenBurnsPerScene: { ...state.kenBurnsPerScene, [sceneId]: effect },
+        })),
+      setKenBurnsForAll: (sceneIds, effect) =>
+        set((state) => {
+          const updated = { ...state.kenBurnsPerScene };
+          sceneIds.forEach((id) => { updated[id] = effect; });
+          return { kenBurnsPerScene: updated };
+        }),
     }),
     {
       name: 'antigravity-project',
@@ -500,6 +534,7 @@ export const useProjectStore = create<ProjectState>()(
         narrationStep: state.narrationStep,
         videoCountPerScene: state.videoCountPerScene,
         sceneSeeds: state.sceneSeeds,
+        kenBurnsPerScene: state.kenBurnsPerScene,
       }),
     }
   )

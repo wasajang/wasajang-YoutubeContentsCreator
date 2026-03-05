@@ -4,7 +4,7 @@
 import React from 'react';
 import {
   Play, Pause, SkipBack, SkipForward,
-  Scissors, Trash2,
+  Scissors, Trash2, Undo2, Redo2,
 } from 'lucide-react';
 
 interface EditorControlsProps {
@@ -21,6 +21,10 @@ interface EditorControlsProps {
   canSplit: boolean;
   canDelete: boolean;
   mode?: 'cinematic' | 'narration';
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 const formatTime = (sec: number): string => {
@@ -43,6 +47,10 @@ const EditorControls: React.FC<EditorControlsProps> = ({
   canSplit,
   canDelete,
   mode,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }) => {
   const label = mode === 'narration' ? '클립' : '씬';
   return (
@@ -82,6 +90,26 @@ const EditorControls: React.FC<EditorControlsProps> = ({
 
       {/* 편집 도구 */}
       <div className="vrew-controls__tools">
+        {onUndo && (
+          <button
+            className="vrew-controls__tool-btn"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="되돌리기 (Ctrl+Z)"
+          >
+            <Undo2 size={14} />
+          </button>
+        )}
+        {onRedo && (
+          <button
+            className="vrew-controls__tool-btn"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="다시실행 (Ctrl+Shift+Z)"
+          >
+            <Redo2 size={14} />
+          </button>
+        )}
         <button
           className="vrew-controls__tool-btn"
           onClick={onSplit}

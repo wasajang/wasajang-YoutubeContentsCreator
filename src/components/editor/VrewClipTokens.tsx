@@ -104,7 +104,12 @@ const VrewClipTokens: React.FC<VrewClipTokensProps> = ({
                   setSelectedSplitIndex(isSplitSelected ? null : idx);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSplitAfterWord(idx);
+                    setSelectedSplitIndex(null);
+                  } else if (e.key === ' ') {
                     e.preventDefault();
                     setSelectedSplitIndex(isSplitSelected ? null : idx);
                   }

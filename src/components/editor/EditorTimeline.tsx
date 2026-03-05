@@ -46,6 +46,8 @@ interface EditorTimelineProps {
   onEditSubtitleText?: (id: string, text: string) => void;
   onMoveAudio?: (id: string, newStartTime: number) => void;
   onMoveSubtitle?: (id: string, newStartTime: number) => void;
+  autoEditSubId?: string | null;
+  onAutoEditConsumed?: () => void;
 }
 
 const formatTime = (sec: number): string => {
@@ -85,6 +87,8 @@ const EditorTimeline: React.FC<EditorTimelineProps> = ({
   onEditSubtitleText,
   onMoveAudio,
   onMoveSubtitle,
+  autoEditSubId,
+  onAutoEditConsumed,
 }) => {
   const label = mode === 'narration' ? '클립' : '씬';
   const isCinematic = mode === 'cinematic';
@@ -165,14 +169,39 @@ const EditorTimeline: React.FC<EditorTimelineProps> = ({
   }, [dragIndex, onReorder]);
   const handleDragEnd = useCallback(() => { setDragIndex(null); setDropIndex(null); }, []);
 
-  // ── 눈금자 클릭 ──
-  const handleRulerClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!onSeek || totalDuration <= 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = e.clientX - rect.left + (scrollRef.current?.scrollLeft ?? 0);
-    const time = Math.max(0, Math.min(totalDuration, px / pixelsPerSecond));
-    onSeek(time);
-  }, [onSeek, totalDuration, pixelsPerSecond]);
+  // ── 눈금자 드래그 seek (mousedown → mousemove → mouseup) ──
+  const onSeekRef = useRef(onSeek);
+  onSeekRef.current = onSeek;
+  const ppsForSeekRef = useRef(pixelsPerSecond);
+  ppsForSeekRef.current = pixelsPerSecond;
+  const totalDurationRef = useRef(totalDuration);
+  totalDurationRef.current = totalDuration;
+
+  const calcTimeFromEvent = useCallback((clientX: number): number | null => {
+    const scrollEl = scrollRef.current;
+    const rulerEl = scrollEl?.querySelector('.vrew-timeline__ruler');
+    if (!rulerEl || totalDurationRef.current <= 0) return null;
+    const rect = rulerEl.getBoundingClientRect();
+    const px = clientX - rect.left;
+    return Math.max(0, Math.min(totalDurationRef.current, px / ppsForSeekRef.current));
+  }, []);
+
+  const handleRulerMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!onSeekRef.current) return;
+    const time = calcTimeFromEvent(e.clientX);
+    if (time !== null) onSeekRef.current(time);
+
+    const handleMove = (me: MouseEvent) => {
+      const t = calcTimeFromEvent(me.clientX);
+      if (t !== null) onSeekRef.current?.(t);
+    };
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, [calcTimeFromEvent]);
 
   // ── 블록 공통 ──
   const getBlockClass = (base: string, index: number, extra?: string) => {
@@ -306,6 +335,14 @@ const EditorTimeline: React.FC<EditorTimelineProps> = ({
   // ── 자막 인라인 편집 ──
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
 
+  // 외부에서 autoEditSubId가 전달되면 자동 편집 모드 진입
+  useEffect(() => {
+    if (autoEditSubId) {
+      setEditingSubId(autoEditSubId);
+      onAutoEditConsumed?.();
+    }
+  }, [autoEditSubId, onAutoEditConsumed]);
+
   return (
     <div className="vrew-timeline" onWheel={handleWheel}>
       <div className="vrew-timeline__layout">
@@ -326,13 +363,27 @@ const EditorTimeline: React.FC<EditorTimelineProps> = ({
 
         {/* 오른쪽: 가로 스크롤 영역 */}
         <div className="vrew-timeline__scroll" ref={scrollRef}>
-          <div className="vrew-timeline__inner" style={{ width: `${totalWidth}px` }}>
+          <div className="vrew-timeline__inner" style={{ width: `${totalWidth}px`, position: 'relative' }}>
+
+            {/* 플레이헤드 — 전체 트랙 관통 (inner 최상위) */}
+            {playheadRef ? (
+              <div
+                ref={playheadRef}
+                className="vrew-timeline__playhead vrew-timeline__playhead--gpu vrew-timeline__playhead--full"
+                style={{ transform: `translateX(${playheadPx}px)` }}
+              />
+            ) : (
+              <div
+                className="vrew-timeline__playhead vrew-timeline__playhead--full"
+                style={{ left: `${totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0}%` }}
+              />
+            )}
 
             {/* 시간 눈금자 */}
             <div
               className="vrew-timeline__ruler"
               style={{ width: `${totalWidth}px` }}
-              onClick={handleRulerClick}
+              onMouseDown={handleRulerMouseDown}
             >
               {timeMarkers.map((t) => (
                 <div
@@ -343,18 +394,6 @@ const EditorTimeline: React.FC<EditorTimelineProps> = ({
                   <span>{formatTime(t)}</span>
                 </div>
               ))}
-              {playheadRef ? (
-                <div
-                  ref={playheadRef}
-                  className="vrew-timeline__playhead vrew-timeline__playhead--gpu"
-                  style={{ transform: `translateX(${playheadPx}px)` }}
-                />
-              ) : (
-                <div
-                  className="vrew-timeline__playhead"
-                  style={{ left: `${totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0}%` }}
-                />
-              )}
             </div>
 
             {/* ═══ 영상 트랙 (변경 없음) ═══ */}
