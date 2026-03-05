@@ -20,6 +20,7 @@ interface EditorControlsProps {
   onDelete: () => void;
   canSplit: boolean;
   canDelete: boolean;
+  mode?: 'cinematic' | 'narration';
 }
 
 const formatTime = (sec: number): string => {
@@ -41,7 +42,9 @@ const EditorControls: React.FC<EditorControlsProps> = ({
   onDelete,
   canSplit,
   canDelete,
+  mode,
 }) => {
+  const label = mode === 'narration' ? '클립' : '씬';
   return (
     <div className="vrew-controls">
       {/* 재생 컨트롤 */}
@@ -50,7 +53,7 @@ const EditorControls: React.FC<EditorControlsProps> = ({
           className="vrew-controls__btn"
           onClick={onPrev}
           disabled={currentClipIndex <= 0}
-          title="이전 씬"
+          title={`이전 ${label}`}
         >
           <SkipBack size={16} />
         </button>
@@ -65,7 +68,7 @@ const EditorControls: React.FC<EditorControlsProps> = ({
           className="vrew-controls__btn"
           onClick={onNext}
           disabled={currentClipIndex >= clipCount - 1}
-          title="다음 씬"
+          title={`다음 ${label}`}
         >
           <SkipForward size={16} />
         </button>

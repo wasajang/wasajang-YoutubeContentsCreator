@@ -39,6 +39,14 @@
   --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
 
   --font-sans: 'Inter', 'Noto Sans KR', -apple-system, sans-serif;
+
+  --bg-elevated: #1e1e30;
+  --color-warning: #eab308;
+  --color-warning-bg: rgba(234, 179, 8, 0.15);
+  --color-warning-border: rgba(234, 179, 8, 0.4);
+  --color-warning-subtle: rgba(234, 179, 8, 0.04);
+  --color-warning-border-light: rgba(234, 179, 8, 0.3);
+  --color-warning-bg-light: rgba(234, 179, 8, 0.1);
 }
 
 /* ========== RESET & BASE ========== */
@@ -8292,9 +8300,21 @@ button.export-btn:disabled {
   transition: all 0.15s;
 }
 .narration-voice-step__timing-regen:hover {
-  background: rgba(234, 179, 8, 0.15);
-  border-color: rgba(234, 179, 8, 0.4);
-  color: #eab308;
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning);
+}
+.narration-voice-step__timing-regen--loading {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.narration-voice-step__timing-regen:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.narration-voice-step__timing-play:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .narration-voice-step__footer {
@@ -8457,8 +8477,8 @@ button.export-btn:disabled {
 }
 
 .narration-split-step__scene--warn {
-  border-color: rgba(234, 179, 8, 0.4);
-  background: rgba(234, 179, 8, 0.04);
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-subtle);
 }
 
 .narration-split-step__scene-header {
@@ -8483,7 +8503,7 @@ button.export-btn:disabled {
 }
 
 .narration-split-step__scene-duration--warn {
-  color: #eab308;
+  color: var(--color-warning);
 }
 
 .narration-split-step__warn-badge {
@@ -8491,10 +8511,10 @@ button.export-btn:disabled {
   align-items: center;
   gap: 0.25rem;
   padding: 0.15rem 0.5rem;
-  background: rgba(234, 179, 8, 0.15);
-  border: 1px solid rgba(234, 179, 8, 0.3);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border-light);
   border-radius: var(--radius-sm);
-  color: #eab308;
+  color: var(--color-warning);
   font-size: 0.6875rem;
   margin-left: 0.25rem;
 }
@@ -10765,10 +10785,30 @@ button.export-btn:disabled {
 /* ── 상단: 미리보기 + 대본 패널 ── */
 .vrew-editor__main {
   display: flex;
-  flex: 1;
+  /* flex는 인라인 style로 동적 조절 */
   min-height: 0;
   gap: 0;
+}
+
+/* ── 리사이즈 구분선 ── */
+.vrew-editor__divider {
+  height: 8px;
+  background: var(--bg-secondary, #141420);
+  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  cursor: row-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #666);
+  flex-shrink: 0;
+  user-select: none;
+  transition: background 0.15s;
+}
+.vrew-editor__divider:hover,
+.vrew-editor__divider:active {
+  background: var(--bg-tertiary, #1e1e30);
+  color: var(--color-primary, #7c5cfc);
 }
 .vrew-editor__preview-area {
   flex: 6;
@@ -10785,25 +10825,25 @@ button.export-btn:disabled {
 /* ── 타임라인 3열 레이아웃 (시네마틱 모드) ── */
 .vrew-editor__detail-area {
   flex: 3;
-  min-width: 0;
+  min-width: 200px;
   border-left: 1px solid var(--border-color);
   overflow-y: auto;
 }
 
-/* 3열 모드일 때 preview / script 비율 조정 */
+/* 3열 모드일 때 preview / script / detail 비율 조정 */
 .vrew-editor__main:has(.vrew-editor__detail-area) .vrew-editor__preview-area {
-  flex: 5;
+  flex: 3;
 }
 .vrew-editor__main:has(.vrew-editor__detail-area) .vrew-editor__script-area {
-  flex: 2;
+  flex: 3;
 }
 
 /* ── ClipDetailPanel ── */
 .clip-detail {
-  padding: 12px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
   height: 100%;
   overflow-y: auto;
 }
@@ -10811,11 +10851,11 @@ button.export-btn:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 8px;
+  padding-bottom: 4px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .clip-detail__scene-label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -10871,16 +10911,16 @@ button.export-btn:disabled {
 }
 .clip-detail__prompt-area {
   width: 100%;
-  padding: 8px;
+  padding: 4px 6px;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-family: 'Inter', monospace;
-  line-height: 1.5;
+  line-height: 1.4;
   resize: vertical;
-  min-height: 60px;
+  min-height: 36px;
 }
 .clip-detail__prompt-area:focus {
   border-color: var(--accent-primary);
@@ -10894,13 +10934,13 @@ button.export-btn:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 8px 16px;
+  gap: 4px;
+  padding: 4px 10px;
   background: var(--accent-primary);
   border: none;
   border-radius: var(--radius-sm);
   color: #fff;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -10939,14 +10979,14 @@ button.export-btn:disabled {
 .clip-detail__settings-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 4px;
+  margin-bottom: 4px;
 }
 .clip-detail__setting-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
+  padding: 4px 6px;
 }
 .clip-detail__setting-card--full {
   grid-column: 1 / -1;
@@ -10976,6 +11016,31 @@ button.export-btn:disabled {
   object-fit: contain;
   border-radius: 3px;
 }
+.clip-detail__thumb-placeholder {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed rgba(255,255,255,0.15);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 0.625rem;
+}
+.clip-detail__duration-select {
+  background: var(--bg-tertiary, rgba(255,255,255,0.06));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.clip-detail__duration-select:focus {
+  outline: 1px solid var(--accent-primary);
+}
 .clip-detail__setting-tags {
   display: flex;
   flex-wrap: wrap;
@@ -11001,16 +11066,61 @@ button.export-btn:disabled {
   background: rgba(99, 102, 241, 0.25);
 }
 
+/* ── 캐스트 카드 선택기 ── */
+.clip-detail__cast-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.clip-detail__cast-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 0.6rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.clip-detail__cast-chip:hover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+.clip-detail__cast-chip--selected {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: var(--accent-primary, #6366f1);
+  color: var(--accent-primary, #6366f1);
+}
+.clip-detail__cast-chip-img {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.clip-detail__cast-chip-name {
+  white-space: nowrap;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.clip-detail__cast-chip-x {
+  flex-shrink: 0;
+}
+
 /* 편집됨 안내 메시지 */
 .clip-detail__edited-notice {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: rgba(234, 179, 8, 0.1);
-  border: 1px solid rgba(234, 179, 8, 0.3);
+  background: var(--color-warning-bg-light);
+  border: 1px solid var(--color-warning-border-light);
   border-radius: var(--radius-sm);
-  color: #eab308;
+  color: var(--color-warning);
   font-size: 0.7rem;
   font-weight: 500;
   margin-bottom: 8px;
@@ -11097,7 +11207,7 @@ button.export-btn:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
   flex-shrink: 0;
 }
@@ -11116,11 +11226,11 @@ button.export-btn:disabled {
   padding: 6px;
 }
 .vrew-script-panel__item {
-  padding: 8px 10px;
-  border-radius: var(--radius-md, 10px);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm, 6px);
   cursor: pointer;
   transition: background var(--transition-normal, 250ms ease);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   border: 1px solid transparent;
 }
 .vrew-script-panel__item:hover {
@@ -11133,8 +11243,8 @@ button.export-btn:disabled {
 .vrew-script-panel__item-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
+  gap: 6px;
+  margin-bottom: 3px;
 }
 .vrew-script-panel__item-label {
   font-size: 0.75rem;
@@ -11150,11 +11260,11 @@ button.export-btn:disabled {
   width: 100%;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--text-secondary, #ccc);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  padding: 6px 8px;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  padding: 4px 6px;
   resize: vertical;
   font-family: inherit;
 }
@@ -11289,17 +11399,20 @@ button.export-btn:disabled {
 /* ── 3트랙 타임라인 (EditorTimeline v2) ── */
 /* 구조: .vrew-timeline > .vrew-timeline__layout > [labels | scroll] */
 .vrew-timeline {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
   background: var(--bg-primary, #0a0a0f);
   padding: 0 0 4px;
   position: relative;
   user-select: none;
+  overflow: hidden;
 }
 
 /* 2열: 고정 라벨 + 스크롤 영역 */
 .vrew-timeline__layout {
   display: flex;
   align-items: stretch;
+  height: 100%;
 }
 
 /* 왼쪽 고정 라벨 열 */
@@ -11332,15 +11445,15 @@ button.export-btn:disabled {
   white-space: nowrap;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.vrew-timeline__track-label:nth-child(2) { min-height: 40px; }  /* 영상 */
-.vrew-timeline__track-label:nth-child(3) { min-height: 28px; }  /* 음성 */
-.vrew-timeline__track-label:nth-child(4) { min-height: 28px; }  /* 자막 */
+.vrew-timeline__track-label:nth-child(2) { min-height: 60px; }  /* 영상 */
+.vrew-timeline__track-label:nth-child(3) { min-height: 48px; }  /* 음성 */
+.vrew-timeline__track-label:nth-child(4) { min-height: 48px; }  /* 자막 */
 
 /* 오른쪽 가로 스크롤 영역 */
 .vrew-timeline__scroll {
   flex: 1;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
   /* 스크롤바 스타일 */
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.15) transparent;
@@ -11429,7 +11542,7 @@ button.export-btn:disabled {
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .vrew-timeline__track--video-row {
-  min-height: 40px;
+  min-height: 60px;
   align-items: center;
 }
 
@@ -11456,7 +11569,7 @@ button.export-btn:disabled {
 
 /* 영상 트랙 블록 */
 .vrew-timeline__block--video {
-  min-height: 40px;
+  min-height: 60px;
   position: relative;
 }
 .vrew-timeline__block-thumb {
@@ -11501,7 +11614,7 @@ button.export-btn:disabled {
 
 /* 음성 트랙 블록 */
 .vrew-timeline__block--audio {
-  min-height: 28px;
+  min-height: 48px;
   background: rgba(255,255,255,0.02);
 }
 .vrew-timeline__block--has-audio {
@@ -11510,7 +11623,7 @@ button.export-btn:disabled {
 
 /* 자막 트랙 블록 */
 .vrew-timeline__block--subtitle {
-  min-height: 28px;
+  min-height: 48px;
 }
 .vrew-timeline__block-text {
   font-size: 0.5625rem;
@@ -11519,6 +11632,158 @@ button.export-btn:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── 독립 트랙 (시네마틱 멀티트랙) ── */
+.vrew-timeline__absolute-track {
+  position: relative;
+  height: 100%;
+  min-height: 48px;
+}
+.vrew-timeline__track--audio-row {
+  position: relative;
+}
+.vrew-timeline__track--subtitle-row {
+  position: relative;
+}
+
+/* + 버튼 (호버 시 나타남) */
+.vrew-timeline__track-add-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 3;
+  padding: 0;
+  transition: background 150ms, border-color 150ms;
+}
+.vrew-timeline__track-add-btn:hover {
+  background: var(--accent-primary, #e91e8c);
+  border-color: var(--accent-primary, #e91e8c);
+  color: #fff;
+}
+
+/* 오디오 아이템 */
+.vrew-timeline__audio-item {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 4px;
+  cursor: default;
+  overflow: hidden;
+  z-index: 2;
+}
+.vrew-timeline__audio-item:hover {
+  background: rgba(168, 85, 247, 0.3);
+}
+.vrew-timeline__audio-item:active {
+  cursor: grabbing;
+  opacity: 0.8;
+}
+
+/* 자막 아이템 */
+.vrew-timeline__subtitle-item {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 4px;
+  cursor: default;
+  overflow: hidden;
+  z-index: 2;
+}
+.vrew-timeline__subtitle-item:hover {
+  background: rgba(59, 130, 246, 0.3);
+}
+.vrew-timeline__subtitle-item:active {
+  cursor: grabbing;
+  opacity: 0.8;
+}
+
+/* 아이템 공통 텍스트 */
+.vrew-timeline__item-text {
+  font-size: 0.5625rem;
+  color: rgba(255,255,255,0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 아이템 삭제 버튼 */
+.vrew-timeline__item-delete {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  padding: 1px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.vrew-timeline__audio-item:hover .vrew-timeline__item-delete,
+.vrew-timeline__subtitle-item:hover .vrew-timeline__item-delete {
+  opacity: 1;
+}
+.vrew-timeline__item-delete:hover {
+  color: #ef4444;
+}
+
+/* 자막 리사이즈 핸들 */
+.vrew-timeline__resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 4;
+}
+.vrew-timeline__resize-handle--left {
+  left: 0;
+  border-left: 2px solid transparent;
+}
+.vrew-timeline__resize-handle--right {
+  right: 0;
+  border-right: 2px solid transparent;
+}
+.vrew-timeline__resize-handle:hover {
+  border-color: rgba(59, 130, 246, 0.8);
+}
+
+/* 자막 인라인 편집 */
+.vrew-timeline__subtitle-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--accent-primary);
+  color: #fff;
+  font-size: 0.5625rem;
+  padding: 1px 4px;
+  border-radius: 2px;
+  outline: none;
 }
 
 /* ── 드래그 이동 ── */
@@ -11562,39 +11827,54 @@ button.export-btn:disabled {
 
 /* ── Part C: 씬 삽입 버튼 ── */
 .vrew-timeline__insert-zone {
-  width: 8px;
+  width: 0;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  align-self: stretch;
   position: relative;
-  cursor: pointer;
-  transition: width 150ms;
+  overflow: visible;
+  z-index: 5;
 }
-.vrew-timeline__insert-zone:hover,
-.vrew-timeline__insert-zone--visible {
-  width: 20px;
+/* 보이지 않는 호버 감지 영역 (좌우 10px씩 = 20px 너비) */
+.vrew-timeline__insert-zone::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -10px;
+  right: -10px;
+  z-index: 5;
+  cursor: pointer;
 }
 .vrew-timeline__insert-btn {
-  width: 18px;
-  height: 18px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--accent-primary, #e91e8c);
   color: #fff;
-  border: none;
-  display: none;
+  border: 2px solid rgba(0,0,0,0.3);
+  display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
-  z-index: 4;
+  z-index: 6;
   opacity: 0;
-  transition: opacity 120ms;
+  pointer-events: none;
+  transition: opacity 150ms, transform 150ms;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 .vrew-timeline__insert-zone:hover .vrew-timeline__insert-btn,
 .vrew-timeline__insert-zone--visible .vrew-timeline__insert-btn {
-  display: flex;
   opacity: 1;
+  pointer-events: auto;
+}
+.vrew-timeline__insert-btn:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
 /* ── 대본 패널 미디어 플로우 ── */
@@ -11699,6 +11979,141 @@ button.export-btn:disabled {
 .vrew-script-panel__insert-btn:hover {
   transform: translateY(-50%) scale(1.15);
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+
+/* ── ScriptPanel 컴팩트 레이아웃 (v2) ── */
+.vrew-script-panel__compact-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.vrew-script-panel__media-compact {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.vrew-script-panel__thumb-sm {
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--bg-tertiary, rgba(255,255,255,0.03));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vrew-script-panel__thumb-sm--landscape {
+  width: 56px;
+  height: 32px;
+}
+.vrew-script-panel__thumb-sm--portrait {
+  width: 28px;
+  height: 50px;
+}
+.vrew-script-panel__thumb-sm--square {
+  width: 40px;
+  height: 40px;
+}
+.vrew-script-panel__thumb-sm img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.vrew-script-panel__thumb-video-sm {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.vrew-script-panel__arrow-sm {
+  color: var(--text-muted);
+  font-size: 0.6rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.vrew-script-panel__no-media {
+  font-size: 0.5rem;
+  color: var(--text-muted);
+}
+.vrew-script-panel__text-area {
+  flex: 1;
+  min-width: 0;
+}
+.vrew-script-panel__regen-btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.12);
+  border: none;
+  color: var(--accent-primary, #6366f1);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.vrew-script-panel__regen-btn-sm:hover {
+  background: rgba(99, 102, 241, 0.25);
+}
+.vrew-script-panel__regen-btn-sm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── TTS 생성 팝업 ── */
+.tts-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.tts-popup {
+  background: var(--bg-primary, #1a1a2e);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px;
+  width: min(420px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tts-popup__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tts-popup__header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+.tts-popup__time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.tts-popup__textarea {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  padding: 10px;
+  resize: vertical;
+  min-height: 60px;
+}
+.tts-popup__textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+.tts-popup__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* ── 네비게이션 버튼 ── */

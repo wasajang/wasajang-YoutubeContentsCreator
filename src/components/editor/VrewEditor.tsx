@@ -9,6 +9,7 @@
  * 시네마틱 + 나레이션 양쪽 모드 지원
  */
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { GripHorizontal } from 'lucide-react';
 import { useProjectStore } from '../../store/projectStore';
 import type { NarrationClip, AssetCard } from '../../store/projectStore';
 import { useEditorPlayback } from '../../hooks/useEditorPlayback';
@@ -17,6 +18,8 @@ import {
   narrationToEditorClips,
   editorClipsToNarration,
   type EditorClip,
+  type AudioItem,
+  type SubtitleItem,
 } from './types';
 import {
   splitClip,
@@ -38,6 +41,7 @@ import { useVideoRegeneration } from '../../hooks/useVideoRegeneration';
 import { useImageRegeneration } from '../../hooks/useImageRegeneration';
 import { useNarrationClipGeneration } from '../../hooks/useNarrationClipGeneration';
 import { buildImagePrompt, buildVideoPrompt } from '../../services/prompt-builder';
+import { generateTTS } from '../../services/ai-tts';
 
 interface VrewEditorProps {
   onNext?: () => void;
@@ -87,12 +91,20 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
   const selectedDeck = useProjectStore((s) => s.selectedDeck);
   const storeSceneImages = useProjectStore((s) => s.sceneImages);
   const sceneSeeds = useProjectStore((s) => s.sceneSeeds);
+  const updateSceneSeeds = useProjectStore((s) => s.updateSceneSeeds);
   const sceneVideos = useProjectStore((s) => s.sceneVideos);
+
+  // 시네마틱 모드: 씬별 영상 길이 (기본 5초)
+  const [sceneDurations, setSceneDurations] = useState<Record<string, number>>({});
 
   // 시네마틱 모드: 로컬 클립 상태
   const [cinematicClips, setCinematicClips] = useState<EditorClip[]>(() =>
-    scenesToEditorClips(scenes)
+    scenesToEditorClips(scenes, sceneDurations)
   );
+
+  // 시네마틱 모드: 독립 음성/자막 아이템
+  const [audioItems, setAudioItems] = useState<AudioItem[]>([]);
+  const [subtitleItems, setSubtitleItems] = useState<SubtitleItem[]>([]);
 
   // 시네마틱 모드: 프롬프트 상태 + 재생성 훅
   const [clipPrompts, setClipPrompts] = useState<Record<string, { image: string; video: string }>>({});
@@ -101,6 +113,12 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
 
   // 나레이션 모드: 이미지/영상 생성 훅 (항상 호출, 모드 무관하게 — React 규칙 준수)
   const clipGen = useNarrationClipGeneration();
+
+  // sceneDurations 변경 시 cinematicClips 재계산
+  useEffect(() => {
+    if (mode !== 'cinematic') return;
+    setCinematicClips(scenesToEditorClips(scenes, sceneDurations));
+  }, [mode, sceneDurations]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 나레이션 클립에 words 자동 보정 (enrichWithWordTimings)
   const enrichedNarrationClips = useMemo(() => {
@@ -121,6 +139,33 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
   );
 
   const audioUrl = mode === 'narration' ? narrativeAudioUrl : '';
+
+  // ── 리사이즈 구분선: 상단(미리보기) ↔ 하단(타임라인) ──
+  const [mainFlex, setMainFlex] = useState(42); // 상단 비율 (%) — 타임라인에 더 많은 공간
+  const dividerRef = useRef<HTMLDivElement | null>(null);
+  const editorContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const container = editorContainerRef.current;
+    if (!container) return;
+    const startY = e.clientY;
+    const startFlex = mainFlex;
+    const containerH = container.getBoundingClientRect().height;
+
+    const handleMove = (me: MouseEvent) => {
+      const dy = me.clientY - startY;
+      const pctDelta = (dy / containerH) * 100;
+      const newFlex = Math.min(80, Math.max(25, startFlex + pctDelta));
+      setMainFlex(newFlex);
+    };
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, [mainFlex]);
 
   // GPU 가속 플레이헤드 ref
   const playheadRef = useRef<HTMLDivElement | null>(null);
@@ -195,6 +240,55 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
       );
     }
   }, [clipPrompts, storeSceneImages, scenes, regenerateVideo]);
+
+  // 영상 길이 변경 핸들러
+  const handleDurationChange = useCallback((sceneId: string, duration: number) => {
+    setSceneDurations((prev) => ({ ...prev, [sceneId]: duration }));
+  }, []);
+
+  // 캐스트 카드 토글 핸들러
+  const handleToggleCard = useCallback((cardId: string) => {
+    if (!currentClip) return;
+    const sceneId = currentClip.sceneId;
+    const currentSeeds = sceneSeeds[sceneId] ?? [...selectedDeck];
+    const newSeeds = currentSeeds.includes(cardId)
+      ? currentSeeds.filter((id) => id !== cardId)
+      : [...currentSeeds, cardId];
+    updateSceneSeeds(sceneId, newSeeds);
+
+    // 이미지 프롬프트 자동 재생성
+    const seedCards: AssetCard[] = newSeeds
+      .map((id) => cardLibrary.find((c) => c.id === id))
+      .filter((c): c is AssetCard => !!c);
+    const scene = scenes.find((s) => s.id === sceneId);
+    if (scene) {
+      setClipPrompts((prev) => ({
+        ...prev,
+        [sceneId]: {
+          ...prev[sceneId],
+          image: buildImagePrompt({
+            artStyleId,
+            sceneText: scene.text,
+            seedCards,
+            templateId: templateId ?? undefined,
+          }),
+        },
+      }));
+    }
+  }, [currentClip, sceneSeeds, selectedDeck, updateSceneSeeds, cardLibrary, scenes, artStyleId, templateId]);
+
+  // 사용 가능한 캐스트 카드 목록 (selectedDeck 기반)
+  const availableCastCards = useMemo(() => {
+    return selectedDeck
+      .map((id) => cardLibrary.find((c) => c.id === id))
+      .filter((c): c is AssetCard => !!c);
+  }, [selectedDeck, cardLibrary]);
+
+  // 현재 씬의 선택된 캐스트 카드 IDs
+  const currentSceneCardIds = useMemo(() => {
+    if (!currentClip) return [];
+    return sceneSeeds[currentClip.sceneId] ?? [...selectedDeck];
+  }, [currentClip, sceneSeeds, selectedDeck]);
 
   // 이미지 재생성 핸들러
   const handleRegenerateImage = useCallback(async (sceneId: string) => {
@@ -346,15 +440,17 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     if (clips.length > 0) setCurrentClipIndex(clips.length - 1);
   }, [clips, seekToTime, setCurrentClipIndex]);
 
-  // 씬 삽입 (Part C)
+  // 씬 삽입 (Part C) — 기본 5초, sceneDurations에 따라 재조정
   const handleInsertScene = useCallback((afterIndex: number) => {
     const insertIndex = afterIndex + 1;
     const prevClip = clips[afterIndex];
     if (!prevClip) return;
 
+    const defaultDuration = 5;
+    const newSceneId = `scene-new-${Date.now()}`;
     const newClip: EditorClip = {
-      id: `scene-new-${Date.now()}`,
-      sceneId: `scene-new-${Date.now()}`,
+      id: newSceneId,
+      sceneId: newSceneId,
       text: '',
       sentences: [],
       imageUrl: '',
@@ -362,8 +458,8 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
       isVideoEnabled: false,
       effect: 'none',
       audioStartTime: prevClip.audioEndTime,
-      audioEndTime: prevClip.audioEndTime + 5,
-      duration: 5,
+      audioEndTime: prevClip.audioEndTime + defaultDuration,
+      duration: defaultDuration,
       order: insertIndex,
       label: '',
     };
@@ -371,18 +467,108 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     const newClips = [...clips];
     newClips.splice(insertIndex, 0, newClip);
 
-    // 삽입 지점 이후 시간 +5초 재조정
+    // 삽입 지점 이후 시간 재조정
     for (let i = insertIndex + 1; i < newClips.length; i++) {
       newClips[i] = {
         ...newClips[i],
-        audioStartTime: newClips[i].audioStartTime + 5,
-        audioEndTime: newClips[i].audioEndTime + 5,
+        audioStartTime: newClips[i].audioStartTime + defaultDuration,
+        audioEndTime: newClips[i].audioEndTime + defaultDuration,
       };
     }
 
     updateClips(relabel(newClips));
     setCurrentClipIndex(insertIndex);
   }, [clips, updateClips, setCurrentClipIndex]);
+
+  // ── 시네마틱 멀티트랙: 음성 아이템 ──
+  const handleAddAudio = useCallback((startTime: number) => {
+    setTtsPopup({ startTime });
+    setTtsText('');
+  }, []);
+
+  const handleDeleteAudio = useCallback((id: string) => {
+    setAudioItems((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  const handleMoveAudio = useCallback((id: string, newStartTime: number) => {
+    setAudioItems((prev) =>
+      prev.map((a) => {
+        if (a.id !== id) return a;
+        const dur = a.endTime - a.startTime;
+        return { ...a, startTime: newStartTime, endTime: newStartTime + dur };
+      }).sort((a, b) => a.startTime - b.startTime)
+    );
+  }, []);
+
+  // ── 시네마틱 멀티트랙: 자막 아이템 ──
+  const handleAddSubtitle = useCallback((startTime: number) => {
+    const newItem: SubtitleItem = {
+      id: `sub-${Date.now()}`,
+      startTime,
+      endTime: Math.min(startTime + 3, totalDuration), // 기본 3초
+      text: '',
+    };
+    setSubtitleItems((prev) =>
+      [...prev, newItem].sort((a, b) => a.startTime - b.startTime)
+    );
+  }, [totalDuration]);
+
+  const handleDeleteSubtitle = useCallback((id: string) => {
+    setSubtitleItems((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
+  const handleMoveSubtitle = useCallback((id: string, newStartTime: number) => {
+    setSubtitleItems((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        const dur = s.endTime - s.startTime;
+        return { ...s, startTime: newStartTime, endTime: newStartTime + dur };
+      }).sort((a, b) => a.startTime - b.startTime)
+    );
+  }, []);
+
+  const handleResizeSubtitle = useCallback((id: string, startTime: number, endTime: number) => {
+    setSubtitleItems((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, startTime, endTime } : s))
+    );
+  }, []);
+
+  const handleEditSubtitleText = useCallback((id: string, text: string) => {
+    setSubtitleItems((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, text } : s))
+    );
+  }, []);
+
+  // ── TTS 생성 팝업 상태 ──
+  const [ttsPopup, setTtsPopup] = useState<{ startTime: number } | null>(null);
+  const [ttsText, setTtsText] = useState('');
+  const [isTtsGenerating, setIsTtsGenerating] = useState(false);
+
+  const handleGenerateTts = useCallback(async () => {
+    if (!ttsPopup || !ttsText.trim()) return;
+    setIsTtsGenerating(true);
+    try {
+      const result = await generateTTS({
+        text: ttsText.trim(),
+        clipId: `tts-${Date.now()}`,
+      });
+      const newItem: AudioItem = {
+        id: `audio-${Date.now()}`,
+        startTime: ttsPopup.startTime,
+        endTime: ttsPopup.startTime + result.estimatedDuration,
+        audioUrl: result.audioUrl,
+        text: ttsText.trim(),
+      };
+      setAudioItems((prev) =>
+        [...prev, newItem].sort((a, b) => a.startTime - b.startTime)
+      );
+      setTtsPopup(null);
+    } catch (err) {
+      console.error('[VrewEditor] TTS 생성 실패:', err);
+    } finally {
+      setIsTtsGenerating(false);
+    }
+  }, [ttsPopup, ttsText]);
 
   // 이전/다음 클립 이동
   const handlePrevClip = useCallback(() => {
@@ -445,21 +631,22 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
   if (clips.length === 0) {
     return (
       <div className="vrew-editor vrew-editor--empty">
-        <p>편집할 씬이 없습니다.</p>
+        <p>편집할 클립이 없습니다.</p>
       </div>
     );
   }
 
   return (
-    <div className="vrew-editor">
+    <div className="vrew-editor" ref={editorContainerRef}>
       {/* 상단: 미리보기 + 대본 패널 (+ 시네마틱 모드: 클립 상세 패널) */}
-      <div className="vrew-editor__main">
+      <div className="vrew-editor__main" style={{ flex: `${mainFlex} 0 0%` }}>
         <div className="vrew-editor__preview-area">
           <EditorPreview
             clip={currentClip}
             currentTime={currentTime}
             isPlaying={isPlaying}
             currentWord={currentWord}
+            subtitleItems={mode === 'cinematic' ? subtitleItems : undefined}
           />
         </div>
         <div className="vrew-editor__script-area">
@@ -538,22 +725,30 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
                   ? (storeSceneImages[currentClip.sceneId]?.[0] || currentClip.imageUrl)
                   : ''
               }
+              onDurationChange={(duration) => {
+                if (currentClip) handleDurationChange(currentClip.sceneId, duration);
+              }}
               isEdited={currentClip?.isEdited}
-              castNames={(() => {
-                // 씬별 캐스트 씨드가 있으면 해당 씨드 사용, 없으면 전체 덱 사용
-                const sceneId = currentClip?.sceneId;
-                const seedIds = sceneId && sceneSeeds[sceneId]?.length
-                  ? sceneSeeds[sceneId]
-                  : selectedDeck;
-                return seedIds
-                  .map((id) => cardLibrary.find((c) => c.id === id))
-                  .filter((c): c is AssetCard => !!c)
-                  .map((c) => c.name)
-                  .slice(0, 5);
-              })()}
+              castNames={currentSceneCardIds
+                .map((id) => cardLibrary.find((c) => c.id === id))
+                .filter((c): c is AssetCard => !!c)
+                .map((c) => c.name)
+                .slice(0, 5)}
+              availableCards={availableCastCards}
+              selectedCardIds={currentSceneCardIds}
+              onToggleCard={handleToggleCard}
             />
           </div>
         )}
+      </div>
+
+      {/* 리사이즈 구분선 */}
+      <div
+        ref={dividerRef}
+        className="vrew-editor__divider"
+        onMouseDown={handleDividerMouseDown}
+      >
+        <GripHorizontal size={14} />
       </div>
 
       {/* 중간: 컨트롤 */}
@@ -570,9 +765,11 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
         onDelete={handleDelete}
         canSplit={canSplit}
         canDelete={canDelete}
+        mode={mode}
       />
 
       {/* 하단: 타임라인 */}
+      <div style={{ flex: `${100 - mainFlex} 0 0%`, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <EditorTimeline
         clips={clips}
         currentClipIndex={currentClipIndex}
@@ -585,7 +782,57 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
         playheadRef={playheadRef}
         onInsertScene={handleInsertScene}
         onPpsChange={(getter) => { ppsGetterRef.current = getter; }}
+        mode={mode}
+        audioItems={mode === 'cinematic' ? audioItems : undefined}
+        subtitleItems={mode === 'cinematic' ? subtitleItems : undefined}
+        onAddAudio={mode === 'cinematic' ? handleAddAudio : undefined}
+        onAddSubtitle={mode === 'cinematic' ? handleAddSubtitle : undefined}
+        onDeleteAudio={mode === 'cinematic' ? handleDeleteAudio : undefined}
+        onDeleteSubtitle={mode === 'cinematic' ? handleDeleteSubtitle : undefined}
+        onResizeSubtitle={mode === 'cinematic' ? handleResizeSubtitle : undefined}
+        onEditSubtitleText={mode === 'cinematic' ? handleEditSubtitleText : undefined}
+        onMoveAudio={mode === 'cinematic' ? handleMoveAudio : undefined}
+        onMoveSubtitle={mode === 'cinematic' ? handleMoveSubtitle : undefined}
       />
+      </div>
+
+      {/* TTS 생성 팝업 (시네마틱 모드) */}
+      {ttsPopup && (
+        <div className="tts-popup-overlay" onClick={() => setTtsPopup(null)}>
+          <div className="tts-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="tts-popup__header">
+              <h3>음성 생성 (TTS)</h3>
+              <span className="tts-popup__time">
+                시작: {(() => {
+                  const m = Math.floor(ttsPopup.startTime / 60);
+                  const s = Math.floor(ttsPopup.startTime % 60);
+                  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                })()}
+              </span>
+            </div>
+            <textarea
+              className="tts-popup__textarea"
+              value={ttsText}
+              onChange={(e) => setTtsText(e.target.value)}
+              placeholder="음성으로 변환할 텍스트를 입력하세요..."
+              rows={3}
+              autoFocus
+            />
+            <div className="tts-popup__actions">
+              <button className="btn-secondary" onClick={() => setTtsPopup(null)}>
+                취소
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleGenerateTts}
+                disabled={isTtsGenerating || !ttsText.trim()}
+              >
+                {isTtsGenerating ? '생성 중...' : '음성 생성'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 네비게이션 */}
       {(onPrev || onNext) && (

@@ -5,7 +5,7 @@
  * videoRef: 비디오 재생을 currentTime/isPlaying과 동기화
  */
 import React, { useRef, useEffect } from 'react';
-import type { EditorClip } from './types';
+import type { EditorClip, SubtitleItem } from './types';
 import type { WordTiming } from '../../store/projectStore';
 
 interface EditorPreviewProps {
@@ -13,6 +13,7 @@ interface EditorPreviewProps {
   currentTime: number;
   isPlaying: boolean;
   currentWord?: WordTiming | null;
+  subtitleItems?: SubtitleItem[];
 }
 
 const EditorPreview: React.FC<EditorPreviewProps> = ({
@@ -20,6 +21,7 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
   currentTime,
   isPlaying,
   currentWord,
+  subtitleItems,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -101,26 +103,39 @@ const EditorPreview: React.FC<EditorPreviewProps> = ({
         {/* 씬 라벨 */}
         <div className="vrew-preview__label">{clip.label}</div>
 
-        {/* 자막 오버레이 — 단어별 하이라이트 */}
-        {currentSentence && (
-          <div className="vrew-preview__subtitle">
-            {hasWords ? (
-              currentSentence.words!.map((word, i) => (
-                <span
-                  key={`${word.startTime}-${i}`}
-                  className={`subtitle-word${
-                    currentWord && word.startTime === currentWord.startTime
-                      ? ' subtitle-word--active'
-                      : ''
-                  }`}
-                >
-                  {word.text}{' '}
-                </span>
-              ))
-            ) : (
-              currentSentence.text
-            )}
-          </div>
+        {/* 자막 오버레이 */}
+        {subtitleItems && subtitleItems.length > 0 ? (
+          /* 시네마틱: 독립 자막 아이템 기반 */
+          (() => {
+            const activeSub = subtitleItems.find(
+              (s) => currentTime >= s.startTime && currentTime < s.endTime
+            );
+            return activeSub ? (
+              <div className="vrew-preview__subtitle">{activeSub.text}</div>
+            ) : null;
+          })()
+        ) : (
+          /* 나레이션: 기존 문장 기반 */
+          currentSentence && (
+            <div className="vrew-preview__subtitle">
+              {hasWords ? (
+                currentSentence.words!.map((word, i) => (
+                  <span
+                    key={`${word.startTime}-${i}`}
+                    className={`subtitle-word${
+                      currentWord && word.startTime === currentWord.startTime
+                        ? ' subtitle-word--active'
+                        : ''
+                    }`}
+                  >
+                    {word.text}{' '}
+                  </span>
+                ))
+              ) : (
+                currentSentence.text
+              )}
+            </div>
+          )
         )}
       </div>
     </div>

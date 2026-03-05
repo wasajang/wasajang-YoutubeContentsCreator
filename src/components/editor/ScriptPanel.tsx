@@ -80,60 +80,57 @@ const ScriptPanel: React.FC<ScriptPanelProps> = ({
               className={`vrew-script-panel__item${isActive ? ' vrew-script-panel__item--active' : ''}`}
               onClick={() => onClipSelect(index)}
             >
-              <div className="vrew-script-panel__item-header">
-                <span className="vrew-script-panel__item-label">{clip.label}</span>
-                <span className="vrew-script-panel__item-time">
-                  {formatTime(clip.audioStartTime)} — {formatTime(clip.audioEndTime)}
-                </span>
-              </div>
-              <textarea
-                className="vrew-script-panel__textarea"
-                value={clip.text}
-                onChange={(e) => handleTextChange(clip.id, e)}
-                onClick={(e) => e.stopPropagation()}
-                rows={Math.max(2, Math.ceil(clip.text.length / 40))}
-              />
-
-              {/* 미디어 플로우: 이미지 → 영상 */}
-              <div className="vrew-script-panel__media-flow">
-                {clip.imageUrl ? (
-                  <div className={`vrew-script-panel__thumb vrew-script-panel__thumb--${aspectClass}`}>
-                    <img src={clip.imageUrl} alt={clip.label} />
-                    <span className="vrew-script-panel__media-label">이미지</span>
+              {/* 컴팩트: 헤더 + 미디어를 한 줄로 */}
+              <div className="vrew-script-panel__compact-row">
+                {/* 미디어 썸네일 (작은 크기) */}
+                <div className="vrew-script-panel__media-compact">
+                  <div className={`vrew-script-panel__thumb-sm vrew-script-panel__thumb-sm--${aspectClass}`}>
+                    {clip.imageUrl ? (
+                      <img src={clip.imageUrl} alt={clip.label} />
+                    ) : (
+                      <span className="vrew-script-panel__no-media">—</span>
+                    )}
                   </div>
-                ) : (
-                  <div className={`vrew-script-panel__thumb vrew-script-panel__thumb--${aspectClass}`}>
-                    <span className="vrew-script-panel__no-video">이미지 없음</span>
-                    <span className="vrew-script-panel__media-label">이미지</span>
+                  <span className="vrew-script-panel__arrow-sm">→</span>
+                  <div className={`vrew-script-panel__thumb-sm vrew-script-panel__thumb-sm--${aspectClass}`}>
+                    {videoUrl ? (
+                      <video src={videoUrl} muted className="vrew-script-panel__thumb-video-sm" />
+                    ) : (
+                      <span className="vrew-script-panel__no-media">—</span>
+                    )}
                   </div>
-                )}
+                </div>
 
-                <span className="vrew-script-panel__arrow">→</span>
-
-                <div className={`vrew-script-panel__thumb vrew-script-panel__thumb--${aspectClass}`}>
-                  {videoUrl ? (
-                    <video src={videoUrl} muted className="vrew-script-panel__thumb-video" />
-                  ) : (
-                    <span className="vrew-script-panel__no-video">영상 없음</span>
-                  )}
-                  <span className="vrew-script-panel__media-label">영상</span>
+                {/* 텍스트 영역 */}
+                <div className="vrew-script-panel__text-area">
+                  <div className="vrew-script-panel__item-header">
+                    <span className="vrew-script-panel__item-label">{clip.label}</span>
+                    <span className="vrew-script-panel__item-time">
+                      {formatTime(clip.audioStartTime)}–{formatTime(clip.audioEndTime)}
+                    </span>
+                    {onRegenerateVideo && (
+                      <button
+                        className="vrew-script-panel__regen-btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRegenerateVideo(clip.sceneId);
+                        }}
+                        disabled={regenActive || !!clip.isEdited}
+                        title={clip.isEdited ? '편집됨' : regenActive ? '생성 중...' : '영상 다시 만들기'}
+                      >
+                        <RefreshCw size={10} className={regenActive ? 'spin' : ''} />
+                      </button>
+                    )}
+                  </div>
+                  <textarea
+                    className="vrew-script-panel__textarea"
+                    value={clip.text}
+                    onChange={(e) => handleTextChange(clip.id, e)}
+                    onClick={(e) => e.stopPropagation()}
+                    rows={Math.max(1, Math.ceil(clip.text.length / 50))}
+                  />
                 </div>
               </div>
-
-              {/* 영상 다시 만들기 */}
-              {onRegenerateVideo && (
-                <button
-                  className="vrew-script-panel__regen-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRegenerateVideo(clip.sceneId);
-                  }}
-                  disabled={regenActive || !!clip.isEdited}
-                >
-                  <RefreshCw size={12} className={regenActive ? 'spin' : ''} />
-                  {clip.isEdited ? '편집됨 — 재생성 불가' : regenActive ? '영상 생성 중...' : '영상 다시 만들기'}
-                </button>
-              )}
             </div>
 
             {/* 씬 사이 삽입 버튼 */}

@@ -22,11 +22,31 @@ export interface EditorClip {
   isEdited?: boolean; // 타임라인에서 자르기/순서변경 시 true → 재생성 잠금
 }
 
+/** 독립 음성 아이템 (시네마틱 모드 타임라인) */
+export interface AudioItem {
+  id: string;
+  startTime: number;
+  endTime: number;
+  audioUrl: string;
+  text: string;
+}
+
+/** 독립 자막 아이템 (시네마틱 모드 타임라인) */
+export interface SubtitleItem {
+  id: string;
+  startTime: number;
+  endTime: number;
+  text: string;
+}
+
 /** 시네마틱 Scene[] → EditorClip[] 변환 */
-export function scenesToEditorClips(scenes: Scene[]): EditorClip[] {
+export function scenesToEditorClips(
+  scenes: Scene[],
+  sceneDurations?: Record<string, number>,
+): EditorClip[] {
   let acc = 0;
   return scenes.map((s, i) => {
-    const duration = 5;
+    const duration = sceneDurations?.[s.id] ?? 5;
     const clip: EditorClip = {
       id: `editor-${s.id}`,
       sceneId: s.id,

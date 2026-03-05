@@ -4,8 +4,8 @@
  * 기능:
  *  - 전체 대본 미리보기 (읽기 전용)
  *  - TTS AI 모델 선택
- *  - 음성 생성 → audioUrl + sentenceTimings store 저장
- *  - 생성 완료 후: 미리듣기, 문장별 타이밍 표시
+ *  - 문장별 개별 TTS 생성 (병렬 Promise.all) → 실제 오디오 길이로 타이밍 계산
+ *  - 생성 완료 후: 전체 미리듣기, 문장별 개별 재생(▶), 문장별 재생성(🔄)
  */
 import React, { useState, useCallback } from 'react';
 import { Mic, Volume2, Loader, RefreshCw, Play, Pause } from 'lucide-react';
@@ -39,14 +39,25 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [audioRef] = useState(() => new Audio());
+    // 전체 순차 재생 중인 문장 인덱스
     const [playingSentenceIdx, setPlayingSentenceIdx] = useState<number | null>(null);
+    // 문장별 개별 재생 ref
     const sentenceAudioRef = React.useRef<HTMLAudioElement | null>(null);
     const sentenceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    // 재생성 중인 문장 인덱스
+    const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
 
     // 전체 대본 합치기
     const fullScript = scenes.map((s) => s.text).join(' ');
     const totalChars = fullScript.length;
 
+    // 문장 분리 헬퍼 (공통 사용)
+    const splitSentences = (text: string): string[] => {
+        const raw = text.match(/[^.!?。\n]+[.!?。]?/g) || [text];
+        return raw.filter((s) => s.trim());
+    };
+
+    // ── A. 전체 문장별 개별 TTS 생성 ──
     const handleGenerateTTS = useCallback(async () => {
         const text = fullScript.trim();
         if (!text) {
@@ -61,64 +72,108 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
 
         setIsGenerating(true);
         const activePreset = templateId ? getTemplateById(templateId) : null;
+
         try {
-            const result = await generateTTS({
-                text,
-                clipId: 'narrative',
-                model: aiModelPreferences.tts,
-                voiceId: activePreset?.voice?.voiceId,
-                speed: activePreset?.voice?.speed,
-            });
-            setNarrativeAudioUrl(result.audioUrl);
+            // 1. 문장 분리
+            const sentences = splitSentences(text);
 
-            // 문장 분리
-            const sentences = text.match(/[^.!?。\n]+[.!?。]?/g) || [text];
-            const cleaned = sentences.filter((s) => s.trim());
+            // 2. 문장별 개별 TTS 병렬 호출
+            const results = await Promise.all(
+                sentences.map((s, i) =>
+                    generateTTS({
+                        text: s.trim(),
+                        clipId: `sentence-${i}`,
+                        model: aiModelPreferences.tts,
+                        voiceId: activePreset?.voice?.voiceId,
+                        speed: activePreset?.voice?.speed,
+                    })
+                )
+            );
 
-            // 실제 오디오 길이 (ai-tts에서 측정) 또는 추정값 사용
-            const totalDuration = result.estimatedDuration;
-
-            // 각 문장의 글자 수 비율로 시간 배분
-            const totalChars = cleaned.reduce((sum, s) => sum + s.trim().length, 0);
+            // 3. 실제 측정된 오디오 길이로 타이밍 계산
             let currentTime = 0;
-            const timings: SentenceTiming[] = cleaned.map((s, i) => {
-                const ratio = totalChars > 0 ? s.trim().length / totalChars : 1 / cleaned.length;
-                const duration = Math.max(0.5, totalDuration * ratio);
+            const newTimings: SentenceTiming[] = results.map((r, i) => {
                 const timing: SentenceTiming = {
                     index: i,
-                    text: s.trim(),
+                    text: sentences[i].trim(),
                     startTime: Math.round(currentTime * 10) / 10,
-                    endTime: Math.round((currentTime + duration) * 10) / 10,
+                    endTime: Math.round((currentTime + r.estimatedDuration) * 10) / 10,
+                    audioUrl: r.audioUrl,
                 };
-                currentTime += duration;
+                currentTime += r.estimatedDuration;
                 return timing;
             });
-            setSentenceTimings(enrichWithWordTimings(timings));
+
+            // 4. 전체 오디오는 첫 번째 문장 URL을 narrativeAudioUrl로 사용
+            //    (전체 순차 재생은 각 문장 audioUrl로 처리)
+            setNarrativeAudioUrl(results[0]?.audioUrl || '');
+            setSentenceTimings(enrichWithWordTimings(newTimings));
+
         } catch (err) {
             console.error('[NarrationVoiceStep] TTS 생성 실패:', err);
             showToast(`TTS 생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`, 'error');
         } finally {
             setIsGenerating(false);
         }
-    }, [fullScript, aiModelPreferences.tts, canAfford, spend, setNarrativeAudioUrl, setSentenceTimings, templateId]);
+    }, [fullScript, aiModelPreferences.tts, canAfford, spend, setNarrativeAudioUrl, setSentenceTimings, templateId, showToast]);
 
-    const handleTogglePlay = useCallback(() => {
-        if (!narrativeAudioUrl) return;
+    // ── 전체 순차 재생 (각 문장 audioUrl을 순서대로 재생) ──
+    const sequentialPlayRef = React.useRef<{ stopped: boolean }>({ stopped: false });
+
+    const handleTogglePlay = useCallback(async () => {
         if (isPlaying) {
+            // 정지
+            sequentialPlayRef.current.stopped = true;
             audioRef.pause();
             setIsPlaying(false);
-        } else {
+            setPlayingSentenceIdx(null);
+            return;
+        }
+
+        // 문장별 audioUrl이 있으면 순차 재생
+        const hasIndividualAudio = sentenceTimings.some((t) => t.audioUrl);
+        if (hasIndividualAudio) {
+            sequentialPlayRef.current = { stopped: false };
+            setIsPlaying(true);
+
+            for (let i = 0; i < sentenceTimings.length; i++) {
+                if (sequentialPlayRef.current.stopped) break;
+                const t = sentenceTimings[i];
+                if (!t.audioUrl) continue;
+
+                setPlayingSentenceIdx(i);
+                await new Promise<void>((resolve) => {
+                    const audio = new Audio(t.audioUrl!);
+                    audioRef.src = t.audioUrl!;
+                    audio.play().catch(console.error);
+                    audio.onended = () => resolve();
+                    audio.onerror = () => resolve();
+                    // 강제 정지 감지
+                    const check = setInterval(() => {
+                        if (sequentialPlayRef.current.stopped) {
+                            audio.pause();
+                            clearInterval(check);
+                            resolve();
+                        }
+                    }, 100);
+                });
+            }
+
+            if (!sequentialPlayRef.current.stopped) {
+                setIsPlaying(false);
+                setPlayingSentenceIdx(null);
+            }
+        } else if (narrativeAudioUrl) {
+            // 폴백: 단일 오디오 URL 재생
             audioRef.src = narrativeAudioUrl;
             audioRef.play().catch(console.error);
             audioRef.onended = () => setIsPlaying(false);
             setIsPlaying(true);
         }
-    }, [narrativeAudioUrl, isPlaying, audioRef]);
+    }, [narrativeAudioUrl, isPlaying, audioRef, sentenceTimings]);
 
-    // 문장별 구간 재생
-    const handlePlaySentence = useCallback((timing: SentenceTiming) => {
-        if (!narrativeAudioUrl) return;
-
+    // ── B. 문장별 개별 재생 버튼 ──
+    const handlePlaySentence = useCallback((timing: SentenceTiming, idx: number) => {
         // 기존 재생 중이면 정지
         if (sentenceAudioRef.current) {
             sentenceAudioRef.current.pause();
@@ -129,31 +184,107 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
             sentenceTimerRef.current = null;
         }
 
-        // 이미 재생 중인 같은 문장이면 토글 (정지)
-        if (playingSentenceIdx === timing.index) {
+        // 같은 문장 재클릭 → 토글 정지
+        if (playingSentenceIdx === idx) {
             setPlayingSentenceIdx(null);
             return;
         }
 
-        const audio = new Audio(narrativeAudioUrl);
-        sentenceAudioRef.current = audio;
-        audio.currentTime = timing.startTime;
-        audio.play().catch(console.error);
-        setPlayingSentenceIdx(timing.index);
+        // 문장별 개별 audioUrl 우선 사용
+        const src = timing.audioUrl || narrativeAudioUrl;
+        if (!src) return;
 
-        // 문장 끝에서 자동 정지
-        const durationMs = (timing.endTime - timing.startTime) * 1000;
-        sentenceTimerRef.current = setTimeout(() => {
-            audio.pause();
-            setPlayingSentenceIdx(null);
-            sentenceAudioRef.current = null;
-        }, durationMs);
+        const audio = new Audio(src);
+        sentenceAudioRef.current = audio;
+
+        if (timing.audioUrl) {
+            // 개별 오디오: 처음부터 재생
+            audio.play().catch(console.error);
+        } else {
+            // 단일 오디오: 구간 재생
+            audio.currentTime = timing.startTime;
+            audio.play().catch(console.error);
+            const durationMs = (timing.endTime - timing.startTime) * 1000;
+            sentenceTimerRef.current = setTimeout(() => {
+                audio.pause();
+                setPlayingSentenceIdx(null);
+                sentenceAudioRef.current = null;
+            }, durationMs);
+        }
+
+        setPlayingSentenceIdx(idx);
 
         audio.onended = () => {
             setPlayingSentenceIdx(null);
             sentenceAudioRef.current = null;
         };
     }, [narrativeAudioUrl, playingSentenceIdx]);
+
+    // ── B. 문장별 재생성 ──
+    const handleRegenerateSentence = useCallback(async (sentenceIndex: number) => {
+        const sentence = sentenceTimings[sentenceIndex];
+        if (!sentence) return;
+
+        // 크레딧 확인 및 차감 (개별 재생성: 1 크레딧)
+        const currentCredits = useProjectStore.getState().credits;
+        if (currentCredits < 1) {
+            showToast('크레딧이 부족합니다', 'error');
+            return;
+        }
+        if (!useProjectStore.getState().spendCredits(1)) {
+            showToast('크레딧 차감 실패', 'error');
+            return;
+        }
+
+        const activePreset = templateId ? getTemplateById(templateId) : null;
+        setRegeneratingIndex(sentenceIndex);
+
+        try {
+            const result = await generateTTS({
+                text: sentence.text,
+                clipId: `sentence-regen-${sentenceIndex}`,
+                model: aiModelPreferences.tts,
+                voiceId: activePreset?.voice?.voiceId,
+                speed: activePreset?.voice?.speed,
+            });
+
+            // 이전 Blob URL 해제
+            if (sentence.audioUrl) {
+                URL.revokeObjectURL(sentence.audioUrl);
+            }
+
+            // 타이밍 업데이트: 이 문장 길이가 바뀌면 이후 문장들도 조정
+            const newTimings = [...sentenceTimings];
+            const oldDuration = sentence.endTime - sentence.startTime;
+            const newDuration = result.estimatedDuration;
+            const diff = newDuration - oldDuration;
+
+            newTimings[sentenceIndex] = {
+                ...sentence,
+                endTime: Math.round((sentence.startTime + newDuration) * 10) / 10,
+                audioUrl: result.audioUrl,
+            };
+
+            // 이후 문장들 시간 조정
+            for (let j = sentenceIndex + 1; j < newTimings.length; j++) {
+                newTimings[j] = {
+                    ...newTimings[j],
+                    startTime: Math.round((newTimings[j].startTime + diff) * 10) / 10,
+                    endTime: Math.round((newTimings[j].endTime + diff) * 10) / 10,
+                };
+            }
+
+            setSentenceTimings(newTimings);
+            useProjectStore.getState().setSentenceTimings(newTimings);
+            showToast(`${sentenceIndex + 1}번째 문장 재생성 완료`, 'success');
+
+        } catch (err) {
+            console.error('[NarrationVoiceStep] 문장 재생성 실패:', err);
+            showToast(`재생성 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`, 'error');
+        } finally {
+            setRegeneratingIndex(null);
+        }
+    }, [sentenceTimings, aiModelPreferences.tts, templateId, setSentenceTimings, showToast]);
 
     const totalDuration = sentenceTimings.length > 0
         ? sentenceTimings[sentenceTimings.length - 1].endTime
@@ -164,6 +295,8 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
         const s = Math.round(sec % 60);
         return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
+
+    const hasAudio = narrativeAudioUrl || sentenceTimings.some((t) => t.audioUrl);
 
     return (
         <div className="narration-voice-step">
@@ -209,7 +342,7 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
                 >
                     {isGenerating ? (
                         <><Loader size={14} className="spin" /> 음성 생성 중...</>
-                    ) : narrativeAudioUrl ? (
+                    ) : hasAudio ? (
                         <><RefreshCw size={14} /> 재생성</>
                     ) : (
                         <><Mic size={14} /> 음성 생성</>
@@ -218,7 +351,7 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
             </div>
 
             {/* 생성 완료 — 미리듣기 + 타이밍 */}
-            {narrativeAudioUrl && (
+            {hasAudio && (
                 <div className="narration-voice-step__result">
                     <div className="narration-voice-step__audio-bar">
                         <div className="narration-voice-step__audio-badge">
@@ -227,10 +360,10 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
                         <button
                             className="narration-voice-step__play-btn"
                             onClick={handleTogglePlay}
-                            title={isPlaying ? '일시정지' : '미리듣기'}
+                            title={isPlaying ? '일시정지' : '전체 순차 재생'}
                         >
                             {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-                            {isPlaying ? '일시정지' : '미리듣기'}
+                            {isPlaying ? '일시정지' : '전체 재생'}
                         </button>
                         {totalDuration > 0 && (
                             <span className="narration-voice-step__duration">
@@ -245,28 +378,36 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
                                 문장별 타이밍 ({sentenceTimings.length}개)
                             </p>
                             <div className="narration-voice-step__timings-list">
-                                {sentenceTimings.map((t) => (
+                                {sentenceTimings.map((t, i) => (
                                     <div key={t.index} className="narration-voice-step__timing-row">
+                                        {/* 개별 재생 버튼 */}
                                         <button
-                                            className={`narration-voice-step__timing-play${playingSentenceIdx === t.index ? ' narration-voice-step__timing-play--active' : ''}`}
-                                            onClick={() => handlePlaySentence(t)}
-                                            title={playingSentenceIdx === t.index ? '정지' : '이 문장 듣기'}
+                                            className={`narration-voice-step__timing-play${playingSentenceIdx === i ? ' narration-voice-step__timing-play--active' : ''}`}
+                                            onClick={() => handlePlaySentence(t, i)}
+                                            title={playingSentenceIdx === i ? '정지' : '이 문장 듣기'}
+                                            disabled={!t.audioUrl && !narrativeAudioUrl}
                                         >
-                                            {playingSentenceIdx === t.index ? <Pause size={10} /> : <Play size={10} />}
+                                            {playingSentenceIdx === i ? <Pause size={10} /> : <Play size={10} />}
                                         </button>
+
                                         <span className="narration-voice-step__timing-time">
                                             {formatTime(t.startTime)} — {formatTime(t.endTime)}
                                         </span>
                                         <span className="narration-voice-step__timing-text">
                                             {t.text}
                                         </span>
+
+                                        {/* 개별 재생성 버튼 */}
                                         <button
-                                            className="narration-voice-step__timing-regen"
-                                            onClick={handleGenerateTTS}
-                                            disabled={isGenerating}
-                                            title="전체 음성 재생성"
+                                            className={`narration-voice-step__timing-regen${regeneratingIndex === i ? ' narration-voice-step__timing-regen--loading' : ''}`}
+                                            onClick={() => handleRegenerateSentence(i)}
+                                            disabled={isGenerating || regeneratingIndex !== null}
+                                            title="이 문장만 재생성"
                                         >
-                                            <RefreshCw size={10} />
+                                            {regeneratingIndex === i
+                                                ? <Loader size={10} className="spin" />
+                                                : <RefreshCw size={10} />
+                                            }
                                         </button>
                                     </div>
                                 ))}
@@ -286,8 +427,8 @@ const NarrationVoiceStep: React.FC<Props> = ({ onNext, onPrev }) => {
                 <button
                     className="btn-primary"
                     onClick={onNext}
-                    disabled={!narrativeAudioUrl || sentenceTimings.length === 0}
-                    title={!narrativeAudioUrl ? '먼저 음성을 생성해주세요' : ''}
+                    disabled={!hasAudio || sentenceTimings.length === 0}
+                    title={!hasAudio ? '먼저 음성을 생성해주세요' : ''}
                 >
                     다음: 씬 분할 →
                 </button>

@@ -1,5 +1,5 @@
 // VrewClipTokens — 단어 토큰 칩 렌더링 + 칩 사이 분할 커서 + 인라인 액션 바
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Scissors } from 'lucide-react';
 import type { WordTiming } from '../../store/projectStore';
 
@@ -26,9 +26,9 @@ const VrewClipTokens: React.FC<VrewClipTokensProps> = ({
       currentTime >= w.startTime && currentTime < w.endTime
   );
 
-  // Enter/Escape 키 이벤트 처리
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+  // Enter/Escape 키 이벤트 처리 — 리스너를 항상 등록하고 내부에서 조건 체크
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
       if (selectedSplitIndex === null) return;
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -38,15 +38,10 @@ const VrewClipTokens: React.FC<VrewClipTokensProps> = ({
         e.preventDefault();
         setSelectedSplitIndex(null);
       }
-    },
-    [selectedSplitIndex, onSplitAfterWord]
-  );
-
-  useEffect(() => {
-    if (selectedSplitIndex === null) return;
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedSplitIndex, handleKeyDown]);
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [selectedSplitIndex, onSplitAfterWord]);
 
   // 클립 범위 밖이면 빈 상태
   if (words.length === 0) {

@@ -46,6 +46,7 @@ export interface SentenceTiming {
   text: string;
   startTime: number;
   endTime: number;
+  audioUrl?: string;     // 문장별 개별 오디오 URL (선택적, 하위 호환)
   words?: WordTiming[];  // 단어 단위 타이밍 (선택적, 하위 호환)
 }
 

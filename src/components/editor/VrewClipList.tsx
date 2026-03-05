@@ -1,4 +1,4 @@
-// VrewClipList — 클립 카드 리스트 (씬별 그룹핑) + 일괄·씬 이미지/영상 생성 버튼
+// VrewClipList — 클립 카드 리스트 (클립별 그룹핑) + 일괄·클립 이미지/영상 생성 버튼
 import React, { useRef, useEffect, useMemo } from 'react';
 import { Image, Video } from 'lucide-react';
 import type { EditorClip } from './types';
@@ -22,7 +22,7 @@ interface VrewClipListProps {
   clipVideoGenStatus: Record<string, string>;
 }
 
-/** 씬 그룹 (sceneId 기준) */
+/** 클립 그룹 (sceneId 기준) */
 interface SceneGroup {
   sceneId: string;
   clips: { clip: EditorClip; globalIndex: number }[];
@@ -55,7 +55,7 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
     }
   }, [currentClipIndex]);
 
-  // sceneId 기준으로 그룹핑 (순서 유지)
+  // sceneId 기준으로 클립 그룹핑 (순서 유지)
   const sceneGroups = useMemo<SceneGroup[]>(() => {
     const groups: SceneGroup[] = [];
     const seen = new Map<string, number>(); // sceneId → groups 배열의 index
@@ -101,7 +101,7 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
       <div className="vrew-clip-list__header">
         <span className="vrew-clip-list__title">Vrew Editor</span>
         <span className="vrew-clip-list__count">
-          씬 {sceneGroups.length}개 · 클립 {clips.length}개
+          클립 그룹 {sceneGroups.length}개 · 전체 {clips.length}개
         </span>
       </div>
 
@@ -154,7 +154,7 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
         </button>
       </div>
 
-      {/* 클립 카드 목록 — 씬별 그룹핑 */}
+      {/* 클립 카드 목록 — 클립 그룹별 정렬 */}
       <div className="vrew-clip-list__cards">
         {sceneGroups.map((group, sceneIdx) => {
           const hasSceneImage = group.clips.some((c) => c.clip.imageUrl);
@@ -167,10 +167,10 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
 
           return (
             <div key={group.sceneId} className="vrew-scene-group">
-              {/* 씬 헤더 */}
+              {/* 클립 그룹 헤더 */}
               <div className="vrew-scene-group__header">
                 <span className="vrew-scene-group__label">
-                  씬 {String(sceneIdx + 1).padStart(2, '0')}
+                  그룹 {String(sceneIdx + 1).padStart(2, '0')}
                 </span>
                 <span className="vrew-scene-group__clip-count">
                   {group.clips.length}개 클립
@@ -184,10 +184,10 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
                     ].filter(Boolean).join(' ')}
                     onClick={() => onGenerateSceneImage(group.sceneId)}
                     disabled={isSceneImageGenerating}
-                    title="씬 전체에 동일 이미지 생성"
+                    title="그룹 전체에 동일 이미지 생성"
                   >
                     <Image size={12} />
-                    {isSceneImageGenerating ? '...' : hasSceneImage ? '씬 이미지 ✓' : '씬 이미지'}
+                    {isSceneImageGenerating ? '...' : hasSceneImage ? '그룹 이미지 ✓' : '그룹 이미지'}
                   </button>
                   <button
                     className={[
@@ -197,15 +197,15 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
                     ].filter(Boolean).join(' ')}
                     onClick={() => onGenerateSceneVideo(group.sceneId)}
                     disabled={isSceneVideoGenerating || !hasSceneImage}
-                    title={!hasSceneImage ? '이미지를 먼저 생성하세요' : '씬 전체에 동일 영상 생성'}
+                    title={!hasSceneImage ? '이미지를 먼저 생성하세요' : '그룹 전체에 동일 영상 생성'}
                   >
                     <Video size={12} />
-                    {isSceneVideoGenerating ? '...' : '씬 영상'}
+                    {isSceneVideoGenerating ? '...' : '그룹 영상'}
                   </button>
                 </div>
               </div>
 
-              {/* 씬 내 클립 카드들 */}
+              {/* 그룹 내 클립 카드들 */}
               {group.clips.map(({ clip, globalIndex }) => (
                 <div
                   key={clip.id}
