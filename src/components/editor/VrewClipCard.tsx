@@ -1,6 +1,6 @@
 // VrewClipCard — Vrew 스타일 클립 카드 (가로 2영역: 내용 + 썸네일)
 import React from 'react';
-import { Volume2, AlignJustify, Pencil, Play, Image } from 'lucide-react';
+import { Volume2, AlignJustify, Pencil, Play, Image, Plus } from 'lucide-react';
 import type { EditorClip } from './types';
 import VrewClipTokens from './VrewClipTokens';
 
@@ -19,6 +19,7 @@ interface VrewClipCardProps {
   isGeneratingVideo?: boolean;
   // 신규
   appliedImageUrl?: string;
+  onAddAsset?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }
 
@@ -42,6 +43,7 @@ const VrewClipCard: React.FC<VrewClipCardProps> = ({
   isGeneratingImage = false,
   isGeneratingVideo = false,
   appliedImageUrl,
+  onAddAsset,
   onContextMenu,
 }) => {
   // sentences에서 모든 단어 평탄화
@@ -145,6 +147,16 @@ const VrewClipCard: React.FC<VrewClipCardProps> = ({
           ) : (
             <div className="vrew-clip-card__thumb-empty">
               <Image size={16} />
+              {/* 045: 빈 클립에 에셋 추가 버튼 */}
+              {onAddAsset && (
+                <button
+                  className="vrew-clip-card__thumb-add-btn"
+                  onClick={(e) => { e.stopPropagation(); onAddAsset(); }}
+                  title="에셋 추가"
+                >
+                  <Plus size={14} />
+                </button>
+              )}
             </div>
           )}
         </div>

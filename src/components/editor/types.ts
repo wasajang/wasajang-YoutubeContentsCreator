@@ -20,6 +20,7 @@ export interface EditorClip {
   label: string;
   audioUrl?: string; // 클립별 TTS (시네마틱 모드)
   isEdited?: boolean; // 타임라인에서 자르기/순서변경 시 true → 재생성 잠금
+  subIndex?: number; // 씬 내 서브클립 인덱스 (시네마틱 모드: 0, 1, 2...)
 }
 
 /** 독립 음성 아이템 (시네마틱 모드 타임라인) */
@@ -73,6 +74,7 @@ export function scenesToEditorClips(
       clips.push({
         id: `editor-${s.id}-${sub}`,
         sceneId: s.id,
+        subIndex: sub,
         text: sub === 0 ? s.text : `(파트 ${sub + 1})`,
         sentences: [{
           index: 0,

@@ -15,13 +15,13 @@ export const genreFilters = [
 
 
 export const templateCards = [
-    { id: 't1', title: 'Mars Colony', genre: 'MOST POPULAR', imageUrl: 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=800&q=80' },
-    { id: 't2', title: 'Rooftop Confession (Rom-Com)', genre: 'MOST POPULAR', imageUrl: 'https://images.unsplash.com/photo-1518173946687-a4c8a3b746f5?auto=format&fit=crop&w=800&q=80' },
-    { id: 't3', title: 'Adventurous Tale in Woods', genre: 'MOST POPULAR', imageUrl: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80' },
-    { id: 't4', title: 'Time Traveler POV', genre: 'MOST POPULAR', imageUrl: 'https://images.unsplash.com/photo-1542281286-9e0a16bb7366?auto=format&fit=crop&w=800&q=80' },
-    { id: 't5', title: 'Bedtime Forest Adventure', genre: 'KIDS', imageUrl: 'https://images.unsplash.com/photo-1511497584788-876760111969?auto=format&fit=crop&w=800&q=80' },
-    { id: 't6', title: '30-Sec Emotional Journey', genre: 'YOUTUBE SHORTS', imageUrl: 'https://images.unsplash.com/photo-1494173853739-c21f58b16055?auto=format&fit=crop&w=800&q=80' },
-    { id: 't7', title: 'Sci-Fi Trailer', genre: 'FILM', imageUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=800&q=80' },
+    { id: 't1', title: 'Mars Colony', genre: 'MOST POPULAR', imageUrl: '/images/mock/tpl_mars_1772781577717.png' },
+    { id: 't2', title: 'Rooftop Confession (Rom-Com)', genre: 'MOST POPULAR', imageUrl: '/images/mock/tpl_romcom_1772781593205.png' },
+    { id: 't3', title: 'Adventurous Tale in Woods', genre: 'MOST POPULAR', imageUrl: '/images/mock/tpl_woods_1772781608353.png' },
+    { id: 't4', title: 'Time Traveler POV', genre: 'MOST POPULAR', imageUrl: '/images/mock/tpl_time_1772781626790.png' },
+    { id: 't5', title: 'Bedtime Forest Adventure', genre: 'KIDS', imageUrl: '/images/mock/tpl_kids_forest_1772781671383.png' },
+    { id: 't6', title: '30-Sec Emotional Journey', genre: 'YOUTUBE SHORTS', imageUrl: '/images/mock/tpl_shorts_1772781686247.png' },
+    { id: 't7', title: 'Sci-Fi Trailer', genre: 'FILM', imageUrl: '/images/mock/tpl_scifi_1772781703829.png' },
     { id: 't8', title: 'Caribbean Pirates', genre: 'FILM', imageUrl: 'https://images.unsplash.com/photo-1519404961314-2c969d53da59?auto=format&fit=crop&w=800&q=80' },
     { id: 't9', title: 'Fairy-Tale Remix', genre: 'KIDS', imageUrl: 'https://images.unsplash.com/photo-1550684848-86a5d8727436?auto=format&fit=crop&w=800&q=80' },
     { id: 't10', title: 'Cyberpunk Neon Chase', genre: 'MOST POPULAR', imageUrl: 'https://images.unsplash.com/photo-1605806616949-1e87b487fc2f?auto=format&fit=crop&w=800&q=80' },
@@ -48,23 +48,23 @@ export const mockScript = [
 import type { AssetCard } from '../store/projectStore';
 
 export const mockCardLibrary: AssetCard[] = [
-    { id: 'char-1', name: '민수 (Minsoo)', type: 'character', description: 'A tattered olive drab winter military uniform, young Korean soldier from 1950s', imageUrl: 'https://images.unsplash.com/photo-1534030347209-467a5b0ad3e6?auto=format&fit=crop&w=400&q=80', seed: 42891, status: 'done', source: 'manual' },
-    { id: 'char-2', name: '진우 (Jinwoo)', type: 'character', description: 'A ragged, ice-crusted ROK infantry uniform, weary but determined eyes', imageUrl: 'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=400&q=80', seed: 73204, status: 'done', source: 'manual' },
-    { id: 'char-3', name: '상호 (Sangho)', type: 'character', description: 'A battered grey overcoat, torn and frost-covered, 1950s ROK commander', imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80', seed: 15673, status: 'done', source: 'manual' },
-    { id: 'char-4', name: '대성 (Daesung)', type: 'character', description: 'A crisp modern digital camouflage uniform, ROK Army captain from future', imageUrl: 'https://images.unsplash.com/photo-1590424753858-394a9238e56b?auto=format&fit=crop&w=400&q=80', seed: 98412, status: 'done', source: 'manual' },
-    { id: 'char-5', name: '혜진 (Hyejin)', type: 'character', description: 'A digital camouflage uniform with modern combat vest, female ROK soldier', imageUrl: 'https://images.unsplash.com/photo-1581450134444-ad5a4bc93c0d?auto=format&fit=crop&w=400&q=80', seed: 56738, status: 'done', source: 'manual' },
-    { id: 'obj-1', name: 'K2 전차', type: 'item', description: 'Smooth black and grey digital camouflage K2 Black Panther main battle tank', imageUrl: 'https://images.unsplash.com/photo-1594132225211-19d20c78a0c2?auto=format&fit=crop&w=400&q=80', seed: 34567, status: 'done', source: 'manual' },
-    { id: 'obj-2', name: '하오 (Hao)', type: 'character', description: 'A thick quilted pale green winter PLA uniform, Chinese soldier 1950s', imageUrl: 'https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?auto=format&fit=crop&w=400&q=80', seed: 82145, status: 'done', source: 'manual' },
-    { id: 'obj-3', name: 'Apache 헬기', type: 'item', description: 'Matte black armored shell with Republic of Korea Army insignia, AH-64 Apache helicopter', imageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=400&q=80', seed: 67234, status: 'done', source: 'manual' },
+    { id: 'char-1', name: '민수 (Minsoo)', type: 'character', description: 'A tattered olive drab winter military uniform, young Korean soldier from 1950s', imageUrl: '/images/mock/char_minsoo_1772780548821.png', seed: 42891, status: 'done', source: 'manual' },
+    { id: 'char-2', name: '진우 (Jinwoo)', type: 'character', description: 'A ragged, ice-crusted ROK infantry uniform, weary but determined eyes', imageUrl: '/images/mock/char_jinwoo_1772780566005.png', seed: 73204, status: 'done', source: 'manual' },
+    { id: 'char-3', name: '상호 (Sangho)', type: 'character', description: 'A battered grey overcoat, torn and frost-covered, 1950s ROK commander', imageUrl: '/images/mock/char_sangho_1772780629390.png', seed: 15673, status: 'done', source: 'manual' },
+    { id: 'char-4', name: '대성 (Daesung)', type: 'character', description: 'A crisp modern digital camouflage uniform, ROK Army captain from future', imageUrl: '/images/mock/char_daesung_1772780582981.png', seed: 98412, status: 'done', source: 'manual' },
+    { id: 'char-5', name: '혜진 (Hyejin)', type: 'character', description: 'A digital camouflage uniform with modern combat vest, female ROK soldier', imageUrl: '/images/mock/char_hyejin_1772780600303.png', seed: 56738, status: 'done', source: 'manual' },
+    { id: 'obj-1', name: 'K2 전차', type: 'item', description: 'Smooth black and grey digital camouflage K2 Black Panther main battle tank', imageUrl: '/images/mock/obj_k2_1772780720398.png', seed: 34567, status: 'done', source: 'manual' },
+    { id: 'obj-2', name: '하오 (Hao)', type: 'character', description: 'A thick quilted pale green winter PLA uniform, Chinese soldier 1950s', imageUrl: '/images/mock/char_hao_1772780645234.png', seed: 82145, status: 'done', source: 'manual' },
+    { id: 'obj-3', name: 'Apache 헬기', type: 'item', description: 'Matte black armored shell with Republic of Korea Army insignia, AH-64 Apache helicopter', imageUrl: '/images/mock/obj_apache_1772780737263.png', seed: 67234, status: 'done', source: 'manual' },
 ];
 
 // ── AI 추천 카드 (대본 분석 시 사용) ──
 export const aiSuggestedCards: AssetCard[] = [
-    { id: 'ai-c1', name: '민수 (Minsoo)', type: 'character', description: 'A determined male soldier, 1950s Korean military uniform, young Korean man', imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80', seed: 44891, status: 'done', isRequired: true, source: 'ai' },
-    { id: 'ai-c2', name: '리무 (Limoo)', type: 'character', description: 'A rugged, time-scarred ROK veteran, grizzly face, worn battle gear', imageUrl: 'https://images.unsplash.com/photo-1534030347209-467a5b0ad3e6?auto=format&fit=crop&w=300&q=80', seed: 11092, status: 'done', isRequired: true, source: 'ai' },
-    { id: 'ai-c3', name: '상호 (Sangho)', type: 'character', description: 'A fearless young medic, compassion in eyes, bloodied medical kit', imageUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80', seed: 24678, status: 'done', isRequired: true, source: 'ai' },
-    { id: 'ai-b1', name: '얼어붙은 압록강 전장', type: 'background', description: 'Frozen Yalu River battlefield, snow trenches, distant explosions, blizzard', imageUrl: 'https://images.unsplash.com/photo-1516912481808-3406841bd33c?auto=format&fit=crop&w=600&q=80', seed: 11234, status: 'done', isRequired: true, source: 'ai' },
-    { id: 'ai-i1', name: '시간 포털 장치', type: 'item', description: 'A swirling white-blue energy portal device, electric arcs, temporal rift', imageUrl: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=400&q=80', seed: 22456, status: 'done', isRequired: true, source: 'ai' },
+    { id: 'ai-c1', name: '민수 (Minsoo)', type: 'character', description: 'A determined male soldier, 1950s Korean military uniform, young Korean man', imageUrl: '/images/mock/char_minsoo_1772780548821.png', seed: 44891, status: 'done', isRequired: true, source: 'ai' },
+    { id: 'ai-c2', name: '리무 (Limoo)', type: 'character', description: 'A rugged, time-scarred ROK veteran, grizzly face, worn battle gear', imageUrl: '/images/mock/char_limoo_1772780659686.png', seed: 11092, status: 'done', isRequired: true, source: 'ai' },
+    { id: 'ai-c3', name: '상호 (Sangho)', type: 'character', description: 'A fearless young medic, compassion in eyes, bloodied medical kit', imageUrl: '/images/mock/char_medic_1772780674486.png', seed: 24678, status: 'done', isRequired: true, source: 'ai' },
+    { id: 'ai-b1', name: '얼어붙은 압록강 전장', type: 'background', description: 'Frozen Yalu River battlefield, snow trenches, distant explosions, blizzard', imageUrl: '/images/mock/bg_battlefield_1772780764137.png', seed: 11234, status: 'done', isRequired: true, source: 'ai' },
+    { id: 'ai-i1', name: '시간 포털 장치', type: 'item', description: 'A swirling white-blue energy portal device, electric arcs, temporal rift', imageUrl: '/images/mock/obj_portal_1772780750884.png', seed: 22456, status: 'done', isRequired: true, source: 'ai' },
 ];
 
 // ── 즐겨찾기 프리셋 카드 ──

@@ -237,6 +237,7 @@ export function splitClip(
     audioStartTime: firstA.startTime,
     audioEndTime: lastA.endTime,
     duration: lastA.endTime - firstA.startTime,
+    imageUrl: clip.imageUrl,
     isModified: true,
   };
 
@@ -249,6 +250,7 @@ export function splitClip(
     audioStartTime: firstB.startTime,
     audioEndTime: lastB.endTime,
     duration: lastB.endTime - firstB.startTime,
+    imageUrl: clip.imageUrl,
     order: clip.order + 1,
     isModified: true,
   };
@@ -479,6 +481,7 @@ export function splitClipAtWord(
     duration:
       sentencesPartB[sentencesPartB.length - 1].endTime -
       sentencesPartB[0].startTime,
+    imageUrl: clip.imageUrl,
     order: clip.order + 1,
     isModified: true,
   };

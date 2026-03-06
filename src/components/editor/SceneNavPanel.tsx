@@ -6,12 +6,13 @@
  */
 import React, { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { EditorClip } from './types';
+import type { EditorClip, MediaRange } from './types';
 
 interface SceneNavPanelProps {
   clips: EditorClip[];
   currentClipIndex: number;
   onClipSelect: (index: number) => void;
+  mediaRanges?: MediaRange[];
 }
 
 function formatTime(sec: number): string {
@@ -24,8 +25,21 @@ const SceneNavPanel: React.FC<SceneNavPanelProps> = ({
   clips,
   currentClipIndex,
   onClipSelect,
+  mediaRanges,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
+
+  // mediaRange 기반 이미지 조회 (에셋 삭제 반영)
+  const getRangeImage = (clipIndex: number): string => {
+    if (!mediaRanges || mediaRanges.length === 0) return clips[clipIndex]?.imageUrl || '';
+    const range = mediaRanges.find(
+      (r) =>
+        (r.type === 'image' || r.type === 'video') &&
+        clipIndex >= r.startClipIndex &&
+        clipIndex <= r.endClipIndex
+    );
+    return range?.url || '';  // 044: range 없으면 빈 문자열 → 검정 표시
+  };
 
   // 씬 그룹 (sceneId 기준)
   const scenes = useMemo(() => {
@@ -50,13 +64,13 @@ const SceneNavPanel: React.FC<SceneNavPanelProps> = ({
         sceneId,
         startIndex: start,
         text: clips[start].text,
-        imageUrl: clips[start].imageUrl,
+        imageUrl: getRangeImage(start),
         startTime: clips[start].audioStartTime,
         totalDuration: dur,
       });
     }
     return groups;
-  }, [clips]);
+  }, [clips, mediaRanges]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 현재 활성 씬 찾기
   const activeSceneId = clips[currentClipIndex]?.sceneId;

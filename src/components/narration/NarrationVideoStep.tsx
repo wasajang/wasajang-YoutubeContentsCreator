@@ -48,7 +48,9 @@ export function NarrationVideoStep({ onNext, onPrev, isModal, onClose }: Narrati
   const [checkedIds,    setCheckedIds]    = useState<Set<string>>(new Set());
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
+  const [batchEffect, setBatchEffect]     = useState<NarrationClip['effect']>('zoom-in');
   const syncedRef = useRef(false);
+  const shiftKeyRef = useRef(false);
 
   const videoModels = getUserSelectableModels('video');
 
@@ -127,6 +129,19 @@ export function NarrationVideoStep({ onNext, onPrev, isModal, onClose }: Narrati
   const handleEffectChange = (clipId: string, effect: NarrationClip['effect']) => {
     const updated = narrationClips.map((c) =>
       c.id === clipId ? { ...c, effect } : c
+    );
+    setNarrationClips(updated);
+  };
+
+  // 미체크 클립 일괄 Ken Burns 적용
+  const handleBatchEffectApply = () => {
+    const uncheckedIds = visibleClips
+      .filter((c) => !checkedIds.has(c.id))
+      .map((c) => c.id);
+    if (uncheckedIds.length === 0) return;
+    const uncheckedSet = new Set(uncheckedIds);
+    const updated = narrationClips.map((c) =>
+      uncheckedSet.has(c.id) ? { ...c, effect: batchEffect } : c
     );
     setNarrationClips(updated);
   };
@@ -250,6 +265,32 @@ export function NarrationVideoStep({ onNext, onPrev, isModal, onClose }: Narrati
             </label>
           </div>
 
+          {/* 일괄 Ken Burns 효과 적용 */}
+          {kenBurnsCount > 0 && (
+            <div className="narration-video-step__batch-ken-burns">
+              <span className="narration-video-step__batch-label">
+                미체크 {kenBurnsCount}개 일괄 효과:
+              </span>
+              <select
+                className="narration-video-step__ken-burns-select"
+                value={batchEffect}
+                onChange={(e) => setBatchEffect(e.target.value as NarrationClip['effect'])}
+                disabled={isGenerating}
+              >
+                {KEN_BURNS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <button
+                className="narration-video-step__batch-apply-btn"
+                onClick={handleBatchEffectApply}
+                disabled={isGenerating}
+              >
+                일괄 적용
+              </button>
+            </div>
+          )}
+
           {/* 클립 목록 */}
           <ul className="narration-video-step__clip-list">
             {visibleClips.map((clip, clipIdx) => {
@@ -271,19 +312,16 @@ export function NarrationVideoStep({ onNext, onPrev, isModal, onClose }: Narrati
                   {/* 체크박스 (Shift+클릭 범위 선택 지원) */}
                   <label
                     className="narration-video-step__clip-checkbox"
-                    onClick={(e) => {
-                      // Shift+클릭 범위 선택은 label의 onClick에서 처리
-                      if (e.shiftKey && !isGenerating) {
-                        e.preventDefault();
-                        handleToggleCheck(clip.id, clipIdx, true);
-                      }
-                    }}
+                    onMouseDown={(e) => { shiftKeyRef.current = e.shiftKey; }}
                   >
                     <input
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => {
-                        if (!isGenerating) handleToggleCheck(clip.id, clipIdx);
+                        if (!isGenerating) {
+                          handleToggleCheck(clip.id, clipIdx, shiftKeyRef.current || undefined);
+                          shiftKeyRef.current = false;
+                        }
                       }}
                       disabled={isGenerating}
                     />

@@ -1,12 +1,19 @@
 /**
- * useResizableDivider — 수직 리사이즈 구분선 훅
+ * useResizableDivider — 리사이즈 구분선 훅
  *
- * 상단 영역과 하단 영역 사이의 드래그 리사이즈를 관리합니다.
- * mainFlex: 상단 영역 비율 (%), min~max 범위 제한
+ * 두 영역 사이의 드래그 리사이즈를 관리합니다.
+ * mainFlex: 첫 번째 영역 비율 (%), min~max 범위 제한
+ *
+ * 043: direction 파라미터 추가 — 'row'(상/하, 기본) 또는 'column'(좌/우)
  */
 import { useState, useRef, useCallback } from 'react';
 
-export function useResizableDivider(initialFlex = 42, min = 25, max = 80) {
+export function useResizableDivider(
+  initialFlex = 42,
+  min = 25,
+  max = 80,
+  direction: 'row' | 'column' = 'row',
+) {
   const [mainFlex, setMainFlex] = useState(initialFlex);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -15,13 +22,17 @@ export function useResizableDivider(initialFlex = 42, min = 25, max = 80) {
       e.preventDefault();
       const container = containerRef.current;
       if (!container) return;
-      const startY = e.clientY;
+      const containerRect = container.getBoundingClientRect();
+
+      // direction에 따라 좌표/크기 축 결정
+      const startPos = direction === 'column' ? e.clientX : e.clientY;
+      const containerSize = direction === 'column' ? containerRect.width : containerRect.height;
       const startFlex = mainFlex;
-      const containerH = container.getBoundingClientRect().height;
 
       const handleMove = (me: MouseEvent) => {
-        const dy = me.clientY - startY;
-        const pctDelta = (dy / containerH) * 100;
+        const currentPos = direction === 'column' ? me.clientX : me.clientY;
+        const delta = currentPos - startPos;
+        const pctDelta = (delta / containerSize) * 100;
         const newFlex = Math.min(max, Math.max(min, startFlex + pctDelta));
         setMainFlex(newFlex);
       };
@@ -32,7 +43,7 @@ export function useResizableDivider(initialFlex = 42, min = 25, max = 80) {
       window.addEventListener('mousemove', handleMove);
       window.addEventListener('mouseup', handleUp);
     },
-    [mainFlex, min, max]
+    [mainFlex, min, max, direction]
   );
 
   return { mainFlex, containerRef, handleDividerMouseDown };

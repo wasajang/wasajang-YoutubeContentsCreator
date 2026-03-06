@@ -29,55 +29,57 @@ export function useEditorHistory<T>(
   /** 히스토리에서 상태를 복원할 때 호출되는 콜백 */
   onRestore: (state: T) => void,
 ): UseEditorHistoryReturn<T> {
-  const [past, setPast] = useState<Snapshot<T>[]>([]);
-  const [future, setFuture] = useState<Snapshot<T>[]>([]);
+  // 046: 히스토리 스택을 ref로 관리 (동기 읽기/쓰기 보장 — useState 콜백 타이밍 문제 해결)
+  const pastRef = useRef<Snapshot<T>[]>([]);
+  const futureRef = useRef<Snapshot<T>[]>([]);
   const isRestoringRef = useRef(false);
+
+  // UI용 가능 여부 상태 (버튼 활성화/비활성화)
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  /** ref 변경 후 UI 상태 동기화 */
+  const syncFlags = useCallback(() => {
+    setCanUndo(pastRef.current.length > 0);
+    setCanRedo(futureRef.current.length > 0);
+  }, []);
 
   const pushState = useCallback((state: T) => {
     // 복원 중에는 히스토리에 기록하지 않음
     if (isRestoringRef.current) return;
-    setPast(prev => {
-      const next = [...prev, { data: state, timestamp: Date.now() }];
-      return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
-    });
-    setFuture([]); // 새 액션 시 redo 스택 클리어
-  }, []);
+    const next = [...pastRef.current, { data: state, timestamp: Date.now() }];
+    pastRef.current = next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
+    futureRef.current = []; // 새 액션 시 redo 스택 클리어
+    syncFlags();
+  }, [syncFlags]);
 
   const undo = useCallback((): T | null => {
-    let restored: T | null = null;
-    setPast(prev => {
-      if (prev.length === 0) return prev;
-      const newPast = [...prev];
-      const snapshot = newPast.pop()!;
-      restored = snapshot.data;
-      setFuture(f => [...f, snapshot]);
-      return newPast;
-    });
-    if (restored !== null) {
-      isRestoringRef.current = true;
-      onRestore(restored);
-      isRestoringRef.current = false;
-    }
-    return restored;
-  }, [onRestore]);
+    if (pastRef.current.length === 0) return null;
+    const newPast = [...pastRef.current];
+    const snapshot = newPast.pop()!;
+    pastRef.current = newPast;
+    futureRef.current = [...futureRef.current, snapshot];
+    syncFlags();
+
+    isRestoringRef.current = true;
+    onRestore(snapshot.data);
+    isRestoringRef.current = false;
+    return snapshot.data;
+  }, [onRestore, syncFlags]);
 
   const redo = useCallback((): T | null => {
-    let restored: T | null = null;
-    setFuture(prev => {
-      if (prev.length === 0) return prev;
-      const newFuture = [...prev];
-      const snapshot = newFuture.pop()!;
-      restored = snapshot.data;
-      setPast(p => [...p, snapshot]);
-      return newFuture;
-    });
-    if (restored !== null) {
-      isRestoringRef.current = true;
-      onRestore(restored);
-      isRestoringRef.current = false;
-    }
-    return restored;
-  }, [onRestore]);
+    if (futureRef.current.length === 0) return null;
+    const newFuture = [...futureRef.current];
+    const snapshot = newFuture.pop()!;
+    futureRef.current = newFuture;
+    pastRef.current = [...pastRef.current, snapshot];
+    syncFlags();
+
+    isRestoringRef.current = true;
+    onRestore(snapshot.data);
+    isRestoringRef.current = false;
+    return snapshot.data;
+  }, [onRestore, syncFlags]);
 
   // Ctrl+Z / Ctrl+Shift+Z 키보드 단축키
   useEffect(() => {
@@ -104,7 +106,7 @@ export function useEditorHistory<T>(
     pushState,
     undo,
     redo,
-    canUndo: past.length > 0,
-    canRedo: future.length > 0,
+    canUndo,
+    canRedo,
   };
 }

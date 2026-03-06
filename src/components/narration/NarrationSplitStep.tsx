@@ -2,19 +2,20 @@
  * NarrationSplitStep — 나레이션 모드 Step 3 (Split)
  *
  * 기능:
- *  - sentenceTimings 기반 씬 자동 분할
+ *  - sentenceTimings 기반 씬 자동 분할 (단어 단위 정밀 분할)
  *  - maxDuration 조절 (5/6/8/10/15초, 디폴트 5초)
- *  - 씬 합치기 / 씬 경계에서 나누기
- *  - 문장 1개인 씬도 쉼표·중간 지점에서 나누기 가능
+ *  - 씬 합치기 / 단어 칩 사이 클릭으로 나누기
  *  - 씬별 미리듣기 (오디오 구간 재생)
  *  - 10초 초과 씬 경고 표시
  *  - 완료 시 scenes + narrationClips store 업데이트
  */
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { AlertTriangle, Merge, Scissors, Play, Pause } from 'lucide-react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { AlertTriangle, Merge, Play, Pause } from 'lucide-react';
 import { useProjectStore } from '../../store/projectStore';
-import type { Scene, SentenceTiming, NarrationClip } from '../../store/projectStore';
+import type { Scene, SentenceTiming, NarrationClip, WordTiming } from '../../store/projectStore';
 import { useToast } from '../../hooks/useToast';
+import { enrichWithWordTimings } from '../../utils/word-timing';
+import VrewClipTokens from '../editor/VrewClipTokens';
 
 interface SplitGroup {
     id: string;
@@ -25,98 +26,95 @@ interface SplitGroup {
     duration: number;
 }
 
-function autoSplit(timings: SentenceTiming[], maxDuration: number = 5): SplitGroup[] {
-    if (timings.length === 0) return [];
-
-    const groups: SentenceTiming[][] = [];
-    let currentGroup: SentenceTiming[] = [];
-    let currentDuration = 0;
-
-    for (const timing of timings) {
-        const timingDuration = timing.endTime - timing.startTime;
-        if (currentDuration + timingDuration > maxDuration && currentGroup.length > 0) {
-            groups.push(currentGroup);
-            currentGroup = [timing];
-            currentDuration = timingDuration;
-        } else {
-            currentGroup.push(timing);
-            currentDuration += timingDuration;
-        }
-    }
-    if (currentGroup.length > 0) groups.push(currentGroup);
-
-    return groups.map((group, i) => ({
-        id: `scene-${i + 1}`,
-        text: group.map((s) => s.text).join(' '),
-        sentences: group,
-        audioStartTime: group[0].startTime,
-        audioEndTime: group[group.length - 1].endTime,
-        duration: group[group.length - 1].endTime - group[0].startTime,
-    }));
+// ── 헬퍼: 단어 배열에서 원본 문장 구조 재구성 ──
+interface TaggedWord extends WordTiming {
+    sentenceIdx: number;
 }
 
-/**
- * 문장 1개를 쉼표(,) 또는 텍스트 중간 지점에서 2개의 SentenceTiming으로 분리.
- * 타이밍은 글자 수 비율로 추정.
- */
-function splitSingleSentence(sentence: SentenceTiming): [SentenceTiming, SentenceTiming] | null {
-    const text = sentence.text;
-    if (text.length < 4) return null; // 너무 짧으면 분할 불가
+function rebuildSentences(
+    taggedWords: TaggedWord[],
+    originalSentences: SentenceTiming[],
+): SentenceTiming[] {
+    if (taggedWords.length === 0) return [];
+    const result: SentenceTiming[] = [];
+    let currentSentIdx = taggedWords[0].sentenceIdx;
+    let currentWords: TaggedWord[] = [];
 
-    // 쉼표(,)가 있으면 가장 중간에 가까운 쉼표에서 분할
-    let splitIdx = -1;
-    const midPoint = Math.floor(text.length / 2);
-    const commaIndices: number[] = [];
-    for (let i = 0; i < text.length; i++) {
-        if (text[i] === ',' || text[i] === '，') commaIndices.push(i);
-    }
-    if (commaIndices.length > 0) {
-        // 중간에 가장 가까운 쉼표
-        splitIdx = commaIndices.reduce((best, idx) =>
-            Math.abs(idx - midPoint) < Math.abs(best - midPoint) ? idx : best
-        , commaIndices[0]);
-        splitIdx += 1; // 쉼표 포함
-    } else {
-        // 쉼표 없으면 공백 기준 중간 지점
-        const spaces: number[] = [];
-        for (let i = 0; i < text.length; i++) {
-            if (text[i] === ' ') spaces.push(i);
+    const flush = () => {
+        if (currentWords.length === 0) return;
+        const orig = originalSentences[currentSentIdx];
+        result.push({
+            index: orig?.index ?? result.length,
+            text: currentWords.map((w) => w.text).join(' '),
+            startTime: currentWords[0].startTime,
+            endTime: currentWords[currentWords.length - 1].endTime,
+            words: currentWords.map((w, i) => ({
+                index: i,
+                text: w.text,
+                startTime: w.startTime,
+                endTime: w.endTime,
+            })),
+        });
+    };
+
+    for (const tw of taggedWords) {
+        if (tw.sentenceIdx !== currentSentIdx) {
+            flush();
+            currentSentIdx = tw.sentenceIdx;
+            currentWords = [];
         }
-        if (spaces.length > 0) {
-            splitIdx = spaces.reduce((best, idx) =>
-                Math.abs(idx - midPoint) < Math.abs(best - midPoint) ? idx : best
-            , spaces[0]);
+        currentWords.push(tw);
+    }
+    flush();
+    return result;
+}
+
+// ── 단어 단위 자동 분할 ──
+function autoSplitByWords(
+    timings: SentenceTiming[],
+    maxDuration: number = 5,
+): SplitGroup[] {
+    const enriched = enrichWithWordTimings(timings);
+
+    // 전체 단어 플랫 배열 + 원본 문장 인덱스 태깅
+    const allWords: TaggedWord[] = [];
+    enriched.forEach((s, si) => {
+        (s.words || []).forEach((w) =>
+            allWords.push({ ...w, sentenceIdx: si }),
+        );
+    });
+
+    if (allWords.length === 0) return [];
+
+    // 탐욕 그룹핑: 누적 시간이 maxDuration 초과 시 새 그룹
+    const wordGroups: TaggedWord[][] = [];
+    let current: TaggedWord[] = [];
+    let groupStart = allWords[0].startTime;
+
+    for (const word of allWords) {
+        const groupDuration = word.endTime - groupStart;
+        if (groupDuration > maxDuration && current.length > 0) {
+            wordGroups.push(current);
+            current = [word];
+            groupStart = word.startTime;
         } else {
-            // 공백도 없으면 글자 중간 지점
-            splitIdx = midPoint;
+            current.push(word);
         }
     }
+    if (current.length > 0) wordGroups.push(current);
 
-    if (splitIdx <= 0 || splitIdx >= text.length) return null;
-
-    const textA = text.slice(0, splitIdx).trim();
-    const textB = text.slice(splitIdx).trim();
-    if (!textA || !textB) return null;
-
-    // 글자 수 비율로 타이밍 분배
-    const totalLen = textA.length + textB.length;
-    const ratio = textA.length / totalLen;
-    const totalDuration = sentence.endTime - sentence.startTime;
-    const midTime = Math.round((sentence.startTime + totalDuration * ratio) * 10) / 10;
-
-    const a: SentenceTiming = {
-        index: sentence.index,
-        text: textA,
-        startTime: sentence.startTime,
-        endTime: midTime,
-    };
-    const b: SentenceTiming = {
-        index: sentence.index + 0.5, // 중간 인덱스 (정렬용)
-        text: textB,
-        startTime: midTime,
-        endTime: sentence.endTime,
-    };
-    return [a, b];
+    // 단어 그룹 → SplitGroup 변환
+    return wordGroups.map((words, i) => {
+        const sentences = rebuildSentences(words, enriched);
+        return {
+            id: `scene-${i + 1}`,
+            text: words.map((w) => w.text).join(' '),
+            sentences,
+            audioStartTime: words[0].startTime,
+            audioEndTime: words[words.length - 1].endTime,
+            duration: words[words.length - 1].endTime - words[0].startTime,
+        };
+    });
 }
 
 interface Props {
@@ -125,7 +123,6 @@ interface Props {
 }
 
 const MAX_DURATION_OPTIONS = [5, 6, 8, 10, 15] as const;
-// 경고 기준: 사용자가 선택한 maxDuration을 사용 (아래 컴포넌트 내 state)
 
 const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
     const sentenceTimings = useProjectStore((s) => s.sentenceTimings);
@@ -140,15 +137,23 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
 
     // 미리듣기 상태
     const [playingGroupId, setPlayingGroupId] = useState<string | null>(null);
+    const [currentTime, setCurrentTime] = useState(0);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const playTimerRef = useRef<number>(0);
+    const animFrameRef = useRef<number>(0);
+
+    // 단어 타이밍 보강된 sentenceTimings
+    const enrichedTimings = useMemo(
+        () => enrichWithWordTimings(sentenceTimings),
+        [sentenceTimings],
+    );
 
     // maxDuration 변경 또는 sentenceTimings 변경 시 자동 재분할
     useEffect(() => {
-        if (sentenceTimings.length > 0) {
-            setGroups(autoSplit(sentenceTimings, maxDuration));
+        if (enrichedTimings.length > 0) {
+            setGroups(autoSplitByWords(enrichedTimings, maxDuration));
         }
-    }, [sentenceTimings, maxDuration]);
+    }, [enrichedTimings, maxDuration]);
 
     // 컴포넌트 언마운트 시 오디오 정리
     useEffect(() => {
@@ -159,6 +164,9 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
             }
             if (playTimerRef.current) {
                 clearTimeout(playTimerRef.current);
+            }
+            if (animFrameRef.current) {
+                cancelAnimationFrame(animFrameRef.current);
             }
         };
     }, []);
@@ -175,6 +183,24 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
 
     const formatDuration = (sec: number) => `${sec.toFixed(1)}s`;
 
+    // 재생 시 currentTime 실시간 업데이트
+    const startTimeTracking = useCallback(() => {
+        const tick = () => {
+            if (audioRef.current) {
+                setCurrentTime(audioRef.current.currentTime);
+            }
+            animFrameRef.current = requestAnimationFrame(tick);
+        };
+        animFrameRef.current = requestAnimationFrame(tick);
+    }, []);
+
+    const stopTimeTracking = useCallback(() => {
+        if (animFrameRef.current) {
+            cancelAnimationFrame(animFrameRef.current);
+            animFrameRef.current = 0;
+        }
+    }, []);
+
     // 씬별 미리듣기
     const handlePreview = useCallback((group: SplitGroup) => {
         if (!narrativeAudioUrl) {
@@ -190,6 +216,7 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
             if (playTimerRef.current) {
                 clearTimeout(playTimerRef.current);
             }
+            stopTimeTracking();
             setPlayingGroupId(null);
             return;
         }
@@ -201,30 +228,36 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
         if (playTimerRef.current) {
             clearTimeout(playTimerRef.current);
         }
+        stopTimeTracking();
 
         const audio = new Audio(narrativeAudioUrl);
         audioRef.current = audio;
 
         audio.currentTime = group.audioStartTime;
         setPlayingGroupId(group.id);
+        setCurrentTime(group.audioStartTime);
 
         // 구간 끝에서 자동 정지
         const playDurationMs = (group.audioEndTime - group.audioStartTime) * 1000;
         playTimerRef.current = window.setTimeout(() => {
             audio.pause();
+            stopTimeTracking();
             setPlayingGroupId(null);
         }, playDurationMs);
 
         audio.onended = () => {
+            stopTimeTracking();
             setPlayingGroupId(null);
             if (playTimerRef.current) clearTimeout(playTimerRef.current);
         };
 
-        audio.play().catch(() => {
+        audio.play().then(() => {
+            startTimeTracking();
+        }).catch(() => {
             setPlayingGroupId(null);
             showToast('오디오 재생에 실패했습니다.', 'error');
         });
-    }, [narrativeAudioUrl, playingGroupId, showToast]);
+    }, [narrativeAudioUrl, playingGroupId, showToast, startTimeTracking, stopTimeTracking]);
 
     // 두 그룹 합치기 (index와 index+1)
     const handleMerge = useCallback((index: number) => {
@@ -241,72 +274,52 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
         };
         const next = [...groups];
         next.splice(index, 2, merged);
-        // id 재부여
         setGroups(next.map((g, i) => ({ ...g, id: `scene-${i + 1}` })));
     }, [groups]);
 
-    // 그룹 나누기 — 문장 2개 이상이면 문장 절반, 1개면 문장 내 분할
-    const handleSplit = useCallback((index: number) => {
-        const group = groups[index];
+    // 단어 칩 사이 클릭으로 분할
+    const handleSplitAtWord = useCallback((groupIndex: number, globalWordIndex: number) => {
+        const group = groups[groupIndex];
+        // 그룹 내 전체 단어 flat 배열
+        const allWords = group.sentences.flatMap((s) => s.words || []);
+        if (globalWordIndex < 0 || globalWordIndex >= allWords.length - 1) return;
 
-        if (group.sentences.length >= 2) {
-            // 문장 절반 기준 분할
-            const mid = Math.ceil(group.sentences.length / 2);
-            const firstHalf = group.sentences.slice(0, mid);
-            const secondHalf = group.sentences.slice(mid);
+        // 분할 지점: globalWordIndex 단어까지가 A, 나머지가 B
+        // 원본 문장 인덱스 태깅 재구성
+        const taggedWords: TaggedWord[] = [];
+        group.sentences.forEach((s, si) => {
+            (s.words || []).forEach((w) => taggedWords.push({ ...w, sentenceIdx: si }));
+        });
 
-            const groupA: SplitGroup = {
-                id: group.id,
-                text: firstHalf.map((s) => s.text).join(' '),
-                sentences: firstHalf,
-                audioStartTime: firstHalf[0].startTime,
-                audioEndTime: firstHalf[firstHalf.length - 1].endTime,
-                duration: firstHalf[firstHalf.length - 1].endTime - firstHalf[0].startTime,
-            };
-            const groupB: SplitGroup = {
-                id: group.id,
-                text: secondHalf.map((s) => s.text).join(' '),
-                sentences: secondHalf,
-                audioStartTime: secondHalf[0].startTime,
-                audioEndTime: secondHalf[secondHalf.length - 1].endTime,
-                duration: secondHalf[secondHalf.length - 1].endTime - secondHalf[0].startTime,
-            };
+        const wordsA = taggedWords.slice(0, globalWordIndex + 1);
+        const wordsB = taggedWords.slice(globalWordIndex + 1);
 
-            const next = [...groups];
-            next.splice(index, 1, groupA, groupB);
-            setGroups(next.map((g, i) => ({ ...g, id: `scene-${i + 1}` })));
-        } else if (group.sentences.length === 1) {
-            // 문장 내 분할 (쉼표/중간 지점)
-            const result = splitSingleSentence(group.sentences[0]);
-            if (!result) {
-                showToast('이 문장은 너무 짧아서 나눌 수 없습니다.', 'info');
-                return;
-            }
-            const [sentA, sentB] = result;
+        if (wordsA.length === 0 || wordsB.length === 0) return;
 
-            const groupA: SplitGroup = {
-                id: group.id,
-                text: sentA.text,
-                sentences: [sentA],
-                audioStartTime: sentA.startTime,
-                audioEndTime: sentA.endTime,
-                duration: sentA.endTime - sentA.startTime,
-            };
-            const groupB: SplitGroup = {
-                id: group.id,
-                text: sentB.text,
-                sentences: [sentB],
-                audioStartTime: sentB.startTime,
-                audioEndTime: sentB.endTime,
-                duration: sentB.endTime - sentB.startTime,
-            };
+        const sentencesA = rebuildSentences(wordsA, group.sentences);
+        const sentencesB = rebuildSentences(wordsB, group.sentences);
 
-            const next = [...groups];
-            next.splice(index, 1, groupA, groupB);
-            setGroups(next.map((g, i) => ({ ...g, id: `scene-${i + 1}` })));
+        const groupA: SplitGroup = {
+            id: group.id,
+            text: wordsA.map((w) => w.text).join(' '),
+            sentences: sentencesA,
+            audioStartTime: wordsA[0].startTime,
+            audioEndTime: wordsA[wordsA.length - 1].endTime,
+            duration: wordsA[wordsA.length - 1].endTime - wordsA[0].startTime,
+        };
+        const groupB: SplitGroup = {
+            id: group.id,
+            text: wordsB.map((w) => w.text).join(' '),
+            sentences: sentencesB,
+            audioStartTime: wordsB[0].startTime,
+            audioEndTime: wordsB[wordsB.length - 1].endTime,
+            duration: wordsB[wordsB.length - 1].endTime - wordsB[0].startTime,
+        };
 
-            showToast('문장 내에서 분할되었습니다.', 'success');
-        }
+        const next = [...groups];
+        next.splice(groupIndex, 1, groupA, groupB);
+        setGroups(next.map((g, i) => ({ ...g, id: `scene-${i + 1}` })));
+        showToast('단어 사이에서 분할되었습니다.', 'success');
     }, [groups, showToast]);
 
     const handleApplyAndNext = useCallback(() => {
@@ -319,6 +332,7 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
         if (audioRef.current) {
             audioRef.current.pause();
         }
+        stopTimeTracking();
         setPlayingGroupId(null);
 
         // scenes 업데이트
@@ -354,7 +368,7 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
         setNarrationStep(4);
 
         onNext();
-    }, [groups, setScenes, setNarrationClips, setNarrationStep, onNext]);
+    }, [groups, setScenes, setNarrationClips, setNarrationStep, onNext, stopTimeTracking]);
 
     if (sentenceTimings.length === 0) {
         return (
@@ -391,8 +405,7 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
                                 onClick={() => {
                                     if (sec === maxDuration) return;
                                     setMaxDuration(sec);
-                                    // 즉시 재분할 결과를 계산해 피드백 표시
-                                    const newGroups = autoSplit(sentenceTimings, sec);
+                                    const newGroups = autoSplitByWords(enrichedTimings, sec);
                                     showToast(
                                         `${sec}초 기준으로 자동 분할: ${newGroups.length}개 씬`,
                                         'info',
@@ -403,6 +416,9 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
                             </button>
                         ))}
                     </div>
+                    <p className="narration-split-step__controls-hint">
+                        한 씬의 최대 길이입니다. 짧을수록 씬이 많아지고, 길수록 적어집니다.
+                    </p>
                 </div>
             </div>
 
@@ -411,9 +427,11 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
                 {groups.map((group, index) => {
                     const isOverDuration = group.duration > maxDuration;
                     const isPlaying = playingGroupId === group.id;
+                    const groupWords = group.sentences.flatMap((s) => s.words || []);
+                    const wordCount = groupWords.length;
                     return (
                         <div key={group.id} className="narration-split-step__group-wrapper">
-                            {/* 이미지 슬롯 (나누면 많아지고 합치면 적어짐을 시각화) */}
+                            {/* 이미지 슬롯 */}
                             <div className="narration-split-step__image-box">
                                 <span className="narration-split-step__image-placeholder">IMG</span>
                             </div>
@@ -439,20 +457,28 @@ const NarrationSplitStep: React.FC<Props> = ({ onNext, onPrev }) => {
                                         onClick={() => handlePreview(group)}
                                         title={isPlaying ? '정지' : '이 씬 미리듣기'}
                                     >
-                                        {isPlaying ? <Pause size={12} /> : <Play size={12} />}
-                                        {isPlaying ? '정지' : '듣기'}
-                                    </button>
-                                    <button
-                                        className="narration-split-step__scene-split-btn"
-                                        onClick={() => handleSplit(index)}
-                                        title={group.sentences.length >= 2 ? '문장 절반으로 나누기' : '쉼표/중간 지점에서 나누기'}
-                                    >
-                                        <Scissors size={12} /> 나누기
+                                        {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                                        {isPlaying ? '정지' : '▶ 듣기'}
                                     </button>
                                 </div>
-                                <p className="narration-split-step__scene-text">{group.text}</p>
+
+                                {/* 단어 칩 영역 */}
+                                <div className="narration-split-step__word-chips">
+                                    {wordCount > 0 ? (
+                                        <VrewClipTokens
+                                            words={groupWords}
+                                            currentTime={isPlaying ? currentTime : -1}
+                                            clipAudioStart={group.audioStartTime}
+                                            clipAudioEnd={group.audioEndTime}
+                                            onSplitAfterWord={(wordIdx) => handleSplitAtWord(index, wordIdx)}
+                                        />
+                                    ) : (
+                                        <p className="narration-split-step__scene-text">{group.text}</p>
+                                    )}
+                                </div>
+
                                 <div className="narration-split-step__sentence-count">
-                                    문장 {group.sentences.length}개
+                                    문장 {group.sentences.length}개 · 단어 {wordCount}개
                                 </div>
                             </div>
 

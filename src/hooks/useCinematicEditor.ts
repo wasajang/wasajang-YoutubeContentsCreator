@@ -141,24 +141,35 @@ export function useCinematicEditor({
     setClipPrompts(prompts);
   }, [scenes.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 재생성 핸들러 — 영상
-  const handleRegenerateVideo = useCallback(async (sceneId: string) => {
+  // 재생성 핸들러 — 영상 (clipId 지정 시 해당 서브클립만 갱신)
+  const handleRegenerateVideo = useCallback(async (sceneId: string, clipId?: string) => {
     const prompt = clipPrompts[sceneId]?.video || '';
+    // clipId로 서브 인덱스 추출
+    let subIdx = 0;
+    if (clipId) {
+      const target = cinematicClips.find(c => c.id === clipId);
+      subIdx = target?.subIndex ?? 0;
+    }
     const imageUrl =
-      storeSceneImages[sceneId]?.[0] ||
+      storeSceneImages[sceneId]?.[subIdx] ||
       scenes.find((s) => s.id === sceneId)?.imageUrl ||
       '';
-    const newVideoUrl = await regenerateVideo(sceneId, prompt, imageUrl);
+    const newVideoUrl = await regenerateVideo(sceneId, prompt, imageUrl, subIdx);
     if (newVideoUrl) {
       setCinematicClips((prev) =>
-        prev.map((c) =>
-          c.sceneId === sceneId
+        prev.map((c) => {
+          if (clipId) {
+            return c.id === clipId
+              ? { ...c, videoUrl: newVideoUrl, isVideoEnabled: true }
+              : c;
+          }
+          return c.sceneId === sceneId
             ? { ...c, videoUrl: newVideoUrl, isVideoEnabled: true }
-            : c
-        )
+            : c;
+        })
       );
     }
-  }, [clipPrompts, storeSceneImages, scenes, regenerateVideo]);
+  }, [clipPrompts, storeSceneImages, scenes, regenerateVideo, cinematicClips]);
 
   // 영상 길이 변경 핸들러
   const handleDurationChange = useCallback((sceneId: string, duration: number) => {
@@ -208,8 +219,8 @@ export function useCinematicEditor({
     return sceneSeeds[currentClip.sceneId] ?? [...selectedDeck];
   }, [currentClip, sceneSeeds, selectedDeck]);
 
-  // 이미지 재생성 핸들러
-  const handleRegenerateImage = useCallback(async (sceneId: string) => {
+  // 이미지 재생성 핸들러 (clipId 지정 시 해당 서브클립만 갱신)
+  const handleRegenerateImage = useCallback(async (sceneId: string, clipId?: string) => {
     const prompt = clipPrompts[sceneId]?.image || '';
     const sizeMap: Record<string, { width: number; height: number }> = {
       '9:16': { width: 720, height: 1280 },
@@ -217,15 +228,23 @@ export function useCinematicEditor({
       '16:9': { width: 1280, height: 720 },
     };
     const { width, height } = sizeMap[aspectRatio] || sizeMap['16:9'];
-    const newImageUrl = await regenerateImage(sceneId, prompt, width, height);
+    let subIdx = 0;
+    if (clipId) {
+      const target = cinematicClips.find(c => c.id === clipId);
+      subIdx = target?.subIndex ?? 0;
+    }
+    const newImageUrl = await regenerateImage(sceneId, prompt, width, height, subIdx);
     if (newImageUrl) {
       setCinematicClips((prev) =>
-        prev.map((c) =>
-          c.sceneId === sceneId ? { ...c, imageUrl: newImageUrl } : c
-        )
+        prev.map((c) => {
+          if (clipId) {
+            return c.id === clipId ? { ...c, imageUrl: newImageUrl } : c;
+          }
+          return c.sceneId === sceneId ? { ...c, imageUrl: newImageUrl } : c;
+        })
       );
     }
-  }, [clipPrompts, aspectRatio, regenerateImage]);
+  }, [clipPrompts, aspectRatio, regenerateImage, cinematicClips]);
 
   // 대본 텍스트 편집
   const handleTextChange = useCallback((clipId: string, text: string) => {
@@ -304,7 +323,7 @@ export function useCinematicEditor({
       if (prev.length <= 1) return prev;
       return relabel(prev.filter((_, i) => i !== index));
     });
-  }, []);
+  }, [saveHistory]);
 
   // 삭제 (컨트롤 버튼)
   const handleDelete = useCallback(() => {
@@ -313,7 +332,7 @@ export function useCinematicEditor({
       if (prev.length <= 1) return prev;
       return relabel(prev.filter((_, i) => i !== currentClipIndex));
     });
-  }, [currentClipIndex]);
+  }, [currentClipIndex, saveHistory]);
 
   // 타임라인: 눈금자 클릭 시간 이동
   const handleTimelineSeek = useCallback((time: number) => {
@@ -365,7 +384,7 @@ export function useCinematicEditor({
       return relabel(newClips);
     });
     setCurrentClipIndex(insertIndex);
-  }, [setCurrentClipIndex]);
+  }, [setCurrentClipIndex, saveHistory]);
 
   // 음성 아이템 핸들러
   const handleAddAudio = useCallback((startTime: number) => {

@@ -3,6 +3,8 @@
  *
  * VrewNarrationView에서 추출한 상태와 핸들러.
  * VrewEditor가 이 훅을 호출하여 레이아웃을 직접 제어합니다.
+ *
+ * 043: onBeforeEdit 콜백 추가 — 모든 편집 핸들러 호출 전 히스토리 스냅샷 저장
  */
 import { useCallback, useEffect, useMemo } from 'react';
 import { useProjectStore } from '../store/projectStore';
@@ -58,6 +60,8 @@ interface UseNarrationEditorOptions {
   currentTime: number;
   seekToClip: (index: number) => void;
   seekToTime: (time: number) => void;
+  /** 043: 편집 직전 히스토리 스냅샷 저장 콜백 */
+  onBeforeEdit?: (snapshot: { narrationClips: NarrationClip[]; mediaRanges: MediaRange[] }) => void;
 }
 
 export function useNarrationEditor({
@@ -66,6 +70,7 @@ export function useNarrationEditor({
   currentTime,
   seekToClip,
   seekToTime,
+  onBeforeEdit,
 }: UseNarrationEditorOptions) {
   // store에서 나레이션 전용 데이터 직접 접근
   const narrationClips = useProjectStore((s) => s.narrationClips);
@@ -80,6 +85,15 @@ export function useNarrationEditor({
 
   // 나레이션 클립 생성 훅
   const clipGen = useNarrationClipGeneration();
+
+  // 043: 편집 직전 히스토리 스냅샷 저장 래퍼
+  const saveHistory = useCallback(() => {
+    const state = useProjectStore.getState();
+    onBeforeEdit?.({
+      narrationClips: state.narrationClips,
+      mediaRanges: state.mediaRanges,
+    });
+  }, [onBeforeEdit]);
 
   // enrichedNarrationClips: words 자동 보정
   const enrichedNarrationClips = useMemo(() => {
@@ -130,6 +144,40 @@ export function useNarrationEditor({
     if (ranges.length > 0) setMediaRanges(ranges);
   }, [narrationClips.length]); // eslint-disable-line
 
+  // 클립 구조 변경 시 mediaRange 인덱스 자동 동기화
+  // (분할/합치기 등으로 클립 수가 바뀌면, sceneId 기준으로 인덱스 재계산)
+  useEffect(() => {
+    if (mediaRanges.length === 0 || narrationClips.length === 0) return;
+
+    let changed = false;
+    const synced = mediaRanges
+      .map((range) => {
+        if (!range.sceneId) return range;
+        let sceneStart = -1;
+        let sceneEnd = -1;
+        for (let ci = 0; ci < narrationClips.length; ci++) {
+          if (narrationClips[ci].sceneId === range.sceneId) {
+            if (sceneStart === -1) sceneStart = ci;
+            sceneEnd = ci;
+          }
+        }
+        // 해당 씬이 사라진 경우 range 제거
+        if (sceneStart === -1) {
+          changed = true;
+          return null;
+        }
+        // 인덱스가 바뀐 경우에만 업데이트
+        if (range.startClipIndex !== sceneStart || range.endClipIndex !== sceneEnd) {
+          changed = true;
+          return { ...range, startClipIndex: sceneStart, endClipIndex: sceneEnd };
+        }
+        return range;
+      })
+      .filter(Boolean) as MediaRange[];
+
+    if (changed) setMediaRanges(synced);
+  }, [narrationClips.length]); // eslint-disable-line
+
   // 현재 재생 단어
   const currentWord = useMemo(() => {
     if (!currentClip) return null;
@@ -148,6 +196,7 @@ export function useNarrationEditor({
   const handleSplit = useCallback(() => {
     const clip = clips[currentClipIndex];
     if (!clip || clip.sentences.length < 2) return;
+    saveHistory(); // 043: Undo 스냅샷
     try {
       const splitIndex = Math.floor(clip.sentences.length / 2) - 1;
       const [a, b] = splitClip(toNarrationClip(clip), splitIndex);
@@ -159,7 +208,7 @@ export function useNarrationEditor({
     } catch (err) {
       console.error('[useNarrationEditor] split 실패:', err);
     }
-  }, [clips, currentClipIndex, updateClips]);
+  }, [clips, currentClipIndex, updateClips, saveHistory]);
 
   // 단어 위치에서 분할
   const handleSplitAtWord = useCallback(
@@ -167,6 +216,7 @@ export function useNarrationEditor({
       const narr = useProjectStore.getState().narrationClips;
       const clip = narr[clipIndex];
       if (!clip) return;
+      saveHistory(); // 043: Undo 스냅샷
 
       const enrichedSentences = enrichWithWordTimings(clip.sentences);
       let wordCount = 0;
@@ -189,30 +239,33 @@ export function useNarrationEditor({
         }
       }
     },
-    [setNarrationClips]
+    [setNarrationClips, saveHistory]
   );
 
   // 삭제 (컨트롤 버튼)
   const handleDelete = useCallback(() => {
     if (clips.length <= 1) return;
+    saveHistory(); // 043: Undo 스냅샷
     updateClips(relabel(clips.filter((_, i) => i !== currentClipIndex)));
-  }, [clips, currentClipIndex, updateClips]);
+  }, [clips, currentClipIndex, updateClips, saveHistory]);
 
   // 타임라인: 클립 순서 드래그 변경
   const handleTimelineReorder = useCallback((fromIndex: number, toIndex: number) => {
+    saveHistory(); // 043: Undo 스냅샷
     const updated = [...clips];
     const [moved] = updated.splice(fromIndex, 1);
     updated.splice(toIndex, 0, { ...moved, isEdited: true });
     updateClips(relabel(updated));
-  }, [clips, updateClips]);
+  }, [clips, updateClips, saveHistory]);
 
   // 타임라인: 클립 삭제
   const handleTimelineDelete = useCallback((index: number) => {
     if (clips.length <= 1) return;
+    saveHistory(); // 043: Undo 스냅샷
     updateClips(relabel(clips.filter((_, i) => i !== index)));
-  }, [clips, updateClips]);
+  }, [clips, updateClips, saveHistory]);
 
-  // 타임라인: 눈금자 클릭 시간 이동
+  // 타임라인: 눈금자 클릭 시간 이동 (편집이 아니므로 saveHistory 불필요)
   const handleTimelineSeek = useCallback((time: number) => {
     seekToTime(time);
     let accumulated = 0;
@@ -230,13 +283,14 @@ export function useNarrationEditor({
   const handleMergeWithPrev = useCallback(
     (idx: number) => {
       if (idx <= 0) return;
+      saveHistory(); // 043: Undo 스냅샷
       const narr = useProjectStore.getState().narrationClips;
       const merged = mergeClips(narr[idx - 1], narr[idx]);
       const newClips = [...narr];
       newClips.splice(idx - 1, 2, merged);
       setNarrationClips(reorderClips(newClips));
     },
-    [setNarrationClips]
+    [setNarrationClips, saveHistory]
   );
 
   // 클립 삭제 (VrewClipList에서 호출)
@@ -244,12 +298,13 @@ export function useNarrationEditor({
     (idx: number) => {
       const narr = useProjectStore.getState().narrationClips;
       if (narr.length <= 1) return;
+      saveHistory(); // 043: Undo 스냅샷
       setNarrationClips(removeClip(narr, narr[idx].id));
     },
-    [setNarrationClips]
+    [setNarrationClips, saveHistory]
   );
 
-  // 이전/다음 클립 이동
+  // 이전/다음 클립 이동 (탐색이므로 saveHistory 불필요)
   const handlePrevClip = useCallback(() => {
     if (currentClipIndex > 0) seekToClip(currentClipIndex - 1);
   }, [currentClipIndex, seekToClip]);
@@ -269,6 +324,7 @@ export function useNarrationEditor({
   // MediaRange 리사이즈 핸들러
   const handleMediaRangeResize = useCallback(
     (rangeId: string, newStart: number, newEnd: number) => {
+      saveHistory(); // 043: Undo 스냅샷
       setMediaRanges(
         mediaRanges.map((r) =>
           r.id === rangeId
@@ -277,7 +333,16 @@ export function useNarrationEditor({
         )
       );
     },
-    [mediaRanges, setMediaRanges]
+    [mediaRanges, setMediaRanges, saveHistory]
+  );
+
+  // 045: 에셋 삭제 핸들러 (Undo 지원)
+  const handleMediaRangeDelete = useCallback(
+    (rangeId: string) => {
+      saveHistory();
+      setMediaRanges(mediaRanges.filter((r) => r.id !== rangeId));
+    },
+    [mediaRanges, setMediaRanges, saveHistory]
   );
 
   return {
@@ -304,5 +369,6 @@ export function useNarrationEditor({
     mediaRanges,
     setMediaRanges,
     handleMediaRangeResize,
+    handleMediaRangeDelete,
   };
 }

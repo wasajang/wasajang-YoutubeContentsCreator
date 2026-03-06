@@ -12,7 +12,7 @@ import { useCredits } from './useCredits';
 interface UseImageRegenerationReturn {
   regeneratingScenes: Set<string>;
   isRegenerating: (sceneId: string) => boolean;
-  regenerateImage: (sceneId: string, prompt: string, width: number, height: number) => Promise<string | null>;
+  regenerateImage: (sceneId: string, prompt: string, width: number, height: number, subIndex?: number) => Promise<string | null>;
 }
 
 export function useImageRegeneration(): UseImageRegenerationReturn {
@@ -24,6 +24,7 @@ export function useImageRegeneration(): UseImageRegenerationReturn {
     prompt: string,
     width: number,
     height: number,
+    subIndex: number = 0,
   ): Promise<string | null> => {
     if (!canAfford('image')) {
       return null;
@@ -36,19 +37,21 @@ export function useImageRegeneration(): UseImageRegenerationReturn {
       const result = await generateImage({ prompt, width, height });
 
       if (result?.imageUrl) {
-        // store 업데이트 — sceneImages[sceneId][0] 에 저장
+        // store 업데이트 — sceneImages[sceneId][subIndex] 에 저장
         const store = useProjectStore.getState();
         const currentImages = store.sceneImages[sceneId] || [];
         const updated = [...currentImages];
-        updated[0] = result.imageUrl;
+        updated[subIndex] = result.imageUrl;
         store.setSceneImages({ ...store.sceneImages, [sceneId]: updated });
 
-        // scenes의 imageUrl도 업데이트
-        const scenes = store.scenes;
-        const updatedScenes = scenes.map((s) =>
-          s.id === sceneId ? { ...s, imageUrl: result.imageUrl } : s
-        );
-        store.setScenes(updatedScenes);
+        // scenes의 imageUrl도 업데이트 (첫 번째 서브씬인 경우만)
+        if (subIndex === 0) {
+          const scenes = store.scenes;
+          const updatedScenes = scenes.map((s) =>
+            s.id === sceneId ? { ...s, imageUrl: result.imageUrl } : s
+          );
+          store.setScenes(updatedScenes);
+        }
 
         return result.imageUrl;
       }

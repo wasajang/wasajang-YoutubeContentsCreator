@@ -1,6 +1,7 @@
-// VrewClipList — 클립 카드 리스트 + 인라인 에셋 인디케이터 + 씬 헤더
+// VrewClipList — 클립 카드 리스트 + 에셋 셀 (flex row) + 씬 헤더
+// 043: absolute 오버레이 → flex row 에셋 셀로 근본 변경 (겹침 원천 차단)
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Image, Video, ChevronDown, ChevronRight, RefreshCw, Trash2 } from 'lucide-react';
+import { Image, Video, ChevronDown, ChevronRight, RefreshCw, Trash2, MoreHorizontal, Plus } from 'lucide-react';
 import type { EditorClip, MediaRange } from './types';
 import VrewClipCard from './VrewClipCard';
 import ClipContextMenu from './ClipContextMenu';
@@ -25,6 +26,48 @@ interface VrewClipListProps {
   onMediaRangeResize?: (rangeId: string, newStart: number, newEnd: number) => void;
   onMediaRangeClick?: (rangeId: string, event: React.MouseEvent) => void;
   onMediaRangeDelete?: (rangeId: string) => void;
+  onAddAssetForClip?: (clipIndex: number) => void;
+}
+
+/** 각 클립 행의 에셋 셀 정보 계산 */
+function computeAssetCellInfo(
+  clipIndex: number,
+  ranges: MediaRange[],
+  selectedRangeId: string | null,
+  hoveredRangeId: string | null,
+  dragLiveRange: { rangeId: string; startClipIndex: number; endClipIndex: number } | null,
+): {
+  range: MediaRange | null;
+  position: 'start' | 'middle' | 'end' | 'single' | 'none';
+  isSelected: boolean;
+  isHovered: boolean;
+} {
+  // 드래그 중이면 라이브 범위 사용
+  for (const r of ranges) {
+    const live = dragLiveRange?.rangeId === r.id ? dragLiveRange : null;
+    const start = live ? live.startClipIndex : r.startClipIndex;
+    const end = live ? live.endClipIndex : r.endClipIndex;
+
+    if (clipIndex >= start && clipIndex <= end) {
+      const isSingle = start === end;
+      const isStart = clipIndex === start;
+      const isEnd = clipIndex === end;
+
+      let position: 'start' | 'middle' | 'end' | 'single' | 'none';
+      if (isSingle) position = 'single';
+      else if (isStart) position = 'start';
+      else if (isEnd) position = 'end';
+      else position = 'middle';
+
+      return {
+        range: r,
+        position,
+        isSelected: selectedRangeId === r.id,
+        isHovered: hoveredRangeId === r.id && selectedRangeId !== r.id,
+      };
+    }
+  }
+  return { range: null, position: 'none', isSelected: false, isHovered: false };
 }
 
 const VrewClipList: React.FC<VrewClipListProps> = ({
@@ -45,9 +88,11 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
   onMediaRangeResize,
   onMediaRangeClick,
   onMediaRangeDelete,
+  onAddAssetForClip,
 }) => {
-  // 클립 카드 컨테이너 ref (자동 스크롤용 + 에셋 드래그 위치 계산)
+  // 클립 카드 ref (자동 스크롤 + 드래그 리사이즈용)
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const cardsContainerRef = useRef<HTMLDivElement | null>(null);
 
   // 선택된 클립 자동 스크롤
   useEffect(() => {
@@ -92,7 +137,8 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
     });
   }, []);
 
-  // 에셋 호버/클릭 상태
+  // 에셋 선택/호버 상태 (Vrew 스타일: 선택=파란색, 호버=회색)
+  const [selectedRangeId, setSelectedRangeId] = useState<string | null>(null);
   const [hoveredRangeId, setHoveredRangeId] = useState<string | null>(null);
   const [assetMenu, setAssetMenu] = useState<{
     rangeId: string;
@@ -113,11 +159,50 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
     setContextMenu({ x: e.clientX, y: e.clientY, clipIndex });
   }, []);
 
-  // 에셋 아이콘 클릭 → 메뉴
+  // 044: 에셋 썸네일 클릭 → 선택만 (메뉴 없음, 오버레이 없음 → 드래그 핸들 즉시 사용 가능)
   const handleAssetIconClick = useCallback((e: React.MouseEvent, rangeId: string) => {
     e.stopPropagation();
-    setAssetMenu({ rangeId, x: e.clientX, y: e.clientY });
+    setSelectedRangeId(selectedRangeId === rangeId ? null : rangeId);
+    setAssetMenu(null);
+  }, [selectedRangeId]);
+
+  // 044: ... 아이콘 클릭 → 메뉴 표시 (별도 핸들러)
+  const handleAssetMenuClick = useCallback((e: React.MouseEvent, rangeId: string) => {
+    e.stopPropagation();
+    setSelectedRangeId(rangeId);
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setAssetMenu({ rangeId, x: rect.right + 4, y: rect.top });
   }, []);
+
+  // 외부 클릭 시 에셋 선택 해제
+  useEffect(() => {
+    if (!selectedRangeId) return;
+    const handler = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('.vrew-clip-list__asset-cell') || t.closest('.clip-context-menu')) return;
+      setSelectedRangeId(null);
+      setAssetMenu(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [selectedRangeId]);
+
+  // 045: Delete/Backspace 키로 선택된 에셋 삭제
+  useEffect(() => {
+    if (!selectedRangeId || !onMediaRangeDelete) return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        onMediaRangeDelete(selectedRangeId);
+        setSelectedRangeId(null);
+        setAssetMenu(null);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectedRangeId, onMediaRangeDelete]);
 
   // 에셋 적용범위 드래그 확장/축소
   const [dragLiveRange, setDragLiveRange] = useState<{
@@ -154,7 +239,6 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
           closest = idx;
         }
       });
-      // 범위 제한
       if (handle === 'top') return Math.min(closest, state.currentEnd);
       return Math.max(closest, state.currentStart);
     };
@@ -179,18 +263,13 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
     window.addEventListener('mouseup', handleUp);
   }, []);
 
-  // 클립 인덱스로 MediaRange 조회 (드래그 라이브 범위 반영)
-  const getRangeForClip = useCallback((clipIndex: number): (MediaRange & { _liveStart?: number; _liveEnd?: number }) | undefined => {
-    if (!mediaRanges) return undefined;
-    for (const r of mediaRanges) {
-      const start = dragLiveRange?.rangeId === r.id ? dragLiveRange.startClipIndex : r.startClipIndex;
-      const end = dragLiveRange?.rangeId === r.id ? dragLiveRange.endClipIndex : r.endClipIndex;
-      if (clipIndex >= start && clipIndex <= end) {
-        return { ...r, startClipIndex: start, endClipIndex: end, _liveStart: start, _liveEnd: end };
-      }
-    }
-    return undefined;
-  }, [mediaRanges, dragLiveRange]);
+  // 유효한 mediaRange만 필터
+  const visualRanges = useMemo(() => {
+    if (!mediaRanges || mediaRanges.length === 0) return [] as MediaRange[];
+    return mediaRanges.filter(
+      (r) => r.startClipIndex < clips.length && r.endClipIndex < clips.length
+    );
+  }, [mediaRanges, clips.length]);
 
   // 일괄 버튼 레이블 계산
   const missingImageCount = clips.filter((c) => !c.imageUrl).length;
@@ -205,16 +284,16 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
     (c) => clipVideoGenStatus[c.id] === 'generating'
   );
 
-  // MediaRange 기반 이미지 URL 헬퍼
+  // 044: MediaRange 기반 이미지 URL 헬퍼 — range 없으면 빈 문자열(검정)
   const getAppliedImage = (clipIndex: number): string => {
-    if (!mediaRanges) return clips[clipIndex]?.imageUrl || '';
-    const range = mediaRanges.find(
+    if (visualRanges.length === 0) return clips[clipIndex]?.imageUrl || '';
+    const range = visualRanges.find(
       (r) =>
-        r.type === 'image' &&
+        (r.type === 'image' || r.type === 'video') &&
         clipIndex >= r.startClipIndex &&
         clipIndex <= r.endClipIndex
     );
-    return range?.url || clips[clipIndex]?.imageUrl || '';
+    return range?.url || '';  // 044: range 없으면 빈 문자열 → 검정 표시
   };
 
   if (clips.length === 0) {
@@ -225,7 +304,7 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
     );
   }
 
-  const hasMediaRanges = mediaRanges && mediaRanges.length > 0;
+  const hasMediaRanges = visualRanges.length > 0;
 
   return (
     <div className="vrew-clip-list">
@@ -284,8 +363,8 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
         </button>
       </div>
 
-      {/* 클립 카드 리스트 (인라인 에셋 인디케이터 포함) */}
-      <div className="vrew-clip-list__cards">
+      {/* 클립 카드 리스트 (에셋 셀은 각 row 내부에 inline flex 형제) */}
+      <div className="vrew-clip-list__cards" ref={cardsContainerRef}>
         {clips.map((clip, i) => {
           // 씬 그룹 정보
           const group = sceneGroups.find(g => g.sceneId === clip.sceneId);
@@ -296,15 +375,8 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
           // 접힌 씬의 첫 번째가 아닌 클립은 숨김
           if (!isFirstOfScene && isCollapsed) return null;
 
-          // 에셋 범위 정보
-          const range = getRangeForClip(i);
-          const isRangeStart = range && i === range.startClipIndex;
-          const isRangeEnd = range && i === range.endClipIndex;
-          const isInRange = !!range;
-          const isRangeHighlighted = range && (
-            hoveredRangeId === range.id ||
-            assetMenu?.rangeId === range.id
-          );
+          // 에셋 셀 정보 계산 (flex row 내 에셋 칼럼)
+          const cellInfo = computeAssetCellInfo(i, visualRanges, selectedRangeId, hoveredRangeId, dragLiveRange);
 
           const formatSceneTime = (sec: number) => {
             const m = Math.floor(sec / 60);
@@ -316,84 +388,104 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
             <React.Fragment key={clip.id}>
               {/* 씬 구분 헤더 */}
               {isFirstOfScene && sceneGroups.length > 1 && (
-                <div
-                  className="vrew-clip-list__scene-header"
-                  onClick={() => toggleSceneCollapse(clip.sceneId)}
-                >
-                  {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                  <span className="vrew-clip-list__scene-num">#{sceneIdx}</span>
-                  <span className="vrew-clip-list__scene-text">
-                    {(group?.text || '').length > 30
-                      ? (group?.text || '').slice(0, 30) + '\u2026'
-                      : group?.text}
-                  </span>
-                  <span className="vrew-clip-list__scene-time">
-                    {formatSceneTime(group?.startTime || 0)} + {(group?.totalDuration || 0).toFixed(1)}초
-                  </span>
+                <div className="vrew-clip-list__scene-header">
+                  {/* 에셋 칼럼 빈 셀 (정렬 유지) */}
+                  {hasMediaRanges && <div className="vrew-clip-list__asset-cell vrew-clip-list__asset-cell--header" />}
+                  <div className="vrew-clip-list__scene-header-content" onClick={() => toggleSceneCollapse(clip.sceneId)}>
+                    {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                    <span className="vrew-clip-list__scene-num">#{sceneIdx}</span>
+                    <span className="vrew-clip-list__scene-text">
+                      {(group?.text || '').length > 30
+                        ? (group?.text || '').slice(0, 30) + '\u2026'
+                        : group?.text}
+                    </span>
+                    <span className="vrew-clip-list__scene-time">
+                      {formatSceneTime(group?.startTime || 0)} + {(group?.totalDuration || 0).toFixed(1)}초
+                    </span>
+                  </div>
                 </div>
               )}
 
-              {/* 클립 카드 행 (에셋 인디케이터 + 카드) */}
+              {/* 클립 카드 행 */}
               {!isCollapsed && (
                 <div
                   className={[
                     'vrew-clip-list__card-row',
-                    isRangeHighlighted ? 'vrew-clip-list__card-row--highlighted' : '',
+                    cellInfo.isSelected ? 'vrew-clip-list__card-row--selected' : '',
+                    cellInfo.isHovered ? 'vrew-clip-list__card-row--hovered' : '',
                   ].filter(Boolean).join(' ')}
                   ref={(el) => { cardRefs.current[i] = el; }}
+                  onMouseEnter={() => cellInfo.range && setHoveredRangeId(cellInfo.range.id)}
+                  onMouseLeave={() => setHoveredRangeId(null)}
                 >
-                  {/* 에셋 인디케이터 (왼쪽 칼럼) */}
+                  {/* ── 에셋 셀 (52px, 썸네일 왼쪽 + 범위바 오른쪽) ── */}
                   {hasMediaRanges && (
-                    <div className={[
-                      'vrew-clip-list__asset-col',
-                      isInRange ? 'vrew-clip-list__asset-col--in-range' : '',
-                      isRangeStart ? 'vrew-clip-list__asset-col--start' : '',
-                      isRangeEnd ? 'vrew-clip-list__asset-col--end' : '',
-                    ].filter(Boolean).join(' ')}>
-                      {/* 위쪽 드래그 핸들 (범위 시작) */}
-                      {isRangeStart && range && onMediaRangeResize && (
-                        <div
-                          className="vrew-clip-list__asset-handle vrew-clip-list__asset-handle--top"
-                          onMouseDown={(e) => startAssetResize(e, range.id, 'top', range.startClipIndex, range.endClipIndex)}
-                          title="위로 드래그하여 범위 확장"
-                        />
-                      )}
-                      {/* 적용 범위 세로선 */}
-                      {isInRange && (
+                    <div
+                      className={[
+                        'vrew-clip-list__asset-cell',
+                        `vrew-clip-list__asset-cell--${cellInfo.position}`,
+                        cellInfo.isSelected ? 'vrew-clip-list__asset-cell--selected' : '',
+                        cellInfo.isHovered ? 'vrew-clip-list__asset-cell--hovered' : '',
+                      ].filter(Boolean).join(' ')}
+                      /* 044: 호버 이벤트는 card-row에서 처리 */
+                    >
+                      {/* 세로 연결선 */}
+                      {cellInfo.position !== 'none' && (
                         <div className="vrew-clip-list__asset-line" />
                       )}
-                      {/* 첫 클립에 에셋 아이콘 */}
-                      {isRangeStart && range && (
-                        <div
-                          className="vrew-clip-list__asset-icon"
-                          onClick={(e) => handleAssetIconClick(e, range.id)}
-                          onMouseEnter={() => setHoveredRangeId(range.id)}
-                          onMouseLeave={() => setHoveredRangeId(null)}
-                          title={range.type === 'image' ? '이미지 에셋' : '비디오 에셋'}
+
+                      {/* 045: 빈 클립 — + 버튼 (에셋 추가) */}
+                      {cellInfo.position === 'none' && onAddAssetForClip && (
+                        <button
+                          className="vrew-clip-list__asset-add-btn"
+                          onClick={(e) => { e.stopPropagation(); onAddAssetForClip(i); }}
+                          title="이 클립에 에셋 추가"
                         >
-                          {range.url ? (
-                            <img
-                              src={range.url}
-                              alt={range.type}
-                              className="vrew-clip-list__asset-thumb"
-                            />
-                          ) : range.type === 'video' ? (
-                            <Video size={14} color="var(--accent-primary)" />
+                          <Plus size={14} />
+                        </button>
+                      )}
+
+                      {/* 썸네일 (start 또는 single 위치에만) */}
+                      {(cellInfo.position === 'start' || cellInfo.position === 'single') && cellInfo.range && (
+                        <div
+                          className="vrew-clip-list__asset-thumb"
+                          onClick={(e) => handleAssetIconClick(e, cellInfo.range!.id)}
+                        >
+                          {cellInfo.range.url ? (
+                            <img src={cellInfo.range.url} alt={cellInfo.range.type} />
+                          ) : cellInfo.range.type === 'video' ? (
+                            <Video size={16} color="var(--accent-primary)" />
                           ) : (
-                            <Image size={14} color="var(--text-secondary)" />
+                            <Image size={16} color="var(--text-secondary)" />
                           )}
-                          {range.type === 'video' && range.url && (
-                            <span className="vrew-clip-list__asset-badge">
+                          {cellInfo.range.type === 'video' && cellInfo.range.url && (
+                            <span className="vrew-clip-list__asset-video-badge">
                               <Video size={8} color="#fff" />
                             </span>
                           )}
+                          <span
+                            className="vrew-clip-list__asset-menu-dot"
+                            onClick={(e) => handleAssetMenuClick(e, cellInfo.range!.id)}
+                          >
+                            <MoreHorizontal size={10} />
+                          </span>
                         </div>
                       )}
-                      {/* 아래쪽 드래그 핸들 (범위 끝) */}
-                      {isRangeEnd && range && onMediaRangeResize && (
+
+                      {/* 위쪽 드래그 핸들 (start 또는 single) */}
+                      {onMediaRangeResize && (cellInfo.position === 'start' || cellInfo.position === 'single') && cellInfo.range && (
+                        <div
+                          className="vrew-clip-list__asset-handle vrew-clip-list__asset-handle--top"
+                          onMouseDown={(e) => startAssetResize(e, cellInfo.range!.id, 'top', cellInfo.range!.startClipIndex, cellInfo.range!.endClipIndex)}
+                          title="위로 드래그하여 범위 확장"
+                        />
+                      )}
+
+                      {/* 아래쪽 드래그 핸들 (end 또는 single) */}
+                      {onMediaRangeResize && (cellInfo.position === 'end' || cellInfo.position === 'single') && cellInfo.range && (
                         <div
                           className="vrew-clip-list__asset-handle vrew-clip-list__asset-handle--bottom"
-                          onMouseDown={(e) => startAssetResize(e, range.id, 'bottom', range.startClipIndex, range.endClipIndex)}
+                          onMouseDown={(e) => startAssetResize(e, cellInfo.range!.id, 'bottom', cellInfo.range!.startClipIndex, cellInfo.range!.endClipIndex)}
                           title="아래로 드래그하여 범위 확장"
                         />
                       )}
@@ -416,6 +508,7 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
                       isGeneratingImage={clipGenStatus[clip.id] === 'generating'}
                       isGeneratingVideo={clipVideoGenStatus[clip.id] === 'generating'}
                       appliedImageUrl={getAppliedImage(i)}
+                      onAddAsset={onAddAssetForClip ? () => onAddAssetForClip(i) : undefined}
                       onContextMenu={(e) => handleContextMenu(e, i)}
                     />
                   </div>
@@ -427,49 +520,44 @@ const VrewClipList: React.FC<VrewClipListProps> = ({
       </div>
 
       {/* 에셋 메뉴 팝업 */}
+      {/* 044: 에셋 메뉴 — 오버레이 제거 (드래그 핸들 차단 방지) */}
       {assetMenu && (() => {
         const range = mediaRanges?.find(r => r.id === assetMenu.rangeId);
         if (!range) return null;
         return (
-          <>
-            <div
-              className="clip-context-menu__overlay"
-              onClick={() => setAssetMenu(null)}
-              onContextMenu={(e) => { e.preventDefault(); setAssetMenu(null); }}
-            />
-            <div
-              className="clip-context-menu"
-              style={{ top: assetMenu.y, left: assetMenu.x }}
-              role="menu"
+          <div
+            className="clip-context-menu"
+            style={{ top: assetMenu.y, left: assetMenu.x }}
+            role="menu"
+          >
+            <button
+              className="clip-context-menu__item"
+              role="menuitem"
+              onClick={() => {
+                if (range.sceneId) {
+                  onMediaRangeClick?.(range.id, {} as React.MouseEvent);
+                }
+                setAssetMenu(null);
+              }}
             >
+              <RefreshCw size={13} />
+              교체 (재생성)
+            </button>
+            {onMediaRangeDelete && (
               <button
-                className="clip-context-menu__item"
+                className="clip-context-menu__item clip-context-menu__item--danger"
                 role="menuitem"
                 onClick={() => {
-                  if (range.sceneId) {
-                    onMediaRangeClick?.(range.id, {} as React.MouseEvent);
-                  }
+                  onMediaRangeDelete(range.id);
                   setAssetMenu(null);
+                  setSelectedRangeId(null);
                 }}
               >
-                <RefreshCw size={13} />
-                교체 (재생성)
+                <Trash2 size={13} />
+                에셋 제거
               </button>
-              {onMediaRangeDelete && (
-                <button
-                  className="clip-context-menu__item clip-context-menu__item--danger"
-                  role="menuitem"
-                  onClick={() => {
-                    onMediaRangeDelete(range.id);
-                    setAssetMenu(null);
-                  }}
-                >
-                  <Trash2 size={13} />
-                  에셋 제거
-                </button>
-              )}
-            </div>
-          </>
+            )}
+          </div>
         );
       })()}
 

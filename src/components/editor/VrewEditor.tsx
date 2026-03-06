@@ -15,7 +15,7 @@
  *
  * 로직은 useCinematicEditor / useNarrationEditor 훅으로 분리.
  */
-import React, { useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { GripHorizontal } from 'lucide-react';
 import { useProjectStore } from '../../store/projectStore';
 import type { AssetCard } from '../../store/projectStore';
@@ -36,6 +36,17 @@ import EditorControls from './EditorControls';
 import EditorTimeline from './EditorTimeline';
 import SceneNavPanel from './SceneNavPanel';
 import TtsPopupModal from './TtsPopupModal';
+import AssetRegenerateModal from './AssetRegenerateModal';
+import type { MediaRange } from './types';
+import { generateImage } from '../../services/ai-image';
+import { generateVideo } from '../../services/ai-video';
+import { buildImagePrompt, buildVideoPrompt } from '../../services/prompt-builder';
+import { useCredits } from '../../hooks/useCredits';
+
+/** 043: Undo/Redo 스냅샷 — 시네마틱/나레이션 통합 union 타입 */
+type HistorySnapshot =
+  | { type: 'cinematic'; clips: any[] }
+  | { type: 'narration'; narrationClips: any[]; mediaRanges: MediaRange[] };
 
 interface VrewEditorProps {
   onNext?: () => void;
@@ -96,12 +107,12 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     getDuration: () => cinematicDurationRef.current,
   });
 
-  // Undo/Redo 히스토리 (훅 순서 보장 — cinematic/narration보다 먼저 선언)
-  const restoreRef = useRef<((snapshot: any) => void) | null>(null);
-  const handleHistoryRestore = useCallback((snapshot: { clips: any[] }) => {
+  // 043: Undo/Redo 히스토리 (union 스냅샷 — 시네마틱+나레이션 통합)
+  const restoreRef = useRef<((snapshot: HistorySnapshot) => void) | null>(null);
+  const handleHistoryRestore = useCallback((snapshot: HistorySnapshot) => {
     restoreRef.current?.(snapshot);
   }, []);
-  const history = useEditorHistory(handleHistoryRestore);
+  const history = useEditorHistory<HistorySnapshot>(handleHistoryRestore);
 
   // 시네마틱 편집기 로직 (항상 호출 — React 훅 규칙)
   const cinematic = useCinematicEditor({
@@ -111,23 +122,136 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
     totalDuration,
     seekToClip,
     seekToTime,
-    onBeforeEdit: history.pushState,
+    onBeforeEdit: (snap) => history.pushState({ type: 'cinematic', ...snap }),
   });
 
   // 나레이션 편집기 로직 (항상 호출 — React 훅 규칙)
+  // 043: onBeforeEdit로 나레이션 히스토리 연결
   const narration = useNarrationEditor({
     currentClipIndex,
     setCurrentClipIndex,
     currentTime,
     seekToClip,
     seekToTime,
+    onBeforeEdit: (snap) => history.pushState({ type: 'narration', ...snap }),
   });
 
-  // cinematic 준비 후 restore 콜백 연결
+  // 043: 수평 리사이즈 훅 (나레이션 모드: 프리뷰 ↔ Vrew 에디터)
+  const {
+    mainFlex: previewFlex,
+    containerRef: narrationMainRef,
+    handleDividerMouseDown: handleHDividerMouseDown,
+  } = useResizableDivider(60, 30, 80, 'column');
+
+  // ── 에셋 교체 모달 상태 (나레이션 모드) ──
+  const [assetRegenRange, setAssetRegenRange] = useState<MediaRange | null>(null);
+  const [isAssetRegenerating, setIsAssetRegenerating] = useState(false);
+  const { spend: creditSpend } = useCredits();
+
+  const aspectRatioForRegen = useProjectStore((s) => s.aspectRatio);
+  const artStyleIdForRegen = useProjectStore((s) => s.artStyleId);
+  const templateIdForRegen = useProjectStore((s) => s.templateId);
+
+  // 씨드카드 관련 store 데이터 (에셋 교체 모달용)
+  const cardLibrary = useProjectStore((s) => s.cardLibrary);
+  const selectedDeck = useProjectStore((s) => s.selectedDeck);
+  const sceneSeeds = useProjectStore((s) => s.sceneSeeds);
+
+  const regenAvailableCards = useMemo(
+    () => selectedDeck.map((id) => cardLibrary.find((c) => c.id === id)).filter(Boolean) as AssetCard[],
+    [selectedDeck, cardLibrary]
+  );
+  const regenInitialSeedIds = useMemo(
+    () =>
+      assetRegenRange?.sceneId
+        ? sceneSeeds[assetRegenRange.sceneId] || selectedDeck
+        : selectedDeck,
+    [assetRegenRange?.sceneId, sceneSeeds, selectedDeck]
+  );
+
+  // 045: 빈 클립에 에셋 추가 → 임시 MediaRange 생성 → 재생성 모달 열기
+  const handleAddAssetForClip = useCallback((clipIndex: number) => {
+    const clip = narration.clips[clipIndex];
+    if (!clip) return;
+    // 같은 씬의 전체 클립 범위 계산
+    let start = clipIndex;
+    let end = clipIndex;
+    for (let j = clipIndex - 1; j >= 0 && narration.clips[j].sceneId === clip.sceneId; j--) start = j;
+    for (let j = clipIndex + 1; j < narration.clips.length && narration.clips[j].sceneId === clip.sceneId; j++) end = j;
+    setAssetRegenRange({
+      id: `new-range-${clip.sceneId}-${Date.now()}`,
+      type: 'image',
+      url: '',
+      startClipIndex: start,
+      endClipIndex: end,
+      sceneId: clip.sceneId,
+    });
+  }, [narration.clips]);
+
+  const handleAssetRegenerateImage = useCallback(async (prompt: string) => {
+    if (!assetRegenRange) return;
+    if (!creditSpend('image')) return;
+    setIsAssetRegenerating(true);
+    try {
+      const sizeMap: Record<string, { width: number; height: number }> = {
+        '9:16': { width: 720, height: 1280 },
+        '1:1': { width: 1024, height: 1024 },
+        '16:9': { width: 1280, height: 720 },
+      };
+      const { width, height } = sizeMap[aspectRatioForRegen] || sizeMap['16:9'];
+      const result = await generateImage({ prompt, width, height });
+      // 045: 기존 range 있으면 교체, 없으면 새로 추가 (빈 클립에서 + 클릭 시)
+      const updatedRange = { ...assetRegenRange, url: result.imageUrl, type: 'image' as const };
+      const existing = narration.mediaRanges.find(r => r.id === assetRegenRange.id);
+      if (existing) {
+        narration.setMediaRanges(
+          narration.mediaRanges.map(r => r.id === assetRegenRange.id ? updatedRange : r)
+        );
+      } else {
+        narration.setMediaRanges([...narration.mediaRanges, updatedRange]);
+      }
+      setAssetRegenRange(updatedRange); // 영상화 단계에서 URL 필요
+    } finally {
+      setIsAssetRegenerating(false);
+    }
+  }, [assetRegenRange, narration, aspectRatioForRegen, creditSpend]);
+
+  const handleAssetRegenerateVideo = useCallback(async (prompt: string) => {
+    if (!assetRegenRange) return;
+    if (!creditSpend('video')) return;
+    setIsAssetRegenerating(true);
+    try {
+      // 045: 모달에서 이미지 생성 후 assetRegenRange가 업데이트되므로 거기서 URL 가져옴
+      const currentRange = narration.mediaRanges.find(r => r.id === assetRegenRange.id) || assetRegenRange;
+      if (!currentRange?.url) return;
+      const result = await generateVideo({
+        imageUrl: currentRange.url,
+        prompt,
+        duration: 5,
+        sceneId: currentRange.sceneId || '',
+      });
+      const updatedRange = { ...currentRange, url: result.videoUrl, type: 'video' as const };
+      const existing = narration.mediaRanges.find(r => r.id === assetRegenRange.id);
+      if (existing) {
+        narration.setMediaRanges(
+          narration.mediaRanges.map(r => r.id === assetRegenRange.id ? updatedRange : r)
+        );
+      } else {
+        narration.setMediaRanges([...narration.mediaRanges, updatedRange]);
+      }
+    } finally {
+      setIsAssetRegenerating(false);
+    }
+  }, [assetRegenRange, narration, creditSpend]);
+
+  // 043: restore 콜백 — 시네마틱/나레이션 분기 복원
   useEffect(() => {
-    restoreRef.current = (snapshot: { clips: any[] }) => {
-      if (mode === 'cinematic' && cinematic.restoreClips) {
+    restoreRef.current = (snapshot: HistorySnapshot) => {
+      if (snapshot.type === 'cinematic' && cinematic.restoreClips) {
         cinematic.restoreClips(snapshot.clips);
+      } else if (snapshot.type === 'narration') {
+        useProjectStore.getState().setNarrationClips(snapshot.narrationClips);
+        useProjectStore.getState().setMediaRanges(snapshot.mediaRanges);
       }
     };
   }, [mode, cinematic.restoreClips]);
@@ -177,8 +301,12 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
       <div
         className="vrew-editor__main"
         style={mode === 'narration' ? { flex: '1 1 auto' } : { flex: `${mainFlex} 0 0%` }}
+        ref={mode === 'narration' ? narrationMainRef : undefined}
       >
-        <div className="vrew-editor__preview-area">
+        <div
+          className="vrew-editor__preview-area"
+          style={mode === 'narration' ? { flex: `${previewFlex} 0 0%` } : undefined}
+        >
           <EditorPreview
             clip={currentClip}
             currentTime={currentTime}
@@ -197,15 +325,27 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
             </div>
           )}
         </div>
+
+        {/* 043: 수평 리사이즈 구분선 (나레이션 모드: 프리뷰 ↔ 에디터) */}
+        {mode === 'narration' && (
+          <div className="vrew-editor__h-divider" onMouseDown={handleHDividerMouseDown}>
+            <GripHorizontal size={14} style={{ transform: 'rotate(90deg)' }} />
+          </div>
+        )}
+
         {/* 나레이션 모드: 씬 네비게이션 패널 */}
         {mode === 'narration' && (
           <SceneNavPanel
             clips={narration.clips}
             currentClipIndex={currentClipIndex}
             onClipSelect={seekToClip}
+            mediaRanges={narration.mediaRanges}
           />
         )}
-        <div className="vrew-editor__script-area">
+        <div
+          className="vrew-editor__script-area"
+          style={mode === 'narration' ? { flex: `${100 - previewFlex} 0 0%` } : undefined}
+        >
           {mode === 'narration' ? (
             <VrewClipList
               clips={narration.clips}
@@ -225,11 +365,12 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
               clipVideoGenStatus={narration.clipGen.clipVideoGenStatus}
               mediaRanges={narration.mediaRanges}
               onMediaRangeResize={narration.handleMediaRangeResize}
-              onMediaRangeDelete={(rangeId) => {
-                narration.setMediaRanges(
-                  narration.mediaRanges.filter(r => r.id !== rangeId)
-                );
+              onMediaRangeDelete={narration.handleMediaRangeDelete}
+              onMediaRangeClick={(rangeId: string) => {
+                const range = narration.mediaRanges.find(r => r.id === rangeId);
+                if (range) setAssetRegenRange(range);
               }}
+              onAddAssetForClip={handleAddAssetForClip}
             />
           ) : (
             <ScriptPanel
@@ -239,7 +380,7 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
               onTextChange={cinematic.handleTextChange}
               aspectRatio={cinematic.aspectRatio}
               sceneVideos={cinematic.sceneVideos}
-              onRegenerateVideo={(sceneId) => cinematic.handleRegenerateVideo(sceneId)}
+              onRegenerateVideo={(sceneId, clipId) => cinematic.handleRegenerateVideo(sceneId, clipId)}
               isRegenerating={(sceneId) => cinematic.isRegenerating(sceneId)}
               onInsertScene={cinematic.handleInsertScene}
             />
@@ -271,11 +412,11 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
               }}
               isRegenerating={currentClip ? cinematic.isRegenerating(currentClip.sceneId) : false}
               onRegenerateVideo={() => {
-                if (currentClip) cinematic.handleRegenerateVideo(currentClip.sceneId);
+                if (currentClip) cinematic.handleRegenerateVideo(currentClip.sceneId, currentClip.id);
               }}
               isRegeneratingImage={currentClip ? cinematic.isRegeneratingImage(currentClip.sceneId) : false}
               onRegenerateImage={() => {
-                if (currentClip) cinematic.handleRegenerateImage(currentClip.sceneId);
+                if (currentClip) cinematic.handleRegenerateImage(currentClip.sceneId, currentClip.id);
               }}
               sceneImageUrl={
                 currentClip
@@ -379,6 +520,50 @@ const VrewEditor: React.FC<VrewEditorProps> = ({ onNext, onPrev }) => {
         onTextChange={cinematic.setTtsText}
         onGenerate={cinematic.handleGenerateTts}
       />
+
+      {/* 에셋 교체 모달 (나레이션 모드) */}
+      {mode === 'narration' && (
+        <AssetRegenerateModal
+          range={assetRegenRange}
+          rangeClips={
+            assetRegenRange
+              ? narration.clips.slice(assetRegenRange.startClipIndex, assetRegenRange.endClipIndex + 1)
+              : []
+          }
+          initialImagePrompt={
+            assetRegenRange
+              ? buildImagePrompt({
+                  artStyleId: artStyleIdForRegen ?? 'cinematic',
+                  sceneText: narration.clips
+                    .slice(assetRegenRange.startClipIndex, assetRegenRange.endClipIndex + 1)
+                    .map(c => c.text).join(' '),
+                  seedCards: regenAvailableCards.filter((c) => regenInitialSeedIds.includes(c.id)),
+                  templateId: templateIdForRegen ?? undefined,
+                })
+              : ''
+          }
+          initialVideoPrompt={
+            assetRegenRange
+              ? buildVideoPrompt({
+                  artStyleId: artStyleIdForRegen ?? 'cinematic',
+                  sceneText: narration.clips
+                    .slice(assetRegenRange.startClipIndex, assetRegenRange.endClipIndex + 1)
+                    .map(c => c.text).join(' '),
+                  seedCards: regenAvailableCards.filter((c) => regenInitialSeedIds.includes(c.id)),
+                  templateId: templateIdForRegen ?? undefined,
+                })
+              : ''
+          }
+          onClose={() => setAssetRegenRange(null)}
+          onRegenerateImage={handleAssetRegenerateImage}
+          onRegenerateVideo={handleAssetRegenerateVideo}
+          isRegenerating={isAssetRegenerating}
+          availableCards={regenAvailableCards}
+          initialSeedIds={regenInitialSeedIds}
+          artStyleId={artStyleIdForRegen ?? 'cinematic'}
+          templateId={templateIdForRegen ?? undefined}
+        />
+      )}
 
       {/* 네비게이션 */}
       {(onPrev || onNext) && (

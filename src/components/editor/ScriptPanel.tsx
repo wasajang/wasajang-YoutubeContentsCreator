@@ -18,7 +18,7 @@ interface ScriptPanelProps {
   aspectRatio?: string;
   // 미디어 플로우 관련
   sceneVideos?: Record<string, string[]>;
-  onRegenerateVideo?: (sceneId: string) => void;
+  onRegenerateVideo?: (sceneId: string, clipId?: string) => void;
   isRegenerating?: (sceneId: string) => boolean;
   // 씬 삽입
   onInsertScene?: (afterIndex: number) => void;
@@ -113,7 +113,7 @@ const ScriptPanel: React.FC<ScriptPanelProps> = ({
                         className="vrew-script-panel__regen-btn-sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onRegenerateVideo(clip.sceneId);
+                          onRegenerateVideo(clip.sceneId, clip.id);
                         }}
                         disabled={regenActive || !!clip.isEdited}
                         title={clip.isEdited ? '편집됨' : regenActive ? '생성 중...' : '영상 다시 만들기'}

@@ -12,7 +12,7 @@ import { useCredits } from './useCredits';
 interface UseVideoRegenerationReturn {
   regeneratingScenes: Set<string>;
   isRegenerating: (sceneId: string) => boolean;
-  regenerateVideo: (sceneId: string, prompt: string, imageUrl: string) => Promise<string | null>;
+  regenerateVideo: (sceneId: string, prompt: string, imageUrl: string, subIndex?: number) => Promise<string | null>;
 }
 
 export function useVideoRegeneration(): UseVideoRegenerationReturn {
@@ -23,6 +23,7 @@ export function useVideoRegeneration(): UseVideoRegenerationReturn {
     sceneId: string,
     prompt: string,
     imageUrl: string,
+    subIndex: number = 0,
   ): Promise<string | null> => {
     if (!canAfford('video')) {
       return null;
@@ -42,7 +43,7 @@ export function useVideoRegeneration(): UseVideoRegenerationReturn {
       if (result?.videoUrl) {
         // store 업데이트
         useProjectStore.getState().updateSceneVideo(sceneId, result.videoUrl);
-        useProjectStore.getState().updateSceneVideoAtSub(sceneId, 0, result.videoUrl);
+        useProjectStore.getState().updateSceneVideoAtSub(sceneId, subIndex, result.videoUrl);
         return result.videoUrl;
       }
 
