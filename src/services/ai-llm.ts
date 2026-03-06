@@ -509,8 +509,8 @@ async function geminiAnalyzeScript(req: ScriptAnalysisRequest): Promise<ScriptAn
 
 규칙:
 1. 대본에서 주요 캐릭터(최대 5명), 배경(최대 3개), 아이템(최대 3개)을 추출
-2. 기존 카드 중 의미적으로 매칭되는 것이 있으면 matchedCardId에 해당 ID 기입
-3. 매칭 카드가 없으면 matchedCardId를 null로, 새 카드 정보 제안
+2. 기존 카드 중 대본에 등장하는 인물/장소/물건과 이름이나 역할이 **직접적으로 일치**하는 경우에만 matchedCardId에 해당 ID 기입. 단순히 "군인", "남성" 같은 넓은 공통점만으로 매칭하지 마세요. 대본의 시대/배경/맥락이 카드와 다르면 매칭하지 마세요.
+3. 매칭되는 기존 카드가 없으면(대부분의 경우) matchedCardId를 null로 하고 새 카드를 제안하세요
 4. description은 반드시 영문으로, 이미지 생성 AI가 사용할 구체적 시각 묘사 작성
 5. reason은 한국어로 추천 이유 간략 설명
 6. sceneMatching: 각 씬에 등장하는 카드의 ID 배열 (matchedCardId 또는 "ai-new-{index}")

@@ -6,7 +6,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { AssetCard, Scene } from '../store/projectStore';
 import { useProjectStore } from '../store/projectStore';
-import { mockScenePrompts } from '../data/mockData';
 import { generateImage } from '../services/ai-image';
 import { buildImagePrompt, getNegativePrompt, aspectRatioToSize } from '../services/prompt-builder';
 import type { GenerationType } from './useCredits';
@@ -140,7 +139,6 @@ export function useImageGeneration({
                 artStyleId,
                 sceneText: scene.text,
                 seedCards,
-                customImagePrompt: mockScenePrompts[sceneId]?.imagePrompt,
                 cameraAngle: scene.cameraAngle,
                 location: scene.location,
                 templateId,
