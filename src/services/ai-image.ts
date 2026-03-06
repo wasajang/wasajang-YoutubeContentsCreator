@@ -1,12 +1,18 @@
 /**
  * AI 이미지 생성 서비스
  *
- * Provider 패턴으로 Mock / Replicate / fal.ai 등 교체 가능.
+ * Provider 패턴으로 Mock / Replicate / Gemini 등 교체 가능.
  * 환경변수 VITE_IMAGE_API_PROVIDER로 전환:
  *   - 'mock'      → 가짜 딜레이 + Unsplash 이미지 (기본값)
  *   - 'replicate' → Replicate API (Flux/SDXL)
- *   - 'fal'       → fal.ai API
+ *   - 'gemini'    → Google Gemini Flash Image (무료)
+ *
+ * BYOK: 설정 페이지에서 입력한 키 우선 사용, 없으면 .env 키 사용
+ * 테스트 쿼터: ai-quota.ts에서 호출 횟수 제한 (비용 안전장치)
  */
+
+import { useSettingsStore } from '../store/settingsStore';
+import { consumeQuota } from './ai-quota';
 
 // ── 타입 정의 ──
 
@@ -157,11 +163,22 @@ function base64ToBlobUrl(base64Data: string, mimeType: string): string {
 const GEMINI_MAX_RETRIES = 3;
 const GEMINI_RETRY_BASE_DELAY = 10_000; // 429 시 10초 대기 후 재시도
 
+/** Gemini API 키: BYOK 우선, 없으면 .env */
+function getGeminiApiKey(): string {
+    const byokKey = useSettingsStore.getState().apiKeys.google;
+    if (byokKey) return byokKey;
+    return import.meta.env.VITE_GEMINI_API_KEY || '';
+}
+
 const geminiProvider: ImageProvider = {
     name: 'gemini',
     generate: async (req) => {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) throw new Error('VITE_GEMINI_API_KEY 환경변수가 설정되지 않았습니다.');
+        const apiKey = getGeminiApiKey();
+        if (!apiKey) throw new Error(
+            'Gemini API 키가 필요합니다.\n' +
+            '설정 페이지에서 Google API 키를 입력하거나,\n' +
+            '.env에 VITE_GEMINI_API_KEY를 추가해주세요.'
+        );
 
         const startTime = Date.now();
 
@@ -246,7 +263,13 @@ function getProvider(): ImageProvider {
  * console.log(result.imageUrl); // 생성된 이미지 URL
  */
 export async function generateImage(req: ImageGenerationRequest): Promise<ImageGenerationResult> {
-    const provider = getProvider();
+    let provider = getProvider();
+
+    // 테스트 쿼터 체크: 실제 provider인데 쿼터 초과면 → mock 자동 전환
+    if (provider.name !== 'mock' && !consumeQuota('image')) {
+        provider = mockProvider;
+    }
+
     console.log(`[AI Image] ${provider.name} 프로바이더로 생성 시작...`);
     const result = await provider.generate(req);
     console.log(`[AI Image] 완료 (${result.durationMs}ms, seed: ${result.seed})`);

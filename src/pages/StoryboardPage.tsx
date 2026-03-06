@@ -6,7 +6,7 @@ import CreditShortageModal from '../components/CreditShortageModal';
 import { CastSetupPhase, CutSplitPhase, SeedCheckPhase } from '../components/storyboard';
 import NarrationVideoStep from '../components/narration/NarrationVideoStep';
 import { useProjectStore } from '../store/projectStore';
-import type { Scene } from '../store/projectStore';
+import type { Scene, AssetCard } from '../store/projectStore';
 import { aiSuggestedCards } from '../data/mockData';
 import { getTemplateById } from '../data/templates';
 import { useCredits } from '../hooks/useCredits';
@@ -14,6 +14,7 @@ import { useDeck } from '../hooks/useDeck';
 import { useGeneration } from '../hooks/useGeneration';
 import { syncScenesImageToClips } from '../utils/narration-sync';
 import { getSceneGradient } from '../utils/scene-gradient';
+import { analyzeScript } from '../services/ai-llm';
 
 type StoryboardPhase = 'script-review' | 'cast-setup' | 'seed-check' | 'generating-video' | 'complete';
 
@@ -64,19 +65,56 @@ const StoryboardPage: React.FC = () => {
     });
 
     // ── AI 분석 핸들러 (deckApi + genApi 양쪽 조율) ──
-    const handleAiAnalysis = (doAnalysis: boolean) => {
+    const handleAiAnalysis = async (doAnalysis: boolean) => {
         const template = templateId ? getTemplateById(templateId) : null;
         const castPreset = template?.castPreset;
-        const castConfig = castPreset
-            ? { characters: castPreset.characters.length, backgrounds: castPreset.backgrounds.length, items: castPreset.items.length }
-            : { characters: 3, backgrounds: 1, items: 1 };
-        const totalSlots = castConfig.characters + castConfig.backgrounds + castConfig.items;
 
         if (!doAnalysis) {
-            const defaultDeck = aiSuggestedCards.slice(0, totalSlots).map((c) => ({ ...c, source: 'ai' as const }));
-            deckApi.setDeck(defaultDeck);
-            defaultDeck.forEach((c) => addToCardLibrary(c));
-            // 씨드 배정은 여기서 하지 않음 — "AI 분석 및 프롬프트 작성" 단계에서 수행
+            // "기본 카드 사용" — 템플릿 프리셋 카드 또는 기본 제안 카드
+            if (castPreset) {
+                const presetCards: AssetCard[] = [
+                    ...castPreset.characters.map((c, i) => ({
+                        id: `preset-char-${i}`,
+                        name: c.name,
+                        type: 'character' as const,
+                        description: c.description,
+                        imageUrl: c.referenceImageUrl || '',
+                        seed: Math.floor(Math.random() * 99999),
+                        status: 'pending' as const,
+                        isRequired: c.isRequired,
+                        source: 'template' as const,
+                    })),
+                    ...castPreset.backgrounds.map((c, i) => ({
+                        id: `preset-bg-${i}`,
+                        name: c.name,
+                        type: 'background' as const,
+                        description: c.description,
+                        imageUrl: c.referenceImageUrl || '',
+                        seed: Math.floor(Math.random() * 99999),
+                        status: 'pending' as const,
+                        isRequired: c.isRequired,
+                        source: 'template' as const,
+                    })),
+                    ...castPreset.items.map((c, i) => ({
+                        id: `preset-item-${i}`,
+                        name: c.name,
+                        type: 'item' as const,
+                        description: c.description,
+                        imageUrl: c.referenceImageUrl || '',
+                        seed: Math.floor(Math.random() * 99999),
+                        status: 'pending' as const,
+                        isRequired: c.isRequired,
+                        source: 'template' as const,
+                    })),
+                ];
+                presetCards.forEach((c) => addToCardLibrary(c));
+                deckApi.setDeck(presetCards);
+            } else {
+                // 템플릿 없으면 기존 aiSuggestedCards 폴백
+                const defaultDeck = aiSuggestedCards.slice(0, 5).map((c) => ({ ...c, source: 'ai' as const }));
+                defaultDeck.forEach((c) => addToCardLibrary(c));
+                deckApi.setDeck(defaultDeck);
+            }
             genApi.setSceneSeeds((prev) => {
                 const updated = { ...prev };
                 scenes.forEach((s) => { updated[s.id] = []; });
@@ -85,46 +123,91 @@ const StoryboardPage: React.FC = () => {
             setShowAiAnalysisModal(false);
             return;
         }
+
+        // ── 실제 AI 분석 시작 ──
         setIsAiAnalyzing(true);
-        setTimeout(() => {
-            const libChars = cardLibrary.filter((c) => c.type === 'character');
-            const libBgs = cardLibrary.filter((c) => c.type === 'background');
-            const libItems = cardLibrary.filter((c) => c.type === 'item');
 
-            const selectedChars = libChars.slice(0, castConfig.characters).map((c) => ({ ...c, source: 'ai' as const, isRequired: true }));
-            const selectedBgs = libBgs.slice(0, castConfig.backgrounds).map((c) => ({ ...c, source: 'ai' as const, isRequired: true }));
-            const selectedItems = libItems.slice(0, castConfig.items).map((c) => ({ ...c, source: 'ai' as const, isRequired: true }));
+        try {
+            const fullScript = scenes.map((s) => s.text).join('\n\n');
+            const result = await analyzeScript({
+                fullScript,
+                scenes: scenes.map((s) => ({ id: s.id, text: s.text })),
+                existingCards: cardLibrary.map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    type: c.type,
+                    description: c.description,
+                })),
+                templateId: templateId || undefined,
+            });
 
-            const aiCharsPool = aiSuggestedCards.filter((c) => c.type === 'character');
-            const aiBgsPool = aiSuggestedCards.filter((c) => c.type === 'background');
-            const aiItemsPool = aiSuggestedCards.filter((c) => c.type === 'item');
+            // 분석 결과 → AssetCard 변환
+            const analysisCards: AssetCard[] = result.recommendedCards.map((rec, i) => {
+                if (rec.matchedCardId) {
+                    // 기존 카드 매칭됨 → 기존 카드 재사용
+                    const existing = cardLibrary.find((c) => c.id === rec.matchedCardId);
+                    if (existing) {
+                        return { ...existing, isRequired: true, source: 'ai' as const };
+                    }
+                }
+                // 신규 카드 생성
+                return {
+                    id: rec.matchedCardId || `ai-new-${i}`,
+                    name: rec.name,
+                    type: rec.type,
+                    description: rec.description,
+                    imageUrl: '',
+                    seed: Math.floor(Math.random() * 99999),
+                    status: 'pending' as const,
+                    isRequired: true,
+                    source: 'ai' as const,
+                };
+            });
 
-            while (selectedChars.length < castConfig.characters && aiCharsPool.length > 0) {
-                const next = aiCharsPool.shift()!;
-                if (!selectedChars.some((c) => c.id === next.id)) selectedChars.push({ ...next, source: 'ai', isRequired: true });
-            }
-            while (selectedBgs.length < castConfig.backgrounds && aiBgsPool.length > 0) {
-                const next = aiBgsPool.shift()!;
-                if (!selectedBgs.some((c) => c.id === next.id)) selectedBgs.push({ ...next, source: 'ai', isRequired: true });
-            }
-            while (selectedItems.length < castConfig.items && aiItemsPool.length > 0) {
-                const next = aiItemsPool.shift()!;
-                if (!selectedItems.some((c) => c.id === next.id)) selectedItems.push({ ...next, source: 'ai', isRequired: true });
-            }
+            // 덱 설정
+            analysisCards.forEach((c) => addToCardLibrary(c));
+            deckApi.setDeck(analysisCards);
 
-            const finalDeck = [...selectedChars, ...selectedBgs, ...selectedItems];
-            finalDeck.forEach((c) => addToCardLibrary(c));
-            deckApi.setDeck(finalDeck);
+            // 씬별 매칭 결과 → sceneSeeds에 저장
+            // "ai-new-N" ID를 실제 카드 ID로 매핑
+            const idMapping: Record<string, string> = {};
+            result.recommendedCards.forEach((rec, i) => {
+                const cardId = rec.matchedCardId || `ai-new-${i}`;
+                idMapping[`ai-new-${i}`] = cardId;
+                if (rec.matchedCardId) idMapping[rec.matchedCardId] = rec.matchedCardId;
+            });
 
-            // 씨드 배정은 여기서 하지 않음 — "AI 분석 및 프롬프트 작성" 단계에서 수행
+            const resolvedSeeds: Record<string, string[]> = {};
+            Object.entries(result.sceneMatching).forEach(([sceneId, cardIds]) => {
+                resolvedSeeds[sceneId] = cardIds.map((id) => idMapping[id] || id);
+            });
+
+            genApi.setSceneSeeds((prev) => ({ ...prev, ...resolvedSeeds }));
+
+            console.log('[AI Analysis] 카드 추천 + 씬 매칭 완료:', {
+                cards: analysisCards.length,
+                scenes: Object.keys(resolvedSeeds).length,
+                provider: result.provider,
+                time: `${result.durationMs}ms`,
+            });
+        } catch (err) {
+            console.error('[AI Analysis] 에러:', err);
+            // 에러 시 기본 카드로 폴백 (UX 끊김 없음)
+            const fallbackCards = aiSuggestedCards.slice(0, 5).map((c) => ({
+                ...c, source: 'ai' as const,
+            }));
+            fallbackCards.forEach((c) => addToCardLibrary(c));
+            deckApi.setDeck(fallbackCards);
+
             genApi.setSceneSeeds((prev) => {
                 const updated = { ...prev };
                 scenes.forEach((s) => { updated[s.id] = []; });
                 return updated;
             });
+        } finally {
             setIsAiAnalyzing(false);
             setShowAiAnalysisModal(false);
-        }, 2500);
+        }
     };
 
     // ── 씬 그라디언트 (공통 유틸) ──

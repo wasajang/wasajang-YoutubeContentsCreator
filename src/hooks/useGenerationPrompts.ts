@@ -99,42 +99,80 @@ export function useGenerationPrompts({
     }, [scenes, deck, artStyleId, templateId, videoCountPerScene]);
 
     const initPrompts = useCallback(() => {
-        // Step 1: 씨드카드가 비어있는 씬/서브씬에 덱에서 랜덤 배정
+        // Step 1: 씨드카드 배정 — AI 결과 우선, 없으면 키워드 매칭 폴백
         const updatedSeeds = { ...sceneSeeds };
         const chars = deck.filter((c) => c.type === 'character');
         const bgs = deck.filter((c) => c.type === 'background');
         const items = deck.filter((c) => c.type === 'item');
 
-        const assignRandom = (): string[] => {
+        /** 씬 텍스트 기반 키워드 매칭 (AI 결과가 없을 때 폴백) */
+        const assignSmart = (scene: Scene): string[] => {
             const assigned: string[] = [];
-            const charCount = Math.min(chars.length, 1 + Math.floor(Math.random() * 2));
-            const shuffledChars = [...chars].sort(() => Math.random() - 0.5);
-            shuffledChars.slice(0, charCount).forEach((c) => assigned.push(c.id));
-            if (bgs.length > 0) {
-                const bg = bgs[Math.floor(Math.random() * bgs.length)];
-                assigned.push(bg.id);
+            const sceneTextLower = scene.text.toLowerCase();
+
+            // 1. 캐릭터: 카드 이름이 씬 텍스트에 포함되면 선택
+            chars.forEach((c) => {
+                const nameParts = c.name.split(/[(/\s]/);
+                if (
+                    sceneTextLower.includes(c.name.toLowerCase()) ||
+                    nameParts.some((part) => part.trim().length >= 2 && sceneTextLower.includes(part.trim().toLowerCase()))
+                ) {
+                    assigned.push(c.id);
+                }
+            });
+
+            // 매칭된 캐릭터가 없으면 첫 번째 캐릭터 배정 (주인공 가정)
+            if (assigned.length === 0 && chars.length > 0) {
+                assigned.push(chars[0].id);
             }
-            if (items.length > 0 && Math.random() > 0.4) {
-                const item = items[Math.floor(Math.random() * items.length)];
-                assigned.push(item.id);
+
+            // 2. 배경: 키워드 매칭 또는 첫 번째 배경
+            const matchedBg = bgs.find((c) =>
+                sceneTextLower.includes(c.name.toLowerCase())
+            );
+            if (matchedBg) {
+                assigned.push(matchedBg.id);
+            } else if (bgs.length > 0) {
+                assigned.push(bgs[0].id);
             }
+
+            // 3. 아이템: 키워드 매칭만 (없으면 생략)
+            items.forEach((c) => {
+                if (sceneTextLower.includes(c.name.toLowerCase())) {
+                    assigned.push(c.id);
+                }
+            });
+
             return assigned;
         };
 
         scenes.forEach((scene) => {
             const vc = videoCountPerScene[scene.id] || 1;
-            if (vc <= 1) {
-                if (!updatedSeeds[scene.id] || updatedSeeds[scene.id].length === 0) {
-                    updatedSeeds[scene.id] = assignRandom();
+
+            // AI가 이미 매칭한 결과가 있으면 그대로 사용
+            if (updatedSeeds[scene.id] && updatedSeeds[scene.id].length > 0) {
+                // 서브씬에 전파
+                if (vc > 1) {
+                    for (let sub = 0; sub < vc; sub++) {
+                        const subKey = `${scene.id}-${sub}`;
+                        if (!updatedSeeds[subKey] || updatedSeeds[subKey].length === 0) {
+                            updatedSeeds[subKey] = [...updatedSeeds[scene.id]];
+                        }
+                    }
                 }
+                return; // AI 결과 있으면 스킵
+            }
+
+            // AI 결과 없음 → 스마트 폴백 (키워드 매칭)
+            if (vc <= 1) {
+                updatedSeeds[scene.id] = assignSmart(scene);
             } else {
-                const baseSeeds = updatedSeeds[scene.id] || [];
                 for (let sub = 0; sub < vc; sub++) {
                     const subKey = `${scene.id}-${sub}`;
                     if (!updatedSeeds[subKey] || updatedSeeds[subKey].length === 0) {
-                        updatedSeeds[subKey] = baseSeeds.length > 0 && sub === 0
-                            ? [...baseSeeds]
-                            : assignRandom();
+                        updatedSeeds[subKey] = sub === 0
+                            ? assignSmart(scene)
+                            : [...(updatedSeeds[`${scene.id}-0`] || [])];
                     }
                 }
                 updatedSeeds[scene.id] = updatedSeeds[`${scene.id}-0`] || [];

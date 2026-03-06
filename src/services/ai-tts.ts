@@ -1,20 +1,19 @@
 /**
  * AI TTS (Text-to-Speech) 서비스
  *
- * Provider 패턴으로 Mock / Fish Speech 교체 가능.
+ * Provider 패턴으로 Mock / Fish Speech / Gemini TTS / Edge TTS 교체 가능.
  * 환경변수 VITE_TTS_API_PROVIDER로 전환:
- *   - 'mock'       → 가짜 딜레이 + placeholder 오디오 (기본값)
- *   - 'fish-speech' → Fish Speech API (클라우드 or 셀프호스팅)
- *
- * Fish Speech 환경변수:
- *   - VITE_FISH_SPEECH_API_KEY  → API 키 (클라우드 사용 시)
- *   - VITE_FISH_SPEECH_API_URL  → API 엔드포인트 (셀프호스팅 시, 기본: https://api.fish.audio)
- *   - VITE_FISH_SPEECH_MODEL_ID → 음성 모델 ID (reference_id)
+ *   - 'mock'        → 가짜 딜레이 + placeholder 오디오 (기본값)
+ *   - 'fish-speech'  → Fish Speech API (클라우드 or 셀프호스팅)
+ *   - 'gemini-tts'   → Google Gemini TTS (무료, API 키 필요)
+ *   - 'edge-tts'     → Microsoft Edge TTS (무료, 개발 서버에서만)
  *
  * BYOK: 설정 페이지에서 입력한 키 우선 사용, 없으면 .env 키 사용
+ * 테스트 쿼터: ai-quota.ts에서 호출 횟수 제한 (비용 안전장치)
  */
 
 import { useSettingsStore } from '../store/settingsStore';
+import { consumeQuota } from './ai-quota';
 
 // ── 타입 정의 ──
 
@@ -250,11 +249,211 @@ const fishSpeechProvider: TTSProvider = {
     generate: (req) => fishSpeechGenerate(req),
 };
 
+// ── Gemini TTS Provider ──
+
+/** Gemini API 키: BYOK 우선, 없으면 .env */
+function getGeminiApiKey(): string {
+    const byokKey = useSettingsStore.getState().apiKeys.google;
+    if (byokKey) return byokKey;
+    return import.meta.env.VITE_GEMINI_API_KEY || '';
+}
+
+/** base64 문자열 → ArrayBuffer */
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
+/** raw PCM → WAV 변환 (WAV 헤더 씌우기) */
+function pcmToWav(
+    pcmData: ArrayBuffer,
+    sampleRate: number,
+    bitsPerSample: number,
+    channels: number,
+): ArrayBuffer {
+    const dataSize = pcmData.byteLength;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    const byteRate = sampleRate * channels * (bitsPerSample / 8);
+    const blockAlign = channels * (bitsPerSample / 8);
+
+    // RIFF header
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, 'WAVE');
+
+    // fmt chunk
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);                 // chunk size
+    view.setUint16(20, 1, true);                  // PCM
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+
+    // data chunk
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+    new Uint8Array(buffer, 44).set(new Uint8Array(pcmData));
+
+    return buffer;
+}
+
+/** Gemini TTS API 호출 (재시도 지원) */
+async function geminiTTSGenerate(req: TTSRequest, retryCount = 0): Promise<TTSResult> {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+        throw new Error(
+            'Gemini API 키가 필요합니다.\n' +
+            '설정 페이지에서 Google API 키를 입력하거나,\n' +
+            '.env에 VITE_GEMINI_API_KEY를 추가해주세요.\n' +
+            'API 키 발급: https://aistudio.google.com/apikey'
+        );
+    }
+
+    const start = Date.now();
+    const model = 'gemini-2.5-flash-preview-tts';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{
+                parts: [{ text: req.text }],
+            }],
+            generationConfig: {
+                responseModalities: ['AUDIO'],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: {
+                            voiceName: req.voiceId || 'Kore', // 한국어 기본 음성
+                        },
+                    },
+                },
+            },
+        }),
+    });
+
+    // 429 Rate Limit → 자동 재시도 (최대 3회, 10/20/30초 backoff)
+    if (response.status === 429 && retryCount < 3) {
+        const waitSec = (retryCount + 1) * 10;
+        console.warn(`[Gemini TTS] Rate limit 도달, ${waitSec}초 후 재시도... (${retryCount + 1}/3)`);
+        await new Promise((r) => setTimeout(r, waitSec * 1000));
+        return geminiTTSGenerate(req, retryCount + 1);
+    }
+
+    if (!response.ok) {
+        let errMsg: string;
+        try {
+            const errData = await response.json();
+            errMsg = (errData as { error?: { message?: string } }).error?.message
+                || response.statusText;
+        } catch {
+            errMsg = response.statusText;
+        }
+        throw new Error(`Gemini TTS API 에러 (${response.status}): ${errMsg}`);
+    }
+
+    const data = await response.json();
+
+    // 응답 구조: candidates[0].content.parts[0].inlineData
+    const inlineData = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+    if (!inlineData?.data) {
+        throw new Error('Gemini TTS 응답에 오디오 데이터가 없습니다.');
+    }
+
+    const audioBase64: string = inlineData.data;
+
+    // Gemini TTS는 raw PCM (audio/L16;rate=24000) 반환 → WAV 헤더 추가
+    const pcmBytes = base64ToArrayBuffer(audioBase64);
+    const wavBuffer = pcmToWav(pcmBytes, 24000, 16, 1);
+    const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+    const audioUrl = URL.createObjectURL(blob);
+
+    // 실제 오디오 길이 측정
+    const realDuration = await getAudioDuration(audioUrl);
+    const estimatedDuration = realDuration > 0
+        ? Math.round(realDuration * 10) / 10
+        : Math.max(2, Math.round(req.text.length / 4));
+
+    return {
+        audioUrl,
+        estimatedDuration,
+        provider: 'gemini-tts',
+        durationMs: Date.now() - start,
+    };
+}
+
+const geminiTTSProvider: TTSProvider = {
+    name: 'gemini-tts',
+    generate: (req) => geminiTTSGenerate(req),
+};
+
+// ── Edge TTS Provider (백업, 개발 서버에서만 동작) ──
+
+/**
+ * Edge TTS: Microsoft Edge Read Aloud API 기반 (무료, 무제한)
+ * Vite dev 미들웨어 `/api/edge-tts`를 통해 서버사이드에서 생성
+ * 프로덕션에서는 별도 서버 필요 (비공식 API)
+ */
+const edgeTTSProvider: TTSProvider = {
+    name: 'edge-tts',
+    generate: async (req) => {
+        const start = Date.now();
+        const voice = req.voiceId || 'ko-KR-SunHiNeural'; // 한국어 여성 기본
+
+        const response = await fetch('/api/edge-tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: req.text,
+                voice,
+                speed: req.speed || 1.0,
+            }),
+        });
+
+        if (!response.ok) {
+            let errMsg: string;
+            try {
+                const errData = await response.json();
+                errMsg = (errData as Record<string, string>).error || response.statusText;
+            } catch {
+                errMsg = response.statusText;
+            }
+            throw new Error(`Edge TTS 에러 (${response.status}): ${errMsg}`);
+        }
+
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        // 실제 오디오 길이 측정
+        const realDuration = await getAudioDuration(audioUrl);
+        const estimatedDuration = realDuration > 0
+            ? Math.round(realDuration * 10) / 10
+            : Math.max(2, Math.round(req.text.length / 4));
+
+        return {
+            audioUrl,
+            estimatedDuration,
+            provider: 'edge-tts',
+            durationMs: Date.now() - start,
+        };
+    },
+};
+
 // ── Provider 선택 & 공개 API ──
 
 const providers: Record<string, TTSProvider> = {
     mock: mockProvider,
     'fish-speech': fishSpeechProvider,
+    'gemini-tts': geminiTTSProvider,
+    'edge-tts': edgeTTSProvider,
 };
 
 function getCurrentProvider(): TTSProvider {
@@ -263,7 +462,8 @@ function getCurrentProvider(): TTSProvider {
 }
 
 /**
- * TTS 음성 생성 (Provider에 따라 Mock/Fish Speech 자동 전환)
+ * TTS 음성 생성 (Provider에 따라 Mock/Fish Speech/Gemini/Edge 자동 전환)
+ * 테스트 쿼터 초과 시 자동으로 Mock으로 전환됩니다.
  *
  * @example
  * const result = await generateTTS({
@@ -273,7 +473,13 @@ function getCurrentProvider(): TTSProvider {
  * audioElement.src = result.audioUrl;
  */
 export async function generateTTS(req: TTSRequest): Promise<TTSResult> {
-    const provider = getCurrentProvider();
+    let provider = getCurrentProvider();
+
+    // 테스트 쿼터 체크: 실제 provider인데 쿼터 초과면 → mock 자동 전환
+    if (provider.name !== 'mock' && !consumeQuota('tts')) {
+        provider = mockProvider;
+    }
+
     console.log(`[TTS] 음성 생성 시작 (provider: ${provider.name}, clip: ${req.clipId || 'unknown'})`);
     const result = await provider.generate(req);
     console.log(`[TTS] 음성 생성 완료: ${result.estimatedDuration}s (${result.durationMs}ms)`);

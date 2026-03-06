@@ -12,11 +12,11 @@ export type ApiProvider = 'openai' | 'anthropic' | 'replicate' | 'runway' | 'fis
 
 /** GenerationType → 사용하는 외부 API provider 매핑 */
 export const ACTION_PROVIDER_MAP: Record<string, ApiProvider> = {
-    script: 'openai',
-    image:  'replicate',
-    video:  'runway',
-    tts:    'fishSpeech',
-    card:   'replicate',
+    script: 'google',
+    image:  'google',
+    video:  'replicate',
+    tts:    'google',
+    card:   'google',
 };
 
 interface SettingsState {

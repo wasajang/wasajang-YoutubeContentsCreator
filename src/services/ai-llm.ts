@@ -1,16 +1,64 @@
 /**
  * AI LLM (대본 생성) 서비스
  *
- * Provider 패턴으로 Mock / OpenAI / Anthropic 교체 가능.
+ * Provider 패턴으로 Mock / OpenAI / Anthropic / Gemini 교체 가능.
  * 환경변수 VITE_LLM_API_PROVIDER로 전환:
  *   - 'mock'      → 템플릿 기반 Mock 대본 (기본값)
  *   - 'openai'    → OpenAI GPT-4o API
  *   - 'anthropic' → Anthropic Claude API
+ *   - 'gemini'    → Google Gemini 2.5 Flash (무료)
+ *
+ * BYOK: 설정 페이지에서 입력한 키 우선 사용, 없으면 .env 키 사용
+ * 테스트 쿼터: ai-quota.ts에서 호출 횟수 제한 (비용 안전장치)
  */
 
 import { getTemplateById } from '../data/templates';
+import { useSettingsStore } from '../store/settingsStore';
+import { consumeQuota } from './ai-quota';
 
 // ── 타입 정의 ──
+
+// ── 대본 분석 (카드 추천 + 씬별 매칭) ──
+
+export interface ScriptAnalysisRequest {
+    /** 전체 대본 텍스트 */
+    fullScript: string;
+    /** 씬 목록 (ID + 텍스트) */
+    scenes: Array<{ id: string; text: string }>;
+    /** 기존 카드 라이브러리 (매칭 대상) */
+    existingCards: Array<{
+        id: string;
+        name: string;
+        type: 'character' | 'background' | 'item';
+        description: string;
+    }>;
+    /** 템플릿 ID (있으면 캐스트 프리셋 참조) */
+    templateId?: string;
+    /** AI 모델 ID */
+    model?: string;
+}
+
+export interface ScriptAnalysisResult {
+    /** 추천 카드 목록 (기존 매칭 + 신규 제안) */
+    recommendedCards: Array<{
+        /** 기존 카드 ID (매칭된 경우) 또는 null (신규) */
+        matchedCardId: string | null;
+        /** 카드 이름 */
+        name: string;
+        /** 카드 타입 */
+        type: 'character' | 'background' | 'item';
+        /** 영문 시각 설명 (이미지 프롬프트용) */
+        description: string;
+        /** 추천 이유 (한국어) */
+        reason: string;
+    }>;
+    /** 씬별 카드 매칭 (sceneId → cardId[]) */
+    sceneMatching: Record<string, string[]>;
+    /** 사용된 provider */
+    provider: string;
+    /** 처리 시간 (ms) */
+    durationMs: number;
+}
 
 export interface ScriptGenerationRequest {
     /** 사용자 입력 (아이디어 설명) */
@@ -119,8 +167,8 @@ const mockProvider: LLMProvider = {
 const openaiProvider: LLMProvider = {
     name: 'openai',
     generateScript: async (req) => {
-        const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-        if (!apiKey) throw new Error('VITE_OPENAI_API_KEY 환경변수가 설정되지 않았습니다.');
+        const apiKey = getOpenaiApiKey();
+        if (!apiKey) throw new Error('OpenAI API 키가 필요합니다. 설정 페이지에서 입력해주세요.');
 
         const start = Date.now();
         const systemPrompt = buildSystemPrompt(req);
@@ -160,8 +208,8 @@ const openaiProvider: LLMProvider = {
 const anthropicProvider: LLMProvider = {
     name: 'anthropic',
     generateScript: async (req) => {
-        const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-        if (!apiKey) throw new Error('VITE_ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.');
+        const apiKey = getAnthropicApiKey();
+        if (!apiKey) throw new Error('Anthropic API 키가 필요합니다. 설정 페이지에서 입력해주세요.');
 
         const start = Date.now();
         const systemPrompt = buildSystemPrompt(req);
@@ -198,11 +246,36 @@ const anthropicProvider: LLMProvider = {
 
 // ── Gemini Provider ──
 
+/** Gemini API 키: BYOK 우선, 없으면 .env */
+function getGeminiApiKey(): string {
+    const byokKey = useSettingsStore.getState().apiKeys.google;
+    if (byokKey) return byokKey;
+    return import.meta.env.VITE_GEMINI_API_KEY || '';
+}
+
+/** OpenAI API 키: BYOK 우선, 없으면 .env */
+function getOpenaiApiKey(): string {
+    const byokKey = useSettingsStore.getState().apiKeys.openai;
+    if (byokKey) return byokKey;
+    return import.meta.env.VITE_OPENAI_API_KEY || '';
+}
+
+/** Anthropic API 키: BYOK 우선, 없으면 .env */
+function getAnthropicApiKey(): string {
+    const byokKey = useSettingsStore.getState().apiKeys.anthropic;
+    if (byokKey) return byokKey;
+    return import.meta.env.VITE_ANTHROPIC_API_KEY || '';
+}
+
 const geminiProvider: LLMProvider = {
     name: 'gemini',
     generateScript: async (req) => {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) throw new Error('VITE_GEMINI_API_KEY 환경변수가 설정되지 않았습니다.');
+        const apiKey = getGeminiApiKey();
+        if (!apiKey) throw new Error(
+            'Gemini API 키가 필요합니다.\n' +
+            '설정 페이지에서 Google API 키를 입력하거나,\n' +
+            '.env에 VITE_GEMINI_API_KEY를 추가해주세요.'
+        );
 
         const start = Date.now();
         const systemPrompt = buildSystemPrompt(req);
@@ -352,10 +425,17 @@ function getCurrentProvider(): LLMProvider {
 }
 
 /**
- * 대본 생성 (Provider에 따라 Mock/OpenAI/Anthropic 자동 전환)
+ * 대본 생성 (Provider에 따라 Mock/OpenAI/Anthropic/Gemini 자동 전환)
+ * 테스트 쿼터 초과 시 자동으로 Mock으로 전환됩니다.
  */
 export async function generateScript(req: ScriptGenerationRequest): Promise<ScriptGenerationResult> {
-    const provider = getCurrentProvider();
+    let provider = getCurrentProvider();
+
+    // 테스트 쿼터 체크: 실제 provider인데 쿼터 초과면 → mock 자동 전환
+    if (provider.name !== 'mock' && !consumeQuota('llm')) {
+        provider = mockProvider;
+    }
+
     console.log(`[LLM] 대본 생성 시작 (provider: ${provider.name})`);
     const result = await provider.generateScript(req);
     console.log(`[LLM] 대본 생성 완료: ${result.scenes.length}개 씬, ${result.durationMs}ms`);
@@ -367,4 +447,171 @@ export async function generateScript(req: ScriptGenerationRequest): Promise<Scri
  */
 export function getLLMProviderName(): string {
     return getCurrentProvider().name;
+}
+
+// ── 대본 분석 (카드 추천 + 씬별 매칭) ──
+
+/** Mock 대본 분석: 기존 카드 재사용 또는 기본 3개 제안 */
+async function mockAnalyzeScript(req: ScriptAnalysisRequest): Promise<ScriptAnalysisResult> {
+    const start = Date.now();
+    await new Promise((r) => setTimeout(r, 1500));
+
+    // 기존 카드가 있으면 그대로 추천
+    const recommendedCards: ScriptAnalysisResult['recommendedCards'] =
+        req.existingCards.length > 0
+            ? req.existingCards.slice(0, 5).map((c) => ({
+                matchedCardId: c.id,
+                name: c.name,
+                type: c.type,
+                description: c.description,
+                reason: '기존 라이브러리에서 매칭됨 (Mock)',
+            }))
+            : [
+                { matchedCardId: null, name: '주인공', type: 'character' as const, description: 'main protagonist, young adult, determined expression, cinematic lighting', reason: 'Mock 기본 캐릭터' },
+                { matchedCardId: null, name: '조력자', type: 'character' as const, description: 'supporting character, wise mentor figure, warm expression', reason: 'Mock 기본 캐릭터' },
+                { matchedCardId: null, name: '주요 배경', type: 'background' as const, description: 'dramatic landscape, cinematic atmosphere, golden hour lighting', reason: 'Mock 기본 배경' },
+            ];
+
+    // 씬별 매칭: 모든 씬에 모든 카드 배정
+    const cardIds = recommendedCards.map((c, i) => c.matchedCardId || `ai-new-${i}`);
+    const sceneMatching: Record<string, string[]> = {};
+    req.scenes.forEach((s) => {
+        sceneMatching[s.id] = cardIds.slice(0, Math.min(3, cardIds.length));
+    });
+
+    return { recommendedCards, sceneMatching, provider: 'mock', durationMs: Date.now() - start };
+}
+
+/** Gemini 대본 분석: 실제 AI로 캐릭터/배경/아이템 추출 + 씬 매칭 */
+async function geminiAnalyzeScript(req: ScriptAnalysisRequest): Promise<ScriptAnalysisResult> {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) throw new Error('Gemini API 키가 필요합니다.');
+
+    const start = Date.now();
+    const model = req.model || 'gemini-2.5-flash';
+
+    // 기존 카드 목록 텍스트
+    const existingCardsText =
+        req.existingCards.length > 0
+            ? req.existingCards
+                .map((c) => `- ${c.id} [${c.type}] "${c.name}": ${c.description}`)
+                .join('\n')
+            : '(없음 — 모든 카드를 새로 제안해주세요)';
+
+    // 씬 목록 텍스트
+    const scenesText = req.scenes
+        .map((s) => `- ${s.id}: ${s.text.substring(0, 200)}`)
+        .join('\n');
+
+    const systemPrompt = `당신은 영상 제작 AI 어시스턴트입니다.
+대본을 분석하여 필요한 시각적 에셋(캐릭터, 배경, 아이템)을 추출하고,
+기존 카드 라이브러리와 매칭합니다.
+
+규칙:
+1. 대본에서 주요 캐릭터(최대 5명), 배경(최대 3개), 아이템(최대 3개)을 추출
+2. 기존 카드 중 의미적으로 매칭되는 것이 있으면 matchedCardId에 해당 ID 기입
+3. 매칭 카드가 없으면 matchedCardId를 null로, 새 카드 정보 제안
+4. description은 반드시 영문으로, 이미지 생성 AI가 사용할 구체적 시각 묘사 작성
+5. reason은 한국어로 추천 이유 간략 설명
+6. sceneMatching: 각 씬에 등장하는 카드의 ID 배열 (matchedCardId 또는 "ai-new-{index}")
+7. 새 카드의 ID는 "ai-new-0", "ai-new-1" 등으로 순서 부여 (recommendedCards 배열 순서와 일치)
+
+JSON 형식:
+{
+  "recommendedCards": [
+    {
+      "matchedCardId": "기존ID" | null,
+      "name": "이름",
+      "type": "character" | "background" | "item",
+      "description": "English visual description for image generation",
+      "reason": "한국어 추천 이유"
+    }
+  ],
+  "sceneMatching": {
+    "scene-1": ["cardId1", "cardId2"],
+    "scene-2": ["cardId1", "ai-new-0"]
+  }
+}`;
+
+    const userPrompt = `## 대본
+${req.fullScript}
+
+## 씬 목록
+${scenesText}
+
+## 기존 카드 라이브러리
+${existingCardsText}
+
+대본을 분석하여 추천 카드와 씬별 매칭을 JSON으로 반환해주세요.`;
+
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    temperature: 0.3,
+                    maxOutputTokens: 4000,
+                    responseMimeType: 'application/json',
+                },
+            }),
+        }
+    );
+
+    if (response.status === 429) {
+        throw new Error('Gemini API 요청 한도 초과 — 잠시 후 다시 시도해주세요.');
+    }
+
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(`Gemini 분석 에러: ${(err as Record<string, unknown>).error || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    try {
+        const parsed = JSON.parse(content);
+        return {
+            recommendedCards: parsed.recommendedCards || [],
+            sceneMatching: parsed.sceneMatching || {},
+            provider: 'gemini',
+            durationMs: Date.now() - start,
+        };
+    } catch (parseErr) {
+        console.warn('[AI Analysis] JSON 파싱 실패:', parseErr, 'content:', content);
+        throw new Error('AI 분석 결과를 파싱할 수 없습니다. 다시 시도해주세요.');
+    }
+}
+
+/**
+ * 대본 분석 — 카드 추천 + 씬별 매칭
+ * LLM 쿼터 1회 소비 (초과 시 Mock 자동 전환)
+ */
+export async function analyzeScript(req: ScriptAnalysisRequest): Promise<ScriptAnalysisResult> {
+    const providerName = import.meta.env.VITE_LLM_API_PROVIDER || 'mock';
+
+    // 쿼터 체크 (실제 provider일 때만)
+    if (providerName !== 'mock' && !consumeQuota('llm')) {
+        console.log('[AI Analysis] 쿼터 초과 → Mock 분석으로 전환');
+        return mockAnalyzeScript(req);
+    }
+
+    if (providerName === 'gemini') {
+        console.log('[AI Analysis] Gemini 대본 분석 시작');
+        try {
+            const result = await geminiAnalyzeScript(req);
+            console.log(`[AI Analysis] 완료: ${result.recommendedCards.length}개 카드, ${Object.keys(result.sceneMatching).length}개 씬 매칭, ${result.durationMs}ms`);
+            return result;
+        } catch (err) {
+            console.error('[AI Analysis] Gemini 에러, Mock 폴백:', err);
+            return mockAnalyzeScript(req);
+        }
+    }
+
+    // mock 또는 미지원 provider
+    return mockAnalyzeScript(req);
 }
