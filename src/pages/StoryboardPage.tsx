@@ -10,11 +10,13 @@ import type { Scene, AssetCard } from '../store/projectStore';
 import { aiSuggestedCards } from '../data/mockData';
 import { getTemplateById } from '../data/templates';
 import { useCredits } from '../hooks/useCredits';
-import { useDeck } from '../hooks/useDeck';
+import { useDeck, DEFAULT_DECK_SIZE as DEFAULT_DECK_SIZE_CONST, EXTRA_CARD_CREDIT } from '../hooks/useDeck';
 import { useGeneration } from '../hooks/useGeneration';
 import { syncScenesImageToClips } from '../utils/narration-sync';
 import { getSceneGradient } from '../utils/scene-gradient';
-import { analyzeScript } from '../services/ai-llm';
+import { analyzeScript, generateScenePrompts } from '../services/ai-llm';
+import { getArtStylePromptPrefix } from '../data/artStyles';
+import { useToastStore } from '../hooks/useToast';
 
 type StoryboardPhase = 'script-review' | 'cast-setup' | 'seed-check' | 'generating-video' | 'complete';
 
@@ -164,9 +166,9 @@ const StoryboardPage: React.FC = () => {
                 };
             });
 
-            // 덱 설정
+            // 덱 설정: 5장까지만 자동 추가, 나머지는 라이브러리에만
             analysisCards.forEach((c) => addToCardLibrary(c));
-            deckApi.setDeck(analysisCards);
+            deckApi.setDeck(analysisCards.slice(0, DEFAULT_DECK_SIZE_CONST));
 
             // 씬별 매칭 결과 → sceneSeeds에 저장
             // "ai-new-N" ID를 실제 카드 ID로 매핑
@@ -271,6 +273,68 @@ const StoryboardPage: React.FC = () => {
         if (step === 6) { setPhase('seed-check'); setShowVideoModal(true); return; }
     };
 
+    // ── AI 프롬프트 작성 ──
+    const [isAiPromptGenerating, setIsAiPromptGenerating] = useState(false);
+    const aiPromptCreditCost = CREDIT_COSTS.promptAi || 2;
+
+    const handleAiPromptGenerate = async () => {
+        if (!canAfford('promptAi')) {
+            setCreditModal({ open: true, required: aiPromptCreditCost, label: 'AI 프롬프트 작성' });
+            return;
+        }
+        if (!spend('promptAi')) return;
+
+        // 1. 로딩 상태 먼저
+        setIsAiPromptGenerating(true);
+
+        try {
+            // 2. 씨드 매칭 (+ 임시 자동 프롬프트)
+            genApi.initPrompts();
+
+            // 3. 씬별 씨드카드 정보 수집
+            const seedCardsMap: Record<string, Array<{ name: string; type: string; description: string }>> = {};
+            scenes.forEach((scene) => {
+                const seedIds = genApi.sceneSeeds[scene.id] || [];
+                seedCardsMap[scene.id] = seedIds
+                    .map((id) => deckApi.deck.find((c) => c.id === id))
+                    .filter((c): c is NonNullable<typeof c> => !!c)
+                    .map((c) => ({ name: c.name, type: c.type, description: c.description || '' }));
+            });
+
+            // 4. AI 프롬프트 작성
+            const result = await generateScenePrompts({
+                scenes: scenes.map((s) => ({ id: s.id, text: s.text })),
+                seedCards: seedCardsMap,
+                artStyleId,
+                artStylePrefix: getArtStylePromptPrefix(artStyleId),
+                templateId: templateId ?? undefined,
+            });
+
+            // 5. AI 결과로 교체
+            if (result.prompts && Object.keys(result.prompts).length > 0) {
+                Object.entries(result.prompts).forEach(([sceneId, prompt]) => {
+                    if (prompt.image) genApi.updatePrompt(sceneId, 'image', prompt.image);
+                    if (prompt.video) genApi.updatePrompt(sceneId, 'video', prompt.video);
+                });
+                useToastStore.getState().addToast(
+                    `AI 프롬프트 작성 완료! (${Object.keys(result.prompts).length}개 씬, ${Math.round(result.durationMs / 1000)}초)`, 'success'
+                );
+            } else {
+                useToastStore.getState().addToast(
+                    'AI 프롬프트를 생성하지 못했습니다 (쿼터 초과 또는 Mock 모드). 자동 생성 프롬프트를 사용합니다.', 'warning'
+                );
+            }
+        } catch (err) {
+            console.error('[AI Prompt] 에러:', err);
+            genApi.initPrompts();
+            useToastStore.getState().addToast(
+                `AI 프롬프트 작성 실패: ${err instanceof Error ? err.message : '알 수 없는 에러'}. 자동 생성으로 대체합니다.`, 'error'
+            );
+        } finally {
+            setIsAiPromptGenerating(false);
+        }
+    };
+
     // 나레이션 Step 5(seed-check) 완료 후 Step 6 모달 표시
     const handleGoToVideo = () => {
         const synced = syncScenesImageToClips(
@@ -349,6 +413,9 @@ const StoryboardPage: React.FC = () => {
                         onVideoModelChange={(id) => setAiModelPreference('video', id)}
                         nextLabel="다음: 영상화"
                         aspectRatio={aspectRatio}
+                        onAiPromptGenerate={handleAiPromptGenerate}
+                        isAiPromptGenerating={isAiPromptGenerating}
+                        aiPromptCreditCost={aiPromptCreditCost}
                     />
                 )}
 
@@ -447,6 +514,28 @@ const StoryboardPage: React.FC = () => {
                 currentCredits={creditsRemaining}
                 actionLabel={creditModal.label}
             />
+
+            {/* 카드 추가 크레딧 확인 다이얼로그 */}
+            {deckApi.creditConfirmCard && (
+                <div className="modal-overlay" onClick={deckApi.cancelCreditAdd}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400, padding: 24 }}>
+                        <h3 style={{ margin: '0 0 12px', fontSize: '1.1rem' }}>카드 추가 확인</h3>
+                        <p style={{ margin: '0 0 8px', color: 'var(--text-secondary)' }}>
+                            <strong>"{deckApi.creditConfirmCard.name}"</strong> 카드를 덱에 추가하시겠습니까?
+                        </p>
+                        <p style={{ margin: '0 0 16px', color: 'var(--color-warning)', fontSize: '0.9rem' }}>
+                            무료 한도(5장)를 초과하여 크레딧 {EXTRA_CARD_CREDIT}개가 차감됩니다.
+                            <br />카드를 제거하면 크레딧이 환불됩니다.
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button className="btn-ghost" onClick={deckApi.cancelCreditAdd}>취소</button>
+                            <button className="btn-primary" onClick={deckApi.confirmCreditAdd}>
+                                확인 ({EXTRA_CARD_CREDIT}크레딧 차감)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -4,7 +4,7 @@
 import React from 'react';
 import { User, MapPin, Sword, Shield, Loader, X, Sparkles } from 'lucide-react';
 import type { AssetCard } from '../../store/projectStore';
-import { MAX_DECK_SIZE } from '../../hooks/useDeck';
+import { DEFAULT_DECK_SIZE } from '../../hooks/useDeck';
 
 interface DeckPanelProps {
     deck: AssetCard[];
@@ -57,7 +57,7 @@ const DeckPanel: React.FC<DeckPanelProps> = ({
         <div className="deck-selected__header">
             <Shield size={16} />
             <span className="deck-selected__title">내 덱</span>
-            <span className="deck-selected__count">{deck.length}/{MAX_DECK_SIZE}</span>
+            <span className="deck-selected__count">{deck.length}/{DEFAULT_DECK_SIZE}{deck.length > DEFAULT_DECK_SIZE ? ` (+${deck.length - DEFAULT_DECK_SIZE})` : ''}</span>
         </div>
         <div className="deck-group">
             <div className="deck-group__label">

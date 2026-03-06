@@ -11,7 +11,7 @@ import { useProjectStore } from '../store/projectStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { CREDIT_COST_TABLE } from '../data/creditCosts';
 
-export type GenerationType = 'image' | 'video' | 'script' | 'tts' | 'card';
+export type GenerationType = 'image' | 'video' | 'script' | 'tts' | 'card' | 'promptAi';
 
 /** 하위 호환: 기존 코드에서 CREDIT_COSTS[type] 숫자로 접근하는 부분을 위한 기본값 */
 export const CREDIT_COSTS: Record<GenerationType, number> = {
@@ -19,7 +19,8 @@ export const CREDIT_COSTS: Record<GenerationType, number> = {
     video:  CREDIT_COST_TABLE.video.total,
     script: CREDIT_COST_TABLE.script.total,
     tts:    CREDIT_COST_TABLE.tts.total,
-    card:   CREDIT_COST_TABLE.card.total,
+    card:     CREDIT_COST_TABLE.card.total,
+    promptAi: CREDIT_COST_TABLE.promptAi.total,
 };
 
 export function useCredits() {

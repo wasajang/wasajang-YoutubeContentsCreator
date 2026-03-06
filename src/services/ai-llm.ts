@@ -508,7 +508,7 @@ async function geminiAnalyzeScript(req: ScriptAnalysisRequest): Promise<ScriptAn
 기존 카드 라이브러리와 매칭합니다.
 
 규칙:
-1. 대본에서 주요 캐릭터(최대 5명), 배경(최대 3개), 아이템(최대 3개)을 추출
+1. 대본에서 주요 캐릭터(2~3명), 배경(1~2개), 아이템(1~2개)을 추출. 반드시 배경 1개 이상, 아이템 1개 이상을 포함해야 합니다. 총 5개 이내를 권장합니다.
 2. 기존 카드 중 대본에 등장하는 인물/장소/물건과 이름이나 역할이 **직접적으로 일치**하는 경우에만 matchedCardId에 해당 ID 기입. 단순히 "군인", "남성" 같은 넓은 공통점만으로 매칭하지 마세요. 대본의 시대/배경/맥락이 카드와 다르면 매칭하지 마세요.
 3. 매칭되는 기존 카드가 없으면(대부분의 경우) matchedCardId를 null로 하고 새 카드를 제안하세요
 4. description은 반드시 영문으로, 이미지 생성 AI가 사용할 구체적 시각 묘사 작성
@@ -614,4 +614,140 @@ export async function analyzeScript(req: ScriptAnalysisRequest): Promise<ScriptA
 
     // mock 또는 미지원 provider
     return mockAnalyzeScript(req);
+}
+
+// ── AI 프롬프트 작성 (씬별 이미지/영상 프롬프트) ──
+
+export interface ScenePromptRequest {
+    /** 씬 목록 (ID + 대본 텍스트) */
+    scenes: Array<{ id: string; text: string }>;
+    /** 씬별 씨드카드 정보 */
+    seedCards: Record<string, Array<{ name: string; type: string; description: string }>>;
+    /** 아트 스타일 ID */
+    artStyleId: string;
+    /** 아트 스타일 프롬프트 접두사 */
+    artStylePrefix?: string;
+    /** 템플릿 ID */
+    templateId?: string;
+    /** AI 모델 ID */
+    model?: string;
+}
+
+export interface ScenePromptResult {
+    /** 씬별 프롬프트 */
+    prompts: Record<string, { image: string; video: string }>;
+    /** 사용된 provider */
+    provider: string;
+    /** 처리 시간 (ms) */
+    durationMs: number;
+}
+
+/** Gemini로 씬별 고품질 프롬프트 작성 */
+async function geminiGenerateScenePrompts(req: ScenePromptRequest): Promise<ScenePromptResult> {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) throw new Error('Gemini API 키가 필요합니다.');
+
+    const start = Date.now();
+    const model = req.model || 'gemini-2.5-flash';
+
+    // 씬 + 씨드카드 정보 조합
+    const scenesText = req.scenes.map((s) => {
+        const cards = req.seedCards[s.id] || [];
+        const cardsDesc = cards.length > 0
+            ? cards.map((c) => `  - [${c.type}] ${c.name}: ${c.description}`).join('\n')
+            : '  (씨드카드 없음)';
+        return `### ${s.id}\n대본: ${s.text}\n카드:\n${cardsDesc}`;
+    }).join('\n\n');
+
+    const systemPrompt = `You are an expert AI prompt engineer for image and video generation.
+Given scene scripts and associated visual asset cards, write high-quality English prompts for each scene.
+
+Style: ${req.artStylePrefix || req.artStyleId}
+
+Rules:
+1. Image prompt: Start with the art style, then describe the specific scene composition, character appearances, lighting, atmosphere, and camera angle. Be vivid and specific.
+2. Video prompt: Focus on motion, action, camera movement, and cinematic effects. Keep it concise (1-2 sentences).
+3. All prompts MUST be in English.
+4. Incorporate the seed card descriptions naturally into the scene prompts.
+5. Each scene gets exactly 1 image prompt + 1 video prompt.
+
+Return JSON format:
+{
+  "prompts": {
+    "scene-1": { "image": "detailed image prompt...", "video": "motion/action prompt..." },
+    "scene-2": { "image": "...", "video": "..." }
+  }
+}`;
+
+    const userPrompt = `## Scenes\n\n${scenesText}\n\nWrite high-quality image and video generation prompts for each scene in JSON format.`;
+
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: 8000,
+                    responseMimeType: 'application/json',
+                },
+            }),
+        }
+    );
+
+    if (response.status === 429) {
+        throw new Error('Gemini API 요청 한도 초과 — 잠시 후 다시 시도해주세요.');
+    }
+
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(`Gemini 프롬프트 생성 에러: ${(err as Record<string, unknown>).error || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    try {
+        const parsed = JSON.parse(content);
+        return {
+            prompts: parsed.prompts || {},
+            provider: 'gemini',
+            durationMs: Date.now() - start,
+        };
+    } catch (parseErr) {
+        console.warn('[AI Prompt] JSON 파싱 실패:', parseErr, 'content:', content);
+        throw new Error('AI 프롬프트 결과를 파싱할 수 없습니다.');
+    }
+}
+
+/**
+ * AI 프롬프트 작성 — 씬별 이미지/영상 프롬프트를 AI가 직접 작성
+ * LLM 쿼터 1회 소비
+ */
+export async function generateScenePrompts(req: ScenePromptRequest): Promise<ScenePromptResult> {
+    const providerName = import.meta.env.VITE_LLM_API_PROVIDER || 'mock';
+
+    // 쿼터 체크
+    if (providerName !== 'mock' && !consumeQuota('llm')) {
+        console.log('[AI Prompt] 쿼터 초과 → 빈 결과 반환');
+        return { prompts: {}, provider: 'mock-quota', durationMs: 0 };
+    }
+
+    if (providerName === 'gemini') {
+        console.log(`[AI Prompt] Gemini 씬 프롬프트 작성 시작 (${req.scenes.length}개 씬)`);
+        try {
+            const result = await geminiGenerateScenePrompts(req);
+            console.log(`[AI Prompt] 완료: ${Object.keys(result.prompts).length}개 씬, ${result.durationMs}ms`);
+            return result;
+        } catch (err) {
+            console.error('[AI Prompt] Gemini 에러:', err);
+            throw err;  // 크레딧 이미 소모됨 → 에러를 UI에 표시
+        }
+    }
+
+    // mock provider: 빈 결과 (프롬프트 자동 생성으로 폴백)
+    return { prompts: {}, provider: 'mock', durationMs: 0 };
 }

@@ -3,7 +3,7 @@
  *
  * StoryboardPage의 cast-setup 단계에서 사용하는 모든 덱 관련 상태와 액션을 담당합니다.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { AssetCard, AssetType } from '../store/projectStore';
 import { useProjectStore } from '../store/projectStore';
 import { aiSuggestedCards, favoritesPool } from '../data/mockData';
@@ -12,9 +12,9 @@ import type { GenerationType } from './useCredits';
 import { useToastStore } from './useToast';
 
 // ── 덱 제한 상수 (다른 파일에서도 참조) ──
-export const MAX_AI_SLOTS = 5;
-export const MAX_MANUAL_SLOTS = 3;
-export const MAX_DECK_SIZE = 8;
+export const DEFAULT_DECK_SIZE = 5;     // 무료 한도
+export const MAX_DECK_SIZE = 10;        // 크레딧 지불 시 최대
+export const EXTRA_CARD_CREDIT = 1;     // 추가 카드당 크레딧
 
 interface UseDeckParams {
     cardLibrary: AssetCard[];
@@ -66,23 +66,68 @@ export function useDeck({
     const deckItems = deck.filter((c) => c.type === 'item');
     const aiCards = deck.filter((c) => c.source === 'ai');
     const manualCards = deck.filter((c) => c.source === 'manual');
-    const manualSlotsRemaining = MAX_MANUAL_SLOTS - manualCards.length;
+    const manualSlotsRemaining = Math.max(0, DEFAULT_DECK_SIZE - deck.length);
 
     const isDeckSelected = (id: string) => deck.some((c) => c.id === id);
 
-    // ── 덱 추가 (제한 가드 포함) ──
+    // ── 크레딧 확인 대기 카드 ──
+    const [creditConfirmCard, setCreditConfirmCard] = useState<AssetCard | null>(null);
+
+    // ── 덱 추가 (5장 무료 + 초과 시 확인 팝업) ──
     const addToDeck = (card: AssetCard) => {
         if (isDeckSelected(card.id)) return;
-        if (deck.length >= MAX_DECK_SIZE) return;
+        if (deck.length >= MAX_DECK_SIZE) {
+            useToastStore.getState().addToast('덱 최대 한도(10장)에 도달했습니다', 'warning');
+            return;
+        }
+        // 5장 초과 시 크레딧 확인 팝업
+        if (deck.length >= DEFAULT_DECK_SIZE) {
+            if (!canAfford('card')) {
+                useToastStore.getState().addToast(
+                    `크레딧이 부족합니다 (${EXTRA_CARD_CREDIT} 크레딧 필요)`, 'warning'
+                );
+                return;
+            }
+            // 확인 대기 상태로 전환
+            setCreditConfirmCard({ ...card, source: card.source || 'ai' });
+            return;
+        }
         const source = card.source || 'ai';
-        if (source === 'ai' && aiCards.length >= MAX_AI_SLOTS) return;
-        if (source === 'manual' && manualCards.length >= MAX_MANUAL_SLOTS) return;
         const cardWithSource = { ...card, source };
         setDeck((p) => [...p, cardWithSource]);
         addToCardLibrary(cardWithSource);
     };
 
-    const removeFromDeck = (id: string) => setDeck((p) => p.filter((c) => c.id !== id));
+    /** 크레딧 확인 후 카드 추가 */
+    const confirmCreditAdd = useCallback(() => {
+        if (!creditConfirmCard) return;
+        if (!spend('card')) {
+            useToastStore.getState().addToast('크레딧 차감 실패', 'error');
+            setCreditConfirmCard(null);
+            return;
+        }
+        setDeck((p) => [...p, creditConfirmCard]);
+        addToCardLibrary(creditConfirmCard);
+        useToastStore.getState().addToast(`크레딧 ${EXTRA_CARD_CREDIT}개 차감됨`, 'info');
+        setCreditConfirmCard(null);
+    }, [creditConfirmCard, spend, addToCardLibrary]);
+
+    /** 크레딧 확인 취소 */
+    const cancelCreditAdd = useCallback(() => {
+        setCreditConfirmCard(null);
+    }, []);
+
+    // ── 덱에서 제거 (초과 카드면 크레딧 환불) ──
+    const addCredits = useProjectStore((s) => s.addCredits);
+    const removeFromDeck = (id: string) => {
+        const willRemove = deck.some((c) => c.id === id);
+        if (willRemove && deck.length > DEFAULT_DECK_SIZE) {
+            // 초과 카드 제거 → 크레딧 환불
+            addCredits(EXTRA_CARD_CREDIT);
+            useToastStore.getState().addToast(`크레딧 ${EXTRA_CARD_CREDIT}개 환불됨`, 'info');
+        }
+        setDeck((p) => p.filter((c) => c.id !== id));
+    };
 
     // ── 새 카드 풀에서 덱에 추가 ──
     const handleAddCard = () => {
@@ -174,6 +219,9 @@ export function useDeck({
         isDeckSelected,
         addToDeck,
         removeFromDeck,
+        creditConfirmCard,
+        confirmCreditAdd,
+        cancelCreditAdd,
         handleAddCard,
         handleGenerateAsset,
         handleManualAddCard,

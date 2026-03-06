@@ -20,5 +20,6 @@ export const CREDIT_COST_TABLE: Record<string, CreditCostItem> = {
     image:  { platformFee: 1, apiCost: 2,  total: 3,  totalByok: 1 },
     video:  { platformFee: 2, apiCost: 8,  total: 10, totalByok: 2 },
     tts:    { platformFee: 1, apiCost: 1,  total: 2,  totalByok: 1 },
-    card:   { platformFee: 1, apiCost: 2,  total: 3,  totalByok: 1 },
+    card:      { platformFee: 1, apiCost: 2,  total: 3,  totalByok: 1 },
+    promptAi:  { platformFee: 1, apiCost: 1,  total: 2,  totalByok: 1 },
 };

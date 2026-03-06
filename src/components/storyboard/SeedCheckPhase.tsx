@@ -44,6 +44,12 @@ interface SeedCheckPhaseProps {
     nextLabel?: string;
     /** 영상 비율 (예: "16:9") */
     aspectRatio?: string;
+    /** AI 프롬프트 작성 콜백 (크레딧 소모) */
+    onAiPromptGenerate?: () => void;
+    /** AI 프롬프트 생성 중 여부 */
+    isAiPromptGenerating?: boolean;
+    /** AI 프롬프트 크레딧 비용 (UI 표시용) */
+    aiPromptCreditCost?: number;
 }
 
 const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
@@ -63,6 +69,9 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
     onVideoModelChange,
     nextLabel,
     aspectRatio,
+    onAiPromptGenerate,
+    isAiPromptGenerating,
+    aiPromptCreditCost,
 }) => {
     const {
         sceneGenStatus,
@@ -147,7 +156,7 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                 {/* 진행 인디케이터 */}
                 <div className="sc-progress-indicator">
                     <div className={`sc-progress-step ${Object.keys(customPrompts).length > 0 ? 'sc-progress-step--done' : 'sc-progress-step--active'}`}>
-                        ① AI 분석 {Object.keys(customPrompts).length > 0 ? '✓' : ''}
+                        ① 프롬프트 작성 {Object.keys(customPrompts).length > 0 ? '✓' : ''}
                     </div>
                     <span className="sc-progress-arrow">→</span>
                     <div className={`sc-progress-step ${allImagesDone ? 'sc-progress-step--done' : doneSceneCount > 0 ? 'sc-progress-step--active' : ''}`}>
@@ -301,12 +310,25 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                             </button>
                         </>
                     ) : Object.keys(customPrompts).length === 0 ? (
-                        /* Step 1: 프롬프트 미작성 → AI 분석 버튼 */
+                        /* Step 1: 프롬프트 미작성 → 듀얼 버튼 */
                         <>
                             <span className="sb-bottom-actions__info">프롬프트를 먼저 작성해주세요</span>
                             <button className="btn-primary sb-bottom-actions__btn" onClick={initPrompts}>
-                                <Sparkles size={14} /> AI 분석 및 프롬프트 작성
+                                <Sparkles size={14} /> 프롬프트 자동 생성
                             </button>
+                            {onAiPromptGenerate && (
+                                <button
+                                    className="btn-secondary sb-bottom-actions__btn"
+                                    onClick={onAiPromptGenerate}
+                                    disabled={isAiPromptGenerating}
+                                >
+                                    {isAiPromptGenerating ? (
+                                        <><Loader size={14} className="spin" /> AI 작성 중...</>
+                                    ) : (
+                                        <><Sparkles size={14} /> AI 프롬프트 작성 ({aiPromptCreditCost || 2}크레딧)</>
+                                    )}
+                                </button>
+                            )}
                         </>
                     ) : (
                         /* Step 2: 일괄 이미지 생성 */
@@ -341,12 +363,25 @@ const SeedCheckPhase: React.FC<SeedCheckPhaseProps> = ({
                             </button>
                         </>
                     ) : Object.keys(customPrompts).length === 0 ? (
-                        /* Step 1: 프롬프트 미작성 → AI 분석 버튼 */
+                        /* Step 1: 프롬프트 미작성 → 듀얼 버튼 */
                         <>
                             <span className="sb-bottom-actions__info">프롬프트를 먼저 작성해주세요</span>
                             <button className="btn-primary sb-bottom-actions__btn" onClick={initPrompts}>
-                                <Sparkles size={14} /> AI 분석 및 프롬프트 작성
+                                <Sparkles size={14} /> 프롬프트 자동 생성
                             </button>
+                            {onAiPromptGenerate && (
+                                <button
+                                    className="btn-secondary sb-bottom-actions__btn"
+                                    onClick={onAiPromptGenerate}
+                                    disabled={isAiPromptGenerating}
+                                >
+                                    {isAiPromptGenerating ? (
+                                        <><Loader size={14} className="spin" /> AI 작성 중...</>
+                                    ) : (
+                                        <><Sparkles size={14} /> AI 프롬프트 작성 ({aiPromptCreditCost || 2}크레딧)</>
+                                    )}
+                                </button>
+                            )}
                         </>
                     ) : !allImagesDone ? (
                         /* Step 2: 프롬프트 작성됨 → 일괄 이미지 생성 */

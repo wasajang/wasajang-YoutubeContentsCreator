@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { AssetCard } from '../../store/projectStore';
 import type { UseDeckApi } from '../../hooks/useDeck';
-import { MAX_AI_SLOTS, MAX_MANUAL_SLOTS, MAX_DECK_SIZE } from '../../hooks/useDeck';
+import { DEFAULT_DECK_SIZE, MAX_DECK_SIZE } from '../../hooks/useDeck';
 import DeckPanel from './DeckPanel';
 import AiAnalysisModal from './AiAnalysisModal';
 
@@ -45,7 +45,6 @@ const CastSetupPhase: React.FC<CastSetupPhaseProps> = ({
 }) => {
     const {
         deck, deckChars, deckBgs, deckItems,
-        aiCards, manualCards,
         poolTab, setPoolTab,
         poolFilter, setPoolFilter,
         addType, setAddType,
@@ -72,7 +71,7 @@ const CastSetupPhase: React.FC<CastSetupPhaseProps> = ({
             <div className="sb-phase-title">
                 <span>2단계: 촬영 카드 선택</span>
                 <span className="sb-phase-title__progress">
-                    AI {aiCards.length}/{MAX_AI_SLOTS} · 수동 {manualCards.length}/{MAX_MANUAL_SLOTS} · 총 {deck.length}/{MAX_DECK_SIZE}
+                    덱 {deck.length}/{DEFAULT_DECK_SIZE} (무료) · 최대 {MAX_DECK_SIZE}
                 </span>
             </div>
 
